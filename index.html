@@ -282,7 +282,7 @@
 
         <div class="controls-grid">
             <select id="filter-date" onchange="renderRaces()">
-                <option value="ALL">All Dates</option>
+                <!-- Options populated by JS -->
             </select>
             <select id="filter-place" onchange="renderRaces()">
                 <option value="ALL">All Places</option>
@@ -341,11 +341,16 @@
             }
             
             const dp = document.getElementById('filter-date');
-            Array.from(dateSet).sort().forEach(d => {
+            const datesArr = Array.from(dateSet).sort();
+            datesArr.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d; opt.innerText = d;
                 dp.appendChild(opt);
             });
+            if (datesArr.length > 0) {
+                dp.value = datesArr[datesArr.length - 1]; // Default to latest date
+            }
+            
             const pp = document.getElementById('filter-place');
             Array.from(placeSet).sort().forEach(p => {
                 const opt = document.createElement('option');
