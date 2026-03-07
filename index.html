@@ -402,9 +402,29 @@
                     sortedHorses.sort((a, b) => (parseInt(a.horse_number) || 0)  - (parseInt(b.horse_number) || 0));
                 }
 
+<<<<<<< HEAD
                 // calculate max score for bar formatting
                 const maxScore = Math.max(...sortedHorses.map(h => parseFloat(h.Ensemble) || 0.1));
                 const minScore = Math.min(...sortedHorses.map(h => parseFloat(h.Ensemble) || 0));
+=======
+                // --- Calculate Softmax Probabilities (Top 8 Softmax) ---
+                const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b.Ensemble) || 0) - (parseFloat(a.Ensemble) || 0));
+                const top8Horses = sortedByScore.slice(0, 8);
+                
+                const top8Scores = top8Horses.map(h => parseFloat(h.Ensemble) || 0);
+                const maxEns = top8Scores.length > 0 ? Math.max(...top8Scores) : 0;
+                const expScores = top8Scores.map(s => Math.exp(s - maxEns));
+                const sumExp = expScores.reduce((a, b) => a + b, 0);
+                
+                top8Horses.forEach((h, idx) => {
+                    h.pWin = expScores[idx] / sumExp;
+                });
+
+                // calculate max score for bar formatting
+                const allEnsembleScores = sortedHorses.map(h => parseFloat(h.Ensemble) || 0);
+                const maxScore = Math.max(...allEnsembleScores, 0.1);
+                const minScore = Math.min(...allEnsembleScores, 0);
+>>>>>>> 72d0669 (Auto-update race data and HTML)
 
                 const card = document.createElement('div');
                 card.className = 'race-card';
