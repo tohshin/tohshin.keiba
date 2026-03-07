@@ -313,16 +313,27 @@
                 container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
 
                 try {
-                    // data.jsonを外部から非同期で取得
-                    const response = await fetch('data.json?t=' + new Date().getTime());
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    currentData = await response.json();
+                    // data.json と tansho_data.json を取得
+                    const [dataRes, tanshoRes] = await Promise.all([
+                        fetch('jsons/data.json?t=' + new Date().getTime()),
+                        fetch('jsons/tansho_data.json?t=' + new Date().getTime())
+                    ]);
+
+                    if (!dataRes.ok) throw new Error('Data fetch failed');
+                    currentData = await dataRes.json();
+                    
+                    if (tanshoRes.ok) {
+                        window.tanshoData = await tanshoRes.json();
+                    } else {
+                        console.warn("tansho_data.json not found, using empty data.");
+                        window.tanshoData = {};
+                    }
                     
                     initFilters();
                     renderRaces();
                 } catch (error) {
                     console.error("Fetch error: ", error);
-                    container.innerHTML = '<div style="text-align:center; padding: 40px; color: #ef4444;"><p>Failed to load data.json. Note: This requires a web server.</p></div>';
+                    container.innerHTML = '<div style="text-align:center; padding: 40px; color: #ef4444;"><p>Failed to load data.json or tansho_data.json. Note: This requires a web server.</p></div>';
                 }
             } else {
                 document.getElementById('login-error').style.display = 'block';
@@ -412,6 +423,18 @@
                         widthPct = Math.max(5, ((ensScore - Math.min(0, minScore)) / (maxScore - Math.min(0, minScore))) * 100);
                     }
                     
+                    // Get Win Odds and calculate KV
+                    const raceWinOdds = window.tanshoData ? window.tanshoData[raceId] : null;
+                    let winOdds = "-";
+                    let kv = 0;
+                    if (raceWinOdds) {
+                        const horseOdds = raceWinOdds.find(o => o[0] == hNum);
+                        if (horseOdds) {
+                            winOdds = horseOdds[1];
+                            kv = ensScore * parseFloat(winOdds);
+                        }
+                    }
+                    
                     let rankClass = '';
                     if(sortBy === 'score') {
                         if(index === 0) rankClass = 'rank-1';
@@ -424,7 +447,10 @@
                             <div style="display: flex; width: 100%; align-items: center; margin-bottom: 6px;">
                                 <div class="horse-num">${hNum}</div>
                                 <div class="horse-details">
-                                    <div class="horse-name">${hName}</div>
+                                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                                        <div class="horse-name">${hName}</div>
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: #fbbf24;">単勝: ${winOdds} | KV: <span style="color: ${kv >= 1.5 ? '#4ade80' : (kv >= 1.0 ? '#f8fafc' : '#94a3b8')}">${kv > 0 ? kv.toFixed(2) : '-'}</span></div>
+                                    </div>
                                     <div class="horse-score-bar-bg">
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${widthPct}%"></div>
                                     </div>
