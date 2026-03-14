@@ -1,2 +1,2 @@
-deploy_tmp/
+deploy_tmp/*
 generate_html.py
