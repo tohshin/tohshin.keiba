@@ -262,6 +262,135 @@
         }
         #login-error { color: #ef4444; margin-top: 10px; font-size: 0.9rem; display: none; font-weight: 600; }
 
+        /* AI Recommendation Modal Styles */
+        .pickup-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.25), rgba(59, 130, 246, 0.25));
+            border: 1px solid rgba(74, 222, 128, 0.5);
+            color: #4ade80;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(74, 222, 128, 0.2);
+            letter-spacing: 0.05em;
+        }
+
+        .pickup-badge:hover {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.4), rgba(59, 130, 246, 0.4));
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(74, 222, 128, 0.5);
+            transform: translateY(-2px) scale(1.08);
+        }
+
+        /* Modal Overlay */
+        #recommend-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: linear-gradient(165deg, #1e293b, #0f172a);
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            border-radius: 24px;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            position: relative;
+            padding: 30px;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(74, 222, 128, 0.1);
+            animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes modalPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: #ffffff; }
+
+        .bet-eyes-box {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            border-radius: 16px;
+            margin: 15px 0;
+            border: 2px solid rgba(74, 222, 128, 0.3);
+            text-align: center;
+            box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.05);
+        }
+
+        .bet-eyes-text {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #4ade80;
+            font-family: 'Space Mono', monospace;
+            text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+            letter-spacing: 0.1em;
+        }
+
+        .strategy-item-modal {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .strategy-item-modal:last-child { border-bottom: none; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .stat-value.positive { color: #4ade80; }
+
+        /* Highlighting Styles */
+        .is-jiku {
+            background: rgba(74, 222, 128, 0.12) !important;
+            border-left: 5px solid #4ade80 !important;
+            box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.08);
+        }
+        .is-jiku .horse-name {
+            color: #4ade80;
+            font-weight: 800;
+            font-size: 1.15rem;
+        }
+        .is-partner {
+            background: rgba(254, 243, 199, 0.08) !important;
+            border-left: 5px solid #fbbf24 !important;
+        }
+        .is-partner .horse-name {
+            color: #fde68a;
+            font-weight: 600;
+        }
+
+        .race-card {
+            position: relative;
+            overflow: hidden; /* Ensure highlighting doesn't overflow rounded corners */
+        }
+
     </style>
 </head>
 <body>
@@ -281,7 +410,7 @@
         </header>
 
         <div class="controls-grid">
-            <select id="filter-date" onchange="renderRaces()">
+            <select id="filter-date" onchange="onDateChange()">
                 <!-- Options populated by JS -->
             </select>
             <select id="filter-place" onchange="renderRaces()">
@@ -292,11 +421,29 @@
             </select>
             <select id="sort-select" onchange="renderRaces()">
                 <option value="score">Sort by AI Score</option>
+                <option value="odds">Sort by Odds</option>
                 <option value="horse_number">Sort by Horse Number</option>
+            </select>
+            <select id="model-select" onchange="renderRaces()" style="display: none;">
+                <option value="Ensemble">Ensemble</option>
+                <option value="LightGBM">LightGBM</option>
+                <option value="XGBoost">XGBoost</option>
+                <option value="CatBoost">CatBoost</option>
+                <option value="LSTM">LSTM</option>
+                <option value="RandomForest">RandomForest</option>
+                <option value="DecisionTree">DecisionTree</option>
             </select>
         </div>
 
         <div id="races-container" class="race-list"></div>
+    </div>
+
+    <!-- Recommendation Modal -->
+    <div id="recommend-modal" onclick="if(event.target===this) closeRecommendation()">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeRecommendation()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
     </div>
 
     <script>
@@ -305,74 +452,136 @@
         async function checkAuth() {
             const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshi') {
+                // ログイン成功時にタイムスタンプを保存
+                localStorage.setItem('keiba_auth_time', new Date().getTime());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
                 
-                const container = document.getElementById('races-container');
-                container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
-
-                try {
-                    // data.json と tansho_data.json を取得
-                    const [dataRes, tanshoRes] = await Promise.all([
-                        fetch('jsons/data.json?t=' + new Date().getTime()),
-                        fetch('jsons/tansho_data.json?t=' + new Date().getTime())
-                    ]);
-
-                    if (!dataRes.ok) throw new Error('Data fetch failed');
-                    currentData = await dataRes.json();
-                    
-                    if (tanshoRes.ok) {
-                        window.tanshoData = await tanshoRes.json();
-                    } else {
-                        console.warn("tansho_data.json not found, using empty data.");
-                        window.tanshoData = {};
-                    }
-                    
-                    initFilters();
-                    renderRaces();
-                } catch (error) {
-                    console.error("Fetch error: ", error);
-                    container.innerHTML = '<div style="text-align:center; padding: 40px; color: #ef4444;"><p>Failed to load data.json or tansho_data.json. Note: This requires a web server.</p></div>';
-                }
+                loadData();
             } else {
                 document.getElementById('login-error').style.display = 'block';
             }
         }
 
-        function initFilters() {
-            const dateSet = new Set();
-            const placeSet = new Set();
-            const roundSet = new Set();
-            
-            for (const race of Object.values(currentData)) {
-                if(race.date) dateSet.add(race.date);
-                if(race.place && race.place.search(/\S/) !== -1 && !/^\d+$/.test(race.place)) placeSet.add(race.place);
-                if(race.round) roundSet.add(race.round);
+        // ページ読み込み時に認証チェック
+        window.onload = function() {
+            const authTime = localStorage.getItem('keiba_auth_time');
+            if (authTime) {
+                const now = new Date().getTime();
+                const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                if (diffHours < 24) {
+                    document.getElementById('auth-overlay').style.display = 'none';
+                    document.getElementById('app-content').style.display = 'block';
+                    loadData();
+                    return;
+                }
             }
-            
+            // 認証が必要な場合
+            document.getElementById('auth-overlay').style.display = 'flex';
+        };
+
+        async function loadData() {
+            const container = document.getElementById('races-container');
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
+
+            try {
+                const [dataRes, tanshoRes] = await Promise.all([
+                    fetch('jsons/data.json?t=' + new Date().getTime()),
+                    fetch('jsons/tansho_data.json?t=' + new Date().getTime())
+                ]);
+
+                if (!dataRes.ok) throw new Error('Data fetch failed');
+                currentData = await dataRes.json();
+                
+                if (tanshoRes.ok) {
+                    window.tanshoData = await tanshoRes.json();
+                } else {
+                    console.warn("tansho_data.json not found, using empty data.");
+                    window.tanshoData = {};
+                }
+                
+                initFilters();
+                renderRaces();
+            } catch (error) {
+                console.error("Fetch error details: ", error);
+                const isLocal = window.location.protocol === 'file:';
+                container.innerHTML = `
+                    <div style="text-align:center; padding: 40px; color: #ef4444;">
+                        <p style="font-weight: 800; font-size: 1.2rem; margin-bottom: 15px;">Data Load Error</p>
+                        <p style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 20px;">
+                            ${error.message}<br>
+                            ${isLocal ? '【重要】ローカルファイルとして直接開いているため、ブラウザのセキュリティ制限（CORS）により読み込みがブロックされています。' : ''}
+                        </p>
+                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: left; display: inline-block;">
+                            <p style="font-size: 0.8rem; font-weight: 800; margin-bottom: 8px;">解決方法:</p>
+                            <ol style="font-size: 0.8rem; color: #f8fafc; padding-left: 20px;">
+                                <li>VSCode の "Live Server" 拡張機能を使用する</li>
+                                <li>ターミナルで <code>python -m http.server</code> を実行し、localhost:8000 にアクセスする</li>
+                                <li><code>serve.bat</code> を作成して実行する</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function initFilters() {
             const dp = document.getElementById('filter-date');
-            const datesArr = Array.from(dateSet).sort();
+            const datesArr = [...new Set(Object.values(currentData).map(r => r.date))].sort();
+            
             datesArr.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d; opt.innerText = d;
                 dp.appendChild(opt);
             });
+            
             if (datesArr.length > 0) {
                 dp.value = datesArr[datesArr.length - 1]; // Default to latest date
             }
             
+            // Round フィルタの選択肢を初期化 (1R-12R)
+            const rp = document.getElementById('filter-round');
+            rp.innerHTML = '<option value="ALL">All Races</option>';
+            for (let i = 1; i <= 12; i++) {
+                const opt = document.createElement('option');
+                opt.value = String(i);
+                opt.innerText = i + "R";
+                rp.appendChild(opt);
+            }
+            
+            updatePlaceFilter();
+        }
+
+        function onDateChange() {
+            updatePlaceFilter();
+            renderRaces();
+        }
+
+        function updatePlaceFilter() {
+            const dp = document.getElementById('filter-date');
             const pp = document.getElementById('filter-place');
-            Array.from(placeSet).sort().forEach(p => {
+            const selectedDate = dp.value;
+            
+            const prevValue = pp.value;
+            pp.innerHTML = '<option value="ALL">All Places</option>';
+            
+            const placesForDate = [...new Set(
+                Object.values(currentData)
+                    .filter(r => r.date === selectedDate)
+                    .map(r => r.place)
+                    .filter(p => p && p.trim() !== '' && !/^\d+$/.test(p))
+            )].sort();
+            
+            placesForDate.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p; opt.innerText = p;
                 pp.appendChild(opt);
             });
-            const rp = document.getElementById('filter-round');
-            Array.from(roundSet).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r; opt.innerText = parseInt(r) + "R";
-                rp.appendChild(opt);
-            });
+            
+            // Try to restore previous selection if valid
+            if (placesForDate.includes(prevValue)) {
+                pp.value = prevValue;
+            }
         }
 
         function renderRaces() {
@@ -380,10 +589,19 @@
             container.innerHTML = '';
             
             const sortBy = document.getElementById('sort-select').value;
+            const sortModel = document.getElementById('model-select').value;
+            const mSelect = document.getElementById('model-select');
             const fDate = document.getElementById('filter-date').value;
             const fPlace = document.getElementById('filter-place').value;
             const fRound = document.getElementById('filter-round').value;
- 
+
+            // Show model selector only when sorting by score
+            if (sortBy === 'score') {
+                mSelect.style.display = 'inline-block';
+            } else {
+                mSelect.style.display = 'none';
+            }
+
             let delay = 0;
 
             for (const [raceId, raceData] of Object.entries(currentData)) {
@@ -393,15 +611,107 @@
                 if (fPlace !== 'ALL' && raceData.place !== fPlace) continue;
                 if (fRound !== 'ALL' && String(raceData.round) !== String(fRound)) continue;
 
-                // Sort horses based on Ensemble score or number
+                // Sort horses
                 let sortedHorses = [...raceData.horses];
+                
+                const getWinOdds = (h) => {
+                    const rIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
+                    const rOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[rIdShort]) : null;
+                    if (rOdds) {
+                        const hO = rOdds.find(o => o[0] == h.horse_number);
+                        if (hO) return parseFloat(hO[1]) || 999;
+                    }
+                    return 999;
+                };
+
                 if (sortBy === 'score') {
-                    sortedHorses.sort((a, b) => (parseFloat(b.Ensemble) || 0)  - (parseFloat(a.Ensemble) || 0));
+                    const mKey = (sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw';
+                    sortedHorses.sort((a, b) => (parseFloat(b[mKey]) || 0)  - (parseFloat(a[mKey]) || 0));
+                } else if (sortBy === 'odds') {
+                    sortedHorses.sort((a, b) => getWinOdds(a) - getWinOdds(b));
                 } else {
                     sortedHorses.sort((a, b) => (parseInt(a.horse_number) || 0)  - (parseInt(b.horse_number) || 0));
                 }
 
-                // --- Calculate Softmax Probabilities (Top 8 Softmax) ---
+                // Decide main score vs sub scores display key for the whole race
+                const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
+
+                // --- 1. Calculate Z-Scores for Each Model Per Race ---
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+                const raceStats = {};
+                scoreModels.forEach(m => {
+                    const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length;
+                    const std = Math.sqrt(variance) || 1.0;
+                    raceStats[m] = { mean, std };
+                });
+
+                // Helper to get Z-Score (Synchronized between Display and Logic)
+                const getZ = (h, m) => {
+                    const stats = raceStats[m];
+                    const val = parseFloat(h[m]) || 0;
+                    return (val - stats.mean) / stats.std;
+                };
+
+                // --- 2. Strategy Highlighting Calculation (Z-Score Based Thresholding) ---
+                const jikuSet = new Set();
+                const partnerSet = new Set();
+
+                (raceData.strategies || []).forEach(s => {
+                    const scoreKey = s.model === 'Ensemble' ? 'Ensemble' : s.model + "_raw";
+                    const allSorted = [...raceData.horses].sort((a,b) => getZ(b, scoreKey) - getZ(a, scoreKey));
+                    if (allSorted.length === 0) return;
+
+                    const sThRaw = parseFloat(s.score_th);
+                    const a2ThRaw = parseFloat(s.axis2_score_th);
+                    const pThRaw = parseFloat(s.partner_score_th);
+                    const sTh = isNaN(sThRaw) ? -9.9 : sThRaw;
+                    const a2Th = isNaN(a2ThRaw) ? pThRaw : (isNaN(a2ThRaw) ? -9.9 : a2ThRaw); // axis2 missing -> use partner_th
+                    const pTh = isNaN(pThRaw) ? -9.9 : pThRaw;
+
+                    if (s.type === "単勝") {
+                        if (getZ(allSorted[0], scoreKey) >= sTh) {
+                            jikuSet.add(String(allSorted[0].horse_number));
+                        }
+                    } else if (s.type.includes("BOX")) {
+                        const count = parseInt(s.partners) || 5;
+                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= pTh).slice(0, count);
+                        if (valid.length >= 2) {
+                            valid.forEach(h => partnerSet.add(String(h.horse_number)));
+                        }
+                    } else {
+                        const axisCount = parseInt(s.axis_count) || 1;
+                        const partnerCount = parseInt(s.partners) || 5;
+                        
+                        // 1軸目の判定
+                        const axes1 = allSorted.filter(h => getZ(h, scoreKey) >= sTh).slice(0, 1);
+                        if (axes1.length > 0) {
+                            let finalAxes = [...axes1];
+                            let others = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
+                            
+                            // 2軸目がある場合
+                            if (axisCount >= 2) {
+                                const axis2Candidate = others.filter(h => getZ(h, scoreKey) >= a2Th).slice(0, axisCount - 1);
+                                if (axis2Candidate.length < axisCount - 1) {
+                                    return; // 2軸目が条件を満たさない場合はこの戦略はスキップ
+                                }
+                                finalAxes = finalAxes.concat(axis2Candidate);
+                                const axis2Numbers = new Set(axis2Candidate.map(ax => ax.horse_number));
+                                others = others.filter(h => !axis2Numbers.has(h.horse_number));
+                            }
+
+                            const partners = others.filter(h => getZ(h, scoreKey) >= pTh).slice(0, partnerCount);
+                            
+                            if (partners.length > 0) {
+                                finalAxes.forEach(h => jikuSet.add(String(h.horse_number)));
+                                partners.forEach(h => partnerSet.add(String(h.horse_number)));
+                            }
+                        }
+                    }
+                });
+
+                // --- Calculate Softmax Probabilities (Top 8 Softmax using Ensemble) ---
                 const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b.Ensemble) || 0) - (parseFloat(a.Ensemble) || 0));
                 const top8Horses = sortedByScore.slice(0, 8);
                 
@@ -416,10 +726,10 @@
                     h.pWin = expScores[idx] / sumExp;
                 });
 
-                // calculate max score for bar formatting
-                const allEnsembleScores = sortedHorses.map(h => parseFloat(h.Ensemble) || 0);
-                const maxScore = Math.max(...allEnsembleScores, 0.1);
-                const minScore = Math.min(...allEnsembleScores, 0);
+                // calculate max score for bar formatting based on main model
+                const allMainScores = sortedHorses.map(h => parseFloat(h[mainModelKey]) || 0);
+                const maxScore = Math.max(...allMainScores, 0.1);
+                const minScore = Math.min(...allMainScores, 0);
 
                 const card = document.createElement('div');
                 card.className = 'race-card';
@@ -435,8 +745,9 @@
                     
                     // Normalize width for bar
                     let widthPct = 0;
+                    const mainScoreVal = parseFloat(horse[mainModelKey]) || 0;
                     if(maxScore > 0) {
-                        widthPct = Math.max(5, ((ensScore - Math.min(0, minScore)) / (maxScore - Math.min(0, minScore))) * 100);
+                        widthPct = Math.max(5, ((mainScoreVal - Math.min(0, minScore)) / (maxScore - Math.min(0, minScore))) * 100);
                     }
                     
                     // Get Win Odds and calculate KV
@@ -460,8 +771,32 @@
                         else if(index === 2) rankClass = 'rank-3';
                     }
 
+                    // Strategy highlighting class
+                    const isJiku = jikuSet.has(String(hNum));
+                    const isPartner = partnerSet.has(String(hNum)) && !isJiku;
+                    const highlightClass = isJiku ? 'is-jiku' : (isPartner ? 'is-partner' : '');
+
+                    // Decide main score vs sub scores display
+                    // mainModelKey decided above
+                    const scoreModels = ['Ensemble', 'LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw'];
+                    const subModels = scoreModels.filter(m => m !== mainModelKey);
+                    const modelShortNames = {
+                        'Ensemble': 'Ens',
+                        'LightGBM_raw': 'LGBM',
+                        'XGBoost_raw': 'XGB',
+                        'CatBoost_raw': 'CB',
+                        'LSTM_raw': 'LSTM',
+                        'RandomForest_raw': 'RF',
+                        'DecisionTree_raw': 'DT'
+                    };
+
+                    let subScoresHtml = '';
+                    subModels.forEach(m => {
+                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Z(${modelShortNames[m]}): ${getZ(horse, m).toFixed(4)}</span> `;
+                    });
+
                     horsesHtml += `
-                        <div class="horse-row ${rankClass}" style="flex-wrap: wrap;">
+                        <div class="horse-row ${rankClass} ${highlightClass}" style="flex-wrap: wrap; padding-left: 8px;">
                             <div style="display: flex; width: 100%; align-items: center; margin-bottom: 6px;">
                                 <div class="horse-num">${hNum}</div>
                                 <div class="horse-details">
@@ -473,33 +808,40 @@
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${widthPct}%"></div>
                                     </div>
                                 </div>
-                                <div class="horse-score-val">${ensScore.toFixed(3)}</div>
+                                <div class="horse-score-val" title="${mainModelKey} Z-Score">${getZ(horse, mainModelKey).toFixed(4)}</div>
                             </div>
                             <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px;">
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">LGBM: ${parseFloat(horse.LightGBM_raw || 0).toFixed(3)}</span>
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">XGB: ${parseFloat(horse.XGBoost_raw || 0).toFixed(3)}</span>
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">CB: ${parseFloat(horse.CatBoost_raw || 0).toFixed(3)}</span>
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">LSTM: ${parseFloat(horse.LSTM_raw || 0).toFixed(3)}</span>
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">RF: ${parseFloat(horse.RandomForest_raw || 0).toFixed(3)}</span>
-                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">DT: ${parseFloat(horse.DecisionTree_raw || 0).toFixed(3)}</span>
+                                ${subScoresHtml}
                             </div>
                         </div>
                     `;
                 });
 
                 card.innerHTML = `
-                    <div class="race-info-header">
+                    <div class="race-info-header" style="padding-right: 140px;">
                         <div class="race-id">
                             <span style="color:var(--primary);">${raceData.title}</span>
-                            <div style="display: inline-flex; gap: 8px; margin-left: 10px; font-size: 0.8rem;">
+                            <div style="display: inline-flex; gap: 8px; margin-left: 10px; font-size: 0.8rem; align-items: center;">
                                 <a href="https://race.sp.netkeiba.com/race/shutuba.html?race_id=${raceData.race_id}" target="_blank" style="color:var(--text-muted); text-decoration:none; background:rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 6px;">🌐 Web</a>
                                 <a href="https://netkeiba.onelink.me/Wmzg?af_xp=custom&af_dp=jp.co.netdreamers.netkeiba%3A%2F%2F&deep_link_value=https%3A%2F%2Frace.sp.netkeiba.com%2Frace%2Fshutuba.html%3Frace_id%3D${raceData.race_id}&rf=race_toggle_menu" style="color:var(--primary); text-decoration:none; background:rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--primary);">🏇 App</a>
                             </div>
                         </div>
-                        <div class="race-meta">${sortedHorses.length} Horses</div>
+                        ${( () => {
+                            if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                            // Check if at least one valid recommendation exists
+                            const hasAnyValid = raceData.strategies.some(s => generateBettingEyes(raceData.horses, s, raceStats) !== '--');
+                            if (!hasAnyValid) return '';
+                            
+                            return `
+                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
+                                    <span>✨ PICKUP</span>
+                                </div>
+                            `;
+                        })()}
                     </div>
                     <div>
                         ${horsesHtml}
+                    </div>
                     </div>
                 `;
                 container.appendChild(card);
@@ -510,6 +852,119 @@
                     bar.style.width = bar.getAttribute('data-target');
                 });
             }, 50);
+        }
+
+        function showRecommendation(raceId) {
+            const raceData = currentData[raceId];
+            if (!raceData || !raceData.strategies) return;
+
+            const modal = document.getElementById('recommend-modal');
+            const body = document.getElementById('modal-body');
+            
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
+                </div>
+            `;
+
+            raceData.strategies.forEach(s => {
+                // Need to pass stats for Z-Score filtering in generateBettingEyes
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+                const stats = {};
+                scoreModels.forEach(m => {
+                    const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length;
+                    const std = Math.sqrt(variance) || 1.0;
+                    stats[m] = { mean, std };
+                });
+
+                const bettingEyes = generateBettingEyes(raceData.horses, s, stats);
+                if (bettingEyes === '--') return; // Skip if no recommendation
+
+                html += `
+                    <div class="strategy-item-modal">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${s.type} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${s.model}</span></div>
+                            <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${s.roi}% | Hit ${s.hit_rate}%</div>
+                        </div>
+                        <div class="bet-eyes-box">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                            <div class="bet-eyes-text">${bettingEyes}</div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
+                            Z-Score: Jiku1 > ${s.score_th} ${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th}
+                        </div>
+                    </div>
+                `;
+            });
+
+            body.innerHTML = html;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
+        }
+
+        function closeRecommendation() {
+            document.getElementById('recommend-modal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        function generateBettingEyes(horses, strategy, stats) {
+            const scoreKey = strategy.model === 'Ensemble' ? 'Ensemble' : strategy.model + "_raw";
+            const getZ = (h) => {
+                const s = stats[scoreKey];
+                return ((parseFloat(h[scoreKey]) || 0) - s.mean) / s.std;
+            };
+            
+            const allSorted = [...horses].sort((a,b) => getZ(b) - getZ(a));
+            const pad = (n) => String(n).padStart(2, '0');
+            if (allSorted.length === 0) return "--";
+
+            const sThRaw = parseFloat(strategy.score_th);
+            const a2ThRaw = parseFloat(strategy.axis2_score_th);
+            const pThRaw = parseFloat(strategy.partner_score_th);
+            const sTh = isNaN(sThRaw) ? -9.9 : sThRaw;
+            const a2Th = isNaN(a2ThRaw) ? pThRaw : (isNaN(a2ThRaw) ? -9.9 : a2ThRaw);
+            const pTh = isNaN(pThRaw) ? -9.9 : pThRaw;
+
+            // 単勝
+            if (strategy.type === "単勝") {
+                if (getZ(allSorted[0]) < sTh) return "--";
+                return pad(allSorted[0].horse_number);
+            }
+            
+            // BOX
+            if (strategy.type.includes("BOX")) {
+                const count = parseInt(strategy.partners) || 5;
+                const valid = allSorted.filter(h => getZ(h) >= pTh).slice(0, count);
+                if (valid.length < 2) return "--";
+                return valid.map(h => pad(h.horse_number)).join(',');
+            }
+
+            const axisCount = parseInt(strategy.axis_count) || 1;
+            const partnerCount = parseInt(strategy.partners) || 5;
+            
+            // 軸1
+            const axes1 = allSorted.filter(h => getZ(h) >= sTh).slice(0, 1);
+            if (axes1.length < 1) return "--";
+            
+            let finalAxes = [...axes1];
+            let remaining = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
+
+            // 軸2
+            if (axisCount >= 2) {
+                const axes2 = remaining.filter(h => getZ(h) >= a2Th).slice(0, axisCount - 1);
+                if (axes2.length < axisCount - 1) return "--";
+                finalAxes = finalAxes.concat(axes2);
+                const axis2Set = new Set(axes2.map(ax => ax.horse_number));
+                remaining = remaining.filter(h => !axis2Set.has(h.horse_number));
+            }
+
+            const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, partnerCount);
+            if (partners.length === 0) return "--";
+
+            return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
         }
 
     </script>
