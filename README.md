@@ -1,4 +1,4 @@
-# 東信競馬 AI 予想 (Tohshin Keiba)
+# トーシン競馬 AI 予想 (Tohshin Keiba)
 
 ## 実行方法
 
