@@ -1211,7 +1211,7 @@ def generate_static_html():
                         
                         if (type && resultCell && payoutCell) {{
                             // より確実に数字のみを抽出
-                            const allNums = (resultCell.innerText.match(/\d+/g) || [])
+                            const allNums = (resultCell.innerText.match(/\\d+/g) || [])
                                     .map(n => n.replace(/^0+/, ''));
                             
                             // 馬連などで "7 7 10 10" となるのを防ぐため基本はSetで重複排除するが、
@@ -1220,7 +1220,7 @@ def generate_static_html():
                             
                             // 払戻金のパース（"110円110円140円" のような結合を解消）
                             const payRaw = payoutCell.innerText.trim();
-                            const payTexts = payRaw.match(/\d{1,3}(,\d{3})*円/g) || [];
+                            const payTexts = payRaw.match(/\\d{1,3}(,\\d{3})*円/g) || [];
                             
                             if (numbers.length > 0) {{
                                 payoutData.nums[type] = numbers;
@@ -1328,34 +1328,35 @@ def generate_static_html():
                 let totalPay = 0;
                 let eyesCount = 0;
 
-                // 買い目数の正確な計算
+                // 買い目数の正確な計算 (正規化して3連/三連を統一)
+                const normType = type.replace('三連', '3連');
                 const axisCount = (eyesText.match(/→/g) || []).length; 
                 const partners = eyesText.split('→').pop().split(',').length;
                 
-                if (type.includes("単勝") || type.includes("複勝")) {{
+                if (normType.includes("単勝") || normType.includes("複勝")) {{
                     eyesCount = 1;
-                }} else if (type.includes("BOX")) {{
+                }} else if (normType.includes("BOX")) {{
                     const n = eyesText.split(',').length;
-                    if (type.includes("3連単")) eyesCount = n * (n-1) * (n-2);
-                    else if (type.includes("3連複")) eyesCount = n * (n-1) * (n-2) / 6;
-                    else if (type.includes("馬単")) eyesCount = n * (n-1);
-                    else if (type.includes("馬連") || type.includes("ワイド")) eyesCount = n * (n-1) / 2;
-                }} else if (type.includes("マルチ")) {{
-                    if (type.includes("3連単")) {{
+                    if (normType.includes("3連単")) eyesCount = n * (n-1) * (n-2);
+                    else if (normType.includes("3連複")) eyesCount = n * (n-1) * (n-2) / 6;
+                    else if (normType.includes("馬単")) eyesCount = n * (n-1);
+                    else if (normType.includes("馬連") || normType.includes("ワイド")) eyesCount = n * (n-1) / 2;
+                }} else if (normType.includes("マルチ")) {{
+                    if (normType.includes("3連単")) {{
                         if (axisCount === 1) eyesCount = 3 * partners * (partners - 1);
                         else eyesCount = 6 * partners;
-                    }} else if (type.includes("馬単")) {{
+                    }} else if (normType.includes("馬単")) {{
                         eyesCount = 2 * partners;
                     }}
                 }} else {{
                     // 流し
-                    if (type.includes("3連単") && axisCount === 1) eyesCount = partners * (partners - 1);
+                    if (normType.includes("3連単") && axisCount === 1) eyesCount = partners * (partners - 1);
                     else eyesCount = partners;
                 }}
 
                 if (winNums.length > 0) {{
                     const predictedSet = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
-                    const isMulti = type.includes("マルチ") || type.includes("BOX") || type.includes("3連複") || type.includes("馬連") || type.includes("ワイド");
+                    const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
                     if (baseType === "単勝") {{
                         isHit = (predictedSet[0] === winNums[0]);
@@ -1363,18 +1364,15 @@ def generate_static_html():
                         isHit = winNums.some(n => predictedSet.includes(n));
                     }} else if (isMulti) {{
                         if (baseType === "ワイド") {{
-                            // Check for any winning pair in predicted set
                             for (let i = 0; i < winNums.length; i += 2) {{
                                 if (predictedSet.includes(winNums[i]) && predictedSet.includes(winNums[i+1])) {{
                                     isHit = true; break;
                                 }}
                             }}
                         }} else {{
-                            // Order independent: all win horses must be in predicted set
                             isHit = winNums.every(n => predictedSet.includes(n));
                         }}
                     }} else {{
-                        // Order dependent (流し)
                         const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
                         isHit = winNums.every((n, i) => seqPredicted[i] === n);
                     }}
@@ -1409,8 +1407,9 @@ def generate_static_html():
                 }}
 
                 if (isHit && eyesElem) {{
-                    eyesElem.innerHTML = eyesText + ' <span style="color:#4ade80; font-size:1.2rem; margin-left:8px;">🎯</span>';
+                    eyesElem.innerHTML = eyesText + ' <span style="color:#4ade80; font-size:1.5rem; margin-left:12px; font-weight:900; vertical-align:middle;">🎯 的中</span>';
                 }}
+            }});
             }});
         }}
 
