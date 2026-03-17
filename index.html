@@ -853,6 +853,71 @@
             }, 50);
         }
 
+        async function fetchRaceResults(raceId) {
+            console.log("[DEBUG] fetchRaceResults entry, raceId:", raceId);
+            const container = document.getElementById('modal-body');
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'race-results-container';
+            resultDiv.style.marginTop = '20px';
+            resultDiv.style.padding = '15px';
+            resultDiv.style.background = 'rgba(0,0,0,0.2)';
+            resultDiv.style.borderRadius = '12px';
+            resultDiv.innerHTML = '<div style="text-align:center;">Fetching actual results...</div>';
+            container.appendChild(resultDiv);
+
+            try {
+                // allorigins.win を使用して CORS を回避
+                const targetUrl = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${raceId}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${new Date().getTime()}`;
+                
+                console.log("[DEBUG] Fetching results via AllOrigins:", proxyUrl);
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Proxy response not OK');
+                
+                const data = await response.json();
+                const html = data.contents;
+                
+                // netkeibaはEUC-JPだが、alloriginsが文字列として返してくれるはず
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                const payoutTables = doc.querySelectorAll('.Pay_Table_01');
+                console.log("[DEBUG] Found payout tables count:", payoutTables.length);
+
+                if (payoutTables.length === 0) {
+                    resultDiv.innerHTML = '<div style="color:var(--text-muted); text-align:center;">Results not available yet.</div>';
+                    return;
+                }
+
+                let resultsHtml = '<h3 style="color:#4ade80; font-size:1rem; margin-bottom:10px; border-bottom:1px solid rgba(74,222,128,0.2); padding-bottom:5px;">Race Results</h3>';
+                payoutTables.forEach(table => {
+                    resultsHtml += `<div style="font-size:0.8rem; margin-bottom:10px; overflow-x:auto;">${table.outerHTML}</div>`;
+                });
+                
+                resultDiv.innerHTML = resultsHtml;
+
+                // スタイル調整
+                const tables = resultDiv.querySelectorAll('table');
+                tables.forEach(t => {
+                    t.style.width = '100%';
+                    t.style.borderCollapse = 'collapse';
+                    t.style.color = '#f8fafc';
+                    t.querySelectorAll('th, td').forEach(cell => {
+                        cell.style.padding = '4px 8px';
+                        cell.style.border = '1px solid rgba(255,255,255,0.1)';
+                    });
+                    t.querySelectorAll('th').forEach(th => {
+                        th.style.background = 'rgba(255,255,255,0.05)';
+                        th.style.textAlign = 'left';
+                    });
+                });
+
+            } catch (error) {
+                console.error("[ERROR] Failed to fetch results:", error);
+                resultDiv.innerHTML = `<div style="color:#ef4444; font-size:0.8rem;">Failed to load results: ${error.message}</div>`;
+            }
+        }
+
         function showRecommendation(raceId) {
             const raceData = currentData[raceId];
             if (!raceData || !raceData.strategies) return;
@@ -902,6 +967,9 @@
             body.innerHTML = html;
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden'; // Prevent background scroll
+
+            // ヒストリーから結果の取得を試みる
+            fetchRaceResults(raceId);
         }
 
         function closeRecommendation() {
