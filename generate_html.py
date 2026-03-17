@@ -768,11 +768,9 @@ def generate_static_html():
         async function checkAuth() {{
             const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshin20') {{
-                // ログイン成功時にタイムスタンプを保存
                 localStorage.setItem('keiba_auth_time', new Date().getTime());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
-                
                 loadData();
             }} else {{
                 document.getElementById('login-error').style.display = 'block';
@@ -865,32 +863,31 @@ def generate_static_html():
                 rp.appendChild(opt);
             }}
             
-            updatePlaceFilter();
+            updatePlacesForDate();
         }}
 
         function onDateChange() {{
-            updatePlaceFilter();
+            updatePlacesForDate();
             renderRaces();
         }}
 
-        function updatePlaceFilter() {{
-            const dp = document.getElementById('filter-date');
+        function updatePlacesForDate() {{
+            const fDate = document.getElementById('filter-date').value;
             const pp = document.getElementById('filter-place');
-            const selectedDate = dp.value;
-            
             const prevValue = pp.value;
             pp.innerHTML = '<option value="ALL">All Places</option>';
             
-            const placesForDate = [...new Set(
-                Object.values(currentData)
-                    .filter(r => r.date === selectedDate)
-                    .map(r => r.place)
-                    .filter(p => p && p.trim() !== '' && !/^\\d+$/.test(p))
-            )].sort();
+            const placesForDate = [];
+            for (const [rid, rdata] of Object.entries(currentData)) {{
+                if (rdata.date === fDate && !placesForDate.includes(rdata.place)) {{
+                    placesForDate.push(rdata.place);
+                }}
+            }}
             
-            placesForDate.forEach(p => {{
+            placesForDate.sort().forEach(p => {{
                 const opt = document.createElement('option');
-                opt.value = p; opt.innerText = p;
+                opt.value = p;
+                opt.innerText = p;
                 pp.appendChild(opt);
             }});
             
@@ -1396,31 +1393,6 @@ def generate_static_html():
                 if (finalValid.length < 2) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }}
-
-            const axisCount = parseInt(strategy.axis_count) || 1;
-            const partnerCount = parseInt(strategy.partners) || 5;
-            
-            // 軸1
-            const axes1 = allSorted.filter(h => getZ(h) >= sTh).slice(0, 1);
-            if (axes1.length < 1) return "--";
-            
-            let finalAxes = [...axes1];
-            let remaining = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
-
-            // 軸2
-            if (axisCount >= 2) {{
-                const axes2 = remaining.filter(h => getZ(h) >= a2Th).slice(0, axisCount - 1);
-                if (axes2.length < axisCount - 1) return "--";
-                finalAxes = finalAxes.concat(axes2);
-                const axis2Set = new Set(axes2.map(ax => ax.horse_number));
-                remaining = remaining.filter(h => !axis2Set.has(h.horse_number));
-            }}
-
-            const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, partnerCount);
-            if (partners.length === 0) return "--";
-
-            return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
-        }}
 
             const axisCount = parseInt(strategy.axis_count) || 1;
             const partnerCount = parseInt(strategy.partners) || 5;
