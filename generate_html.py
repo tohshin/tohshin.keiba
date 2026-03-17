@@ -485,6 +485,9 @@ def generate_static_html():
             font-size: 1.05rem;
             font-weight: 600;
             margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
 
         .horse-score-bar-bg {{
@@ -1122,14 +1125,12 @@ def generate_static_html():
                         <div class="horse-row ${{rankClass}} ${{highlightClass}}" style="flex-wrap: wrap; padding-left: 8px;">
                             <div style="display: flex; width: 100%; align-items: center; margin-bottom: 6px;">
                                 <div class="horse-num">${{hNum}}</div>
-                                <div class="horse-details">
-                                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                        <div class="horse-name">${{hName}}</div>
-                                        <div style="display: flex; gap: 6px; font-size: 0.75rem; font-weight: 700; flex-wrap: wrap;">
-                                            <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
-                                            <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
-                                            <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
-                                        </div>
+                                <div class="horse-details" style="min-width: 0;">
+                                    <div class="horse-name">${{hName}}</div>
+                                    <div style="display: flex; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px;">
+                                        <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
+                                        <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
+                                        <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
                                     </div>
                                     <div class="horse-score-bar-bg">
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${{widthPct}}%"></div>
@@ -1586,7 +1587,8 @@ def generate_static_html():
 
     # HTML の保存先
     output_html_paths = [
-        r"C:\Users\kyoui\Documents\index_test.html"
+        r"C:\Users\kyoui\tohshin_keiba\index.html",
+        r"C:\Users\kyoui\tohshin_keiba\deploy_tmp\index.html"
     ]
     
     for out_html in output_html_paths:
@@ -1609,7 +1611,7 @@ def generate_static_html():
         # 2. git commit (変更がある場合のみ)
         status = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, capture_output=True, text=True)
         if status.stdout.strip():
-            subprocess.run(["git", "commit", "-m", "Auto-update race data and HTML"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "commit", "-m", "Auto-update race data and HTML (Fixed Corruption)"], cwd=repo_dir, check=True)
             logger.info("Successfully committed changes.")
             
             # 3. git push
