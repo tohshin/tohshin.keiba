@@ -773,7 +773,7 @@ def generate_static_html():
     <script>
         let currentData = {{}};
 
-        async function checkAuth() {{
+                async function checkAuth() {{
             console.log("checkAuth started");
             try {{
                 const pwInput = document.getElementById('auth-pw');
@@ -1253,7 +1253,7 @@ def generate_static_html():
                 `;
             }});
 
-            if (!hasValidRec) {{
+                        if (!hasValidRec) {{
                 html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
@@ -1262,6 +1262,8 @@ def generate_static_html():
                     </div>
                 `;
             }}
+
+
 
 
             body.innerHTML = html;
