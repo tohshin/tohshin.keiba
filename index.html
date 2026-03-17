@@ -938,14 +938,26 @@
                         separator = '-';
                     }
                     
+                    let numbersHtml = '';
+                    if (type === 'ワイド' && nums.length >= 2) {
+                        // ワイドの場合、2つずつのペアで表示 (例: 7-10, 10-4)
+                        const pairs = [];
+                        for (let i = 0; i < nums.length; i += 2) {
+                            if (nums[i+1]) pairs.push(`${nums[i]}-${nums[i+1]}`);
+                        }
+                        numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${p}</span>`).join('<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold; margin:0 2px;">,</span>');
+                    } else {
+                        numbersHtml = nums.map((n, i) => `
+                            <span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${n}</span>
+                            ${i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold;">${separator}</span>` : ''}
+                        `).join('');
+                    }
+
                     htmlRes += `
                         <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
                             <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${displayType}</div>
                             <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
-                                ${nums.map((n, i) => `
-                                    <span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${n}</span>
-                                    ${i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold;">${separator}</span>` : ''}
-                                `).join('')}
+                                ${numbersHtml}
                             </div>
                             <div style="font-size:0.75rem; color:#fbbf24; font-weight:700; line-height:1.2;">
                                 ${payTexts.join('<br>')}
@@ -972,10 +984,15 @@
                 const eyesText = item.querySelector('.bet-eyes-text')?.innerText.trim();
                 if (!eyesText || eyesText === '--') return;
 
-                let isHit = false;
+                const resultArea = item.querySelector('.bet-result-details');
+                if (resultArea) resultArea.innerHTML = ''; // Reset
+
                 const winNums = payoutData.nums[type] || [];
+                const winPays = payoutData.pays[type] || [];
                 
                 if (winNums.length > 0) {
+                    const eyesCount = eyesText.split(',').length;
+                    
                     if (type === "単勝") {
                         isHit = (eyesText === winNums[0].padStart(2, '0'));
                     } else if (type.includes("複勝")) {
@@ -989,6 +1006,31 @@
                     } else if (type.includes("3連複")) {
                         const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
                         isHit = winNums.every(n => predicted.includes(n));
+                    }
+
+                    if (isHit && resultArea) {
+                        // Calculate payout and profit
+                        let totalPay = 0;
+                        if (type.includes("複勝") || type.includes("ワイド")) {
+                            // Multiple hits possible
+                            const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                            // This is a simplification; ideally we match specific pairs
+                            // For now, if hit, show the first relevant payout
+                            totalPay = parseInt(winPays[0].replace(/,/g, '')) || 0;
+                        } else {
+                            totalPay = parseInt(winPays[0].replace(/,/g, '')) || 0;
+                        }
+
+                        const investment = eyesCount * 100;
+                        const profit = totalPay - investment;
+
+                        resultArea.innerHTML = `
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.75rem;">
+                                <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}</span></div>
+                                <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fbbf24; font-weight:700;">${totalPay.toLocaleString()}円</span></div>
+                                <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円</span></div>
+                            </div>
+                        `;
                     }
                 }
 
@@ -1033,19 +1075,25 @@
                 const bettingEyes = generateBettingEyes(raceData.horses, s, stats);
                 if (bettingEyes === '--') return;
 
+                const displayType = s.type.replace('三連', '3連');
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${s.type}">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${s.type} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${s.model}</span></div>
-                            <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${s.roi}% | Hit ${s.hit_rate}%</div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem; flex: 1; min-width: 150px;">
+                                ${displayType} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${s.model}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${s.roi}% | Hit ${s.hit_rate}%</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">
+                                    Z: ${s.score_th}${s.axis_count >= 2 ? `/${s.axis2_score_th || s.partner_score_th}` : ''}/${s.partner_score_th}
+                                </div>
+                            </div>
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
                             <div class="bet-eyes-text">${bettingEyes}</div>
                         </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
-                            Z-Score: Jiku1 > ${s.score_th} ${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th}
-                        </div>
+                        <div class="bet-result-details"></div>
                     </div>
                 `;
             });
