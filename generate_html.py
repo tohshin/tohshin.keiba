@@ -1410,7 +1410,6 @@ def generate_static_html():
                     eyesElem.innerHTML = eyesText + ' <span style="color:#4ade80; font-size:1.5rem; margin-left:12px; font-weight:900; vertical-align:middle;">🎯 的中</span>';
                 }}
             }});
-            }});
         }}
 
         function showRecommendation(raceId) {{
