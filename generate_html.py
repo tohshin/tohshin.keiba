@@ -1110,8 +1110,13 @@ def generate_static_html():
                     }});
 
                     const winOddsNum = parseFloat(winOdds) || 999;
-                    const isHighlight = (winOddsNum <= 1.9) || (pWin >= 0.5) || (kv >= 2.0);
-                    const labelColor = isHighlight ? '#4ade80' : '#f8fafc';
+                    const probVal = pWin * 100;
+                    
+                    const oddsColor = winOddsNum <= 1.9 ? '#4ade80' : '#f8fafc';
+                    const probColor = probVal >= 50 ? '#4ade80' : '#f8fafc';
+                    const kvColor = kv >= 2.0 ? '#4ade80' : '#f8fafc';
+
+                    const blockStyle = (color) => `background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; color: ${{color}}; border: 1px solid ${{color === '#4ade80' ? 'rgba(74, 222, 128, 0.2)' : 'transparent'}};`;
 
                     horsesHtml += `
                         <div class="horse-row ${{rankClass}} ${{highlightClass}}" style="flex-wrap: wrap; padding-left: 8px;">
@@ -1120,10 +1125,10 @@ def generate_static_html():
                                 <div class="horse-details">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
                                         <div class="horse-name">${{hName}}</div>
-                                        <div style="font-size: 0.82rem; font-weight: 600; color: ${{labelColor}};">
-                                            単勝: ${{winOdds}} | 
-                                            勝率予測: ${{ (pWin * 100).toFixed(1) }}% | 
-                                            期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}
+                                        <div style="display: flex; gap: 6px; font-size: 0.75rem; font-weight: 700; flex-wrap: wrap;">
+                                            <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
+                                            <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
+                                            <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
                                         </div>
                                     </div>
                                     <div class="horse-score-bar-bg">
