@@ -359,6 +359,9 @@
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
+            white-space: nowrap;
+            display: inline-block;
+            transition: font-size 0.2s ease;
         }
 
         .strategy-item-modal {
@@ -907,7 +910,9 @@
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text">${bettingEyes}</div>
+                            <div class="bet-eyes-text-container" style="width: 100%; overflow: hidden;">
+                                <div class="bet-eyes-text">${bettingEyes}</div>
+                            </div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
                             Z-Score: Jiku1 > ${s.score_th}${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
@@ -1188,6 +1193,18 @@
                         hitBadge.innerHTML = '🎯 HIT';
                         hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
                         eyesBox.appendChild(hitBadge);
+                    }
+                }
+                
+                // --- Dynamic Font Scaling For Betting Eyes ---
+                const eyesText = item.querySelector('.bet-eyes-text');
+                const container = item.querySelector('.bet-eyes-text-container');
+                if (eyesText && container) {
+                    let fontSize = 1.8; // rem
+                    eyesText.style.fontSize = fontSize + 'rem';
+                    while (eyesText.scrollWidth > container.offsetWidth && fontSize > 0.6) {
+                        fontSize -= 0.1;
+                        eyesText.style.fontSize = fontSize + 'rem';
                     }
                 }
             });
