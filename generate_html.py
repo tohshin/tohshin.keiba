@@ -770,7 +770,7 @@ def generate_static_html():
     <script>
         let currentData = {{}};
 
-        async function checkAuth() {{
+                async function checkAuth() {{
             console.log("checkAuth started");
             try {{
                 const pwInput = document.getElementById('auth-pw');
