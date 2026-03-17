@@ -1122,7 +1122,7 @@ def generate_static_html():
                                         <div class="horse-name">${{hName}}</div>
                                         <div style="font-size: 0.82rem; font-weight: 600; color: ${{labelColor}};">
                                             単勝: ${{winOdds}} | 
-                                            勝率予測: ${(pWin * 100).toFixed(1)}% | 
+                                            勝率予測: ${{ (pWin * 100).toFixed(1) }}% | 
                                             期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}
                                         </div>
                                     </div>
