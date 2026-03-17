@@ -1192,16 +1192,16 @@
                 }
 
                 // --- Dynamic Font Scaling For Betting Eyes ---
-                const eyesText = item.querySelector('.bet-eyes-text');
+                const eyesElem = item.querySelector('.bet-eyes-text');
                 const eyesBox = item.querySelector('.bet-eyes-box');
-                if (eyesText && eyesBox) {
+                if (eyesElem && eyesBox) {
                     let fontSize = 1.8; // rem
-                    eyesText.style.fontSize = fontSize + 'rem';
+                    eyesElem.style.fontSize = fontSize + 'rem';
                     // モーダル表示後に幅が確定するため、少し待つ必要がある
                     setTimeout(() => {
-                        while (eyesText.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {
+                        while (eyesElem.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {
                             fontSize -= 0.1;
-                            eyesText.style.fontSize = fontSize + 'rem';
+                            eyesElem.style.fontSize = fontSize + 'rem';
                         }
                     }, 0);
                 }
