@@ -1155,12 +1155,12 @@ def generate_static_html():
                         </div>
                         ${{( () => {{
                             if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                            return \`
+                            return `
                                 <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
                                     <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
                                     <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
                                 </div>
-                            \`;
+                            `;
                         }})()}}
                     </div>
                     <div>
@@ -1233,13 +1233,13 @@ def generate_static_html():
             }});
 
             if (!hasValidRec) {{
-                html += \`
+                html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
                         <div style="font-weight: 700;">現在、オススメの買い目はありません</div>
                         <div style="font-size: 0.75rem; margin-top: 4px;">閾値を超えるスコアの馬が見つかりませんでした。</div>
                     </div>
-                \`;
+                `;
             }}
 
             body.innerHTML = html;
