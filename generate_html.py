@@ -1210,16 +1210,15 @@ def generate_static_html():
                         const payoutCell = tr.querySelector('td.Payout');
                         
                         if (type && resultCell && payoutCell) {{
-                            // 重複排除のために Set を使用
+                            // より確実に数字のみを抽出（1→01などの変換も考慮）
                             const numbers = [...new Set(
-                                Array.from(resultCell.querySelectorAll('span, li, b'))
-                                    .map(el => el.innerText.trim())
-                                    .filter(txt => txt && !txt.includes('円') && /^\d+$/.test(txt))
+                                (resultCell.innerText.match(/\d+/g) || [])
+                                    .map(n => n.replace(/^0+/, ''))
                             )];
                             
                             // 払戻金のパース（"110円110円140円" のような結合を解消）
                             const payRaw = payoutCell.innerText.trim();
-                            const payTexts = payRaw.match(/\d{1,3}(,\d{3})*円/g) || payRaw.split(/\s+/);
+                            const payTexts = payRaw.match(/\d{1,3}(,\d{3})*円/g) || [];
                             
                             if (numbers.length > 0) {{
                                 payoutData.nums[type] = numbers;
@@ -1244,14 +1243,21 @@ def generate_static_html():
                 `;
 
                 for (const [type, nums] of Object.entries(payoutData.nums)) {{
-                    const pay = payoutData.pays[type][0] || "";
+                    const payTexts = payoutData.pays[type] || [];
+                    const separator = (type.includes('単') || type.includes('枠連')) ? '→' : ',';
+                    
                     htmlRes += `
                         <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
                             <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${{type}}</div>
-                            <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap;">
-                                ${{nums.map(n => `<span style="background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:1px 5px; border-radius:4px;">${{n}}</span>`).join('')}}
+                            <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
+                                ${{nums.map((n, i) => `
+                                    <span style="background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:1px 5px; border-radius:4px;">${{n}}</span>
+                                    ${{i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold;">${{separator}}</span>` : ''}}
+                                `).join('')}}
                             </div>
-                            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700;">${{pay}}</div>
+                            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700; line-height:1.2;">
+                                ${{payTexts.join('<br>')}}
+                            </div>
                         </div>
                     `;
                 }}
