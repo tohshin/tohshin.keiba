@@ -928,11 +928,12 @@
 
                 for (const [type, nums] of Object.entries(payoutData.nums)) {
                     const payTexts = payoutData.pays[type] || [];
+                    const displayType = type.replace('三連', '3連');
                     const separator = (type.includes('単') || type.includes('枠連')) ? '→' : ',';
                     
                     htmlRes += `
                         <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                            <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${type}</div>
+                            <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${displayType}</div>
                             <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
                                 ${nums.map((n, i) => `
                                     <span style="background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:1px 5px; border-radius:4px;">${n}</span>
