@@ -169,6 +169,9 @@
             font-size: 1.05rem;
             font-weight: 600;
             margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .horse-score-bar-bg {
@@ -193,6 +196,7 @@
             min-width: 60px;
             text-align: right;
             margin-left: 10px;
+            padding-right: 12px;
         }
 
         @keyframes fadeInDown {
@@ -355,6 +359,9 @@
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
+            white-space: nowrap;
+            display: inline-block;
+            transition: font-size 0.2s ease;
         }
 
         .strategy-item-modal {
@@ -821,23 +828,21 @@
                         <div class="horse-row ${rankClass} ${highlightClass}" style="flex-wrap: wrap; padding-left: 8px;">
                             <div style="display: flex; width: 100%; align-items: center; margin-bottom: 6px;">
                                 <div class="horse-num">${hNum}</div>
-                                <div class="horse-details">
-                                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                        <div class="horse-name">${hName}</div>
-                                        <div style="display: flex; gap: 6px; font-size: 0.75rem; font-weight: 700; flex-wrap: wrap;">
-                                            <span style="${blockStyle(oddsColor)}">単勝: ${winOdds}</span>
-                                            <span style="${blockStyle(probColor)}">勝率予測: ${probVal.toFixed(1)}%</span>
-                                            <span style="${blockStyle(kvColor)}">期待値指標: ${kv > 0 ? kv.toFixed(2) : '-'}</span>
-                                        </div>
-                                    </div>
+                                <div class="horse-details" style="min-width: 0;">
+                                    <div class="horse-name">${hName}</div>
                                     <div class="horse-score-bar-bg">
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${widthPct}%"></div>
                                     </div>
                                 </div>
-                                <div class="horse-score-val" style="margin-left: 14px;" title="${mainModelKey} Z-Score">${getZ(horse, mainModelKey).toFixed(4)}</div>
+                                <div class="horse-score-val" title="${mainModelKey} Z-Score">${getZ(horse, mainModelKey).toFixed(4)}</div>
                             </div>
-                            <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px;">
+                            <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px; margin-bottom: 4px;">
                                 ${subScoresHtml}
+                            </div>
+                            <div style="display: flex; width: 100%; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 4px; margin-left: 50px;">
+                                <span style="${blockStyle(oddsColor)}">単勝: ${winOdds}</span>
+                                <span style="${blockStyle(probColor)}">勝率予測: ${probVal.toFixed(1)}%</span>
+                                <span style="${blockStyle(kvColor)}">期待値指標: ${kv > 0 ? kv.toFixed(2) : '-'}</span>
                             </div>
                         </div>
                     `;
@@ -920,7 +925,9 @@
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text">${bettingEyes}</div>
+                            <div class="bet-eyes-text-container" style="width: 100%; overflow: hidden;">
+                                <div class="bet-eyes-text">${bettingEyes}</div>
+                            </div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
                             Z-Score: Jiku1 > ${s.score_th}${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
@@ -934,11 +941,12 @@
                 html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Currently no recommendations available</div>
-                        <div style="font-weight: 800; color: #fff; font-size: 1.1rem;">オススメの買い目はありません</div>
+                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">Currently no recommendations available</div>
+                        <div style="font-weight: 700; font-size: 0.8rem;">オススメの買い目はありません</div>
                     </div>
                 `;
             }
+
 
             body.innerHTML = html;
             modal.style.display = 'flex';
@@ -957,10 +965,10 @@
 
             const resultDiv = document.createElement('div');
             resultDiv.id = 'race-results-container';
-            resultDiv.style.marginBottom = '25px'; // 上に配置するため margin-bottom
-            resultDiv.style.padding = '15px';
-            resultDiv.style.background = 'rgba(74, 222, 128, 0.05)';
-            resultDiv.style.border = '1px solid rgba(74, 222, 128, 0.2)';
+            resultDiv.style.marginBottom = '15px'; // Reduce bottom margin
+            resultDiv.style.padding = '8px 12px';  // Tighten padding
+            resultDiv.style.background = 'rgba(74, 222, 128, 0.03)'; // Darker/lower background
+            resultDiv.style.border = 'none'; // Remove border
             resultDiv.style.borderRadius = '12px';
             resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:var(--text-muted);">Fetching results...</div>';
             
@@ -1016,62 +1024,54 @@
                     return;
                 }
 
-                // 結果表示の構築 (モバイル最適化: 3行グループ化)
-                const rows = [
-                    ["単勝", "複勝"],
-                    ["馬連", "馬単", "枠連"],
-                    ["ワイド", "3連複", "3連単", "三連複", "三連単"]
-                ];
-
+                // 結果表示の構築 (サマリー形式・グループ化)
                 let htmlRes = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <span style="color:#4ade80; font-weight:800; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em;">Confirmed Results</span>
-                        <span style="font-size:0.7rem; color:var(--text-muted); font-weight:600;">${doc.title.split('|')[0].trim()}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="color:#4ade80; font-weight:800; font-size:0.7rem; text-transform:uppercase;">Confirmed Results</span>
+                        <span style="font-size:0.65rem; color:var(--text-muted);">${doc.title.split('|')[0].trim()}</span>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
                 `;
 
-                rows.forEach(rowTypes => {
-                    const availableInRow = Object.keys(payoutData.nums).filter(t => rowTypes.some(rt => t.includes(rt)));
-                    if (availableInRow.length > 0) {
-                        htmlRes += '<div style="display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;">';
-                        availableInRow.forEach(type => {
-                            const nums = payoutData.nums[type];
-                            const displayType = type.replace('三連', '3連');
-                            let separator = ',';
-                            if (type.includes('単') || type.includes('枠連')) {
-                                separator = '→';
-                            } else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) {
-                                separator = '-';
-                            }
-
-                            let numbersHtml = '';
-                            if (type === 'ワイド' && nums.length >= 2) {
-                                const pairs = [];
-                                for (let i = 0; i < nums.length; i += 2) {
-                                    if (nums[i+1]) pairs.push(`${nums[i]}-${nums[i+1]}`);
-                                }
-                                numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${p}</span>`).join('<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold; margin:0 1px;">,</span>');
-                            } else {
-                                numbersHtml = nums.map((n, i) => `
-                                    <span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${n}</span>
-                                    ${i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.65rem; font-weight:bold;">${separator}</span>` : ''}
-                                `).join('');
-                            }
-
-                            htmlRes += `
-                                <div style="background:rgba(255,255,255,0.04); padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); flex: 1; min-width: fit-content;">
-                                    <div style="font-size:0.6rem; color:var(--text-muted); margin-bottom:2px; font-weight:700;">${displayType}</div>
-                                    <div style="display:flex; gap:3px; align-items:center; white-space:nowrap;">
-                                        ${numbersHtml}
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        htmlRes += '</div>';
+                const renderBlock = (type) => {
+                    const nums = payoutData.nums[type] || payoutData.nums[type.replace('3連', '三連')] || payoutData.nums[type.replace('三連', '3連')];
+                    if (!nums) return '';
+                    
+                    const displayType = type.replace('三連', '3連');
+                    let separator = ',';
+                    if (type.includes('単') || type.includes('枠連')) separator = '→';
+                    else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) separator = '-';
+                    
+                    let numbersHtml = '';
+                    if (type === 'ワイド' && nums.length >= 2) {
+                        const pairs = [];
+                        for (let i = 0; i < nums.length; i += 2) {
+                            if (nums[i+1]) pairs.push(`${nums[i]}-${nums[i+1]}`);
+                        }
+                        numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${p}</span>`).join('<span style="color:var(--text-muted); font-size:0.55rem; margin:0 1px;">,</span>');
+                    } else {
+                        numbersHtml = nums.map((n, i) => `
+                            <span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${n}</span>
+                            ${i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.55rem; font-weight:bold;">${separator}</span>` : ''}
+                        `).join('');
                     }
-                });
 
+                    return `<div style="background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:6px; flex:1; min-width:60px;">
+                        <div style="font-size:0.55rem; color:var(--text-muted); margin-bottom:1px;">${displayType}</div>
+                        <div style="display:flex; gap:2px; flex-wrap:wrap; align-items:center;">${numbersHtml}</div>
+                    </div>`;
+                };
+
+                const groups = [
+                    ['単勝', '複勝'],
+                    ['馬連', '馬単', '枠連'],
+                    ['ワイド', '3連複', '3連単']
+                ];
+
+                groups.forEach(g => {
+                    const rowHtml = g.map(t => renderBlock(t)).join('');
+                    if (rowHtml) htmlRes += `<div style="display:flex; gap:4px;">${rowHtml}</div>`;
+                });
                 htmlRes += '</div>';
                 resultDiv.innerHTML = htmlRes;
 
@@ -1211,15 +1211,8 @@
                         eyesBox.appendChild(hitBadge);
                     }
                 }
-            });
-
-            // 最後にフォントサイズ調整を実行
-            adjustFontSize();
-        }
-
-        function adjustFontSize() {
-            const items = document.querySelectorAll('.strategy-item-modal');
-            items.forEach(item => {
+                
+                // --- Dynamic Font Scaling For Betting Eyes ---
                 const eyesText = item.querySelector('.bet-eyes-text');
                 const box = item.querySelector('.bet-eyes-box');
                 if (eyesText && box) {
