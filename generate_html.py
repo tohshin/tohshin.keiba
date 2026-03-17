@@ -512,6 +512,7 @@ def generate_static_html():
             min-width: 60px;
             text-align: right;
             margin-left: 10px;
+            padding-right: 12px;
         }}
 
         @keyframes fadeInDown {{
@@ -1127,19 +1128,19 @@ def generate_static_html():
                                 <div class="horse-num">${{hNum}}</div>
                                 <div class="horse-details" style="min-width: 0;">
                                     <div class="horse-name">${{hName}}</div>
-                                    <div style="display: flex; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px;">
-                                        <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
-                                        <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
-                                        <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
-                                    </div>
                                     <div class="horse-score-bar-bg">
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${{widthPct}}%"></div>
                                     </div>
                                 </div>
                                 <div class="horse-score-val" title="${{mainModelKey}} Z-Score">${{getZ(horse, mainModelKey).toFixed(4)}}</div>
                             </div>
-                            <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px;">
+                            <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px; margin-bottom: 4px;">
                                 ${{subScoresHtml}}
+                            </div>
+                            <div style="display: flex; width: 100%; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 4px; margin-left: 50px;">
+                                <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
+                                <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
+                                <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
                             </div>
                         </div>
                     `;
@@ -1205,7 +1206,6 @@ def generate_static_html():
                             title="Refresh Results">
                         🔄
                     </button>
-                    <button onclick="closeRecommendation()" style="position: absolute; top: 0; left: 0; background:none; border:none; color:var(--text-muted); font-size: 1.8rem; cursor:pointer; line-height: 32px;">&times;</button>
                 </div>
             `;
 
@@ -1237,8 +1237,8 @@ def generate_static_html():
                 html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-weight: 700;">現在、オススメの買い目はありません</div>
-                        <div style="font-size: 0.75rem; margin-top: 4px;">閾値を超えるスコアの馬が見つかりませんでした。</div>
+                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Recommendations Available</div>
+                        <div style="font-weight: 700; font-size: 0.8rem;">現在、オススメの買い目はありません</div>
                     </div>
                 `;
             }}
@@ -1260,10 +1260,10 @@ def generate_static_html():
 
             const resultDiv = document.createElement('div');
             resultDiv.id = 'race-results-container';
-            resultDiv.style.marginBottom = '25px'; // 上に配置するため margin-bottom
-            resultDiv.style.padding = '15px';
-            resultDiv.style.background = 'rgba(74, 222, 128, 0.05)';
-            resultDiv.style.border = '1px solid rgba(74, 222, 128, 0.2)';
+            resultDiv.style.marginBottom = '15px'; // Reduce bottom margin
+            resultDiv.style.padding = '8px 12px';  // Tighten padding
+            resultDiv.style.background = 'rgba(74, 222, 128, 0.03)'; // Darker/lower background
+            resultDiv.style.border = 'none'; // Remove border
             resultDiv.style.borderRadius = '12px';
             resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:var(--text-muted);">Fetching results...</div>';
             
