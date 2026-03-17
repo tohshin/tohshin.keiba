@@ -989,29 +989,40 @@
                 const resultArea = item.querySelector('.bet-result-details');
                 if (resultArea) resultArea.innerHTML = ''; // Reset
 
-                const winNums = payoutData.nums[type] || [];
-                const winPays = payoutData.pays[type] || [];
+                // Normalize type for matching
+                const normType = type.replace('3連', '三連');
+                const winNums = (payoutData.nums[type] || payoutData.nums[normType] || payoutData.nums[type.replace('三連', '3連')] || []);
+                const winPays = (payoutData.pays[type] || payoutData.pays[normType] || payoutData.pays[type.replace('三連', '3連')] || []);
                 let isHit = false;
                 
                 if (winNums.length > 0) {
                     let eyesCount = eyesText.split(',').length;
                     // マルチの場合の買い目数調整 (3連単 2頭軸マルチは 6 * partnerCount)
-                    if (type.includes('3連単') && type.includes('マルチ')) {
-                        eyesCount *= 6;
+                    if (type.includes('3連単') || type.includes('三連単')) {
+                        if (type.includes('マルチ')) eyesCount *= 6;
                     }
                     
+                    const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+
                     if (type === "単勝") {
-                        isHit = (eyesText === winNums[0].padStart(2, '0'));
+                        isHit = (predicted[0] === winNums[0]);
                     } else if (type.includes("複勝")) {
-                        isHit = winNums.some(n => eyesText === n.padStart(2, '0'));
-                    } else if (type.includes("馬連") || type.includes("ワイド")) {
-                        const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
-                        isHit = winNums.every(n => predicted.includes(n)) && (predicted.length >= winNums.length);
-                    } else if (type.includes("馬単") || type.includes("3連単")) {
-                        const predicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
-                        isHit = winNums.every((n, i) => predicted[i] === n);
-                    } else if (type.includes("3連複")) {
-                        const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.some(n => predicted.includes(n));
+                    } else if (type.includes("馬連")) {
+                        isHit = winNums.every(n => predicted.includes(n));
+                    } else if (type.includes("ワイド")) {
+                        // Wide: check if any pair is fully contained in predicted
+                        for (let i = 0; i < winNums.length; i += 2) {
+                            if (winNums[i] && winNums[i+1]) {
+                                if (predicted.includes(winNums[i]) && predicted.includes(winNums[i+1])) {
+                                    isHit = true; break;
+                                }
+                            }
+                        }
+                    } else if (type.includes("馬単") || type.includes("3連単") || type.includes("三連単")) {
+                        const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.every((n, i) => seqPredicted[i] === n);
+                    } else if (type.includes("3連複") || type.includes("三連複")) {
                         isHit = winNums.every(n => predicted.includes(n));
                     }
 
@@ -1093,7 +1104,7 @@
                             <div class="bet-eyes-text">${bettingEyes}</div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
-                            Z: ${s.score_th}${s.axis_count >= 2 ? `/${s.axis2_score_th || s.partner_score_th}` : ''}/${s.partner_score_th} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
+                            Z-Score: Jiku1 > ${s.score_th}${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
                         </div>
                         <div class="bet-result-details"></div>
                     </div>
