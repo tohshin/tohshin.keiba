@@ -1225,7 +1225,7 @@ def generate_static_html():
                             <div class="bet-eyes-text">\${bettingEyes}</div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
-                            Z-Score: Jiku1 > \${s.score_th}\${s.axis_count >= 2 ? \` / Jiku2 > \${s.axis2_score_th || s.partner_score_th}\` : ''} / Partner > \${s.partner_score_th} \　ROI \${s.roi}% | Hit \${s.hit_rate}%
+                            Z-Score: Jiku1 > ${{s.score_th}}${{s.axis_count >= 2 ? \` / Jiku2 > \${{s.axis2_score_th || s.partner_score_th}}\` : ''}} / Partner > ${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
                         </div>
                         <div class="bet-result-details"></div>
                     </div>
