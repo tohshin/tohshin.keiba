@@ -458,56 +458,32 @@
         let currentData = {};
 
         async function checkAuth() {
-            console.log("checkAuth started");
-            try {
-                const pwInput = document.getElementById('auth-pw');
-                if (!pwInput) {
-                    console.error("auth-pw element not found!");
-                    return;
-                }
-                const pw = pwInput.value.trim();
-                console.log("Password length entered:", pw.length);
-                
-                if (pw === 'tohshin20') {
-                    console.log("Password correct, logging in...");
-                    localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    document.getElementById('app-content').style.display = 'block';
-                    loadData();
-                } else {
-                    console.warn("Invalid password attempt");
-                    document.getElementById('login-error').style.display = 'block';
-                }
-            } catch (e) {
-                console.error("Login Error:", e);
-                alert("Login Error: " + e.message);
+            const pw = document.getElementById('auth-pw').value;
+            if (pw === 'tohshin20') {
+                localStorage.setItem('keiba_auth_time', new Date().getTime());
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('app-content').style.display = 'block';
+                loadData();
+            } else {
+                document.getElementById('login-error').style.display = 'block';
             }
         }
 
         // ページ読み込み時に認証チェック
         window.onload = function() {
-            console.log("window.onload triggered");
-            try {
-                const authTime = localStorage.getItem('keiba_auth_time');
-                if (authTime) {
-                    const now = new Date().getTime();
-                    const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
-                    console.log("Auth time diff (hours):", diffHours);
-                    if (diffHours < 24) {
-                        console.log("Automatically logging in from valid session");
-                        document.getElementById('auth-overlay').style.display = 'none';
-                        document.getElementById('app-content').style.display = 'block';
-                        loadData();
-                        return;
-                    }
+            const authTime = localStorage.getItem('keiba_auth_time');
+            if (authTime) {
+                const now = new Date().getTime();
+                const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                if (diffHours < 24) {
+                    document.getElementById('auth-overlay').style.display = 'none';
+                    document.getElementById('app-content').style.display = 'block';
+                    loadData();
+                    return;
                 }
-                console.log("Relogging required, showing overlay");
-                document.getElementById('auth-overlay').style.display = 'flex';
-                document.getElementById('auth-pw').focus();
-            } catch (e) {
-                console.error("Auth initialization error:", e);
-                document.getElementById('auth-overlay').style.display = 'flex';
             }
+            // 認証が必要な場合
+            document.getElementById('auth-overlay').style.display = 'flex';
         };
 
         async function loadData() {
