@@ -1142,7 +1142,7 @@ def generate_static_html():
                             </div>
                         </div>
                     `;
-                }});
+                });
 
                 card.innerHTML = `
                     <div class="race-info-header" style="padding-right: 140px;">
@@ -1155,15 +1155,12 @@ def generate_static_html():
                         </div>
                         ${{( () => {{
                             if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                            // Check if at least one valid recommendation exists
-                            const hasAnyValid = raceData.strategies.some(s => generateBettingEyes(raceData.horses, s, raceStats) !== '--');
-                            if (!hasAnyValid) return '';
-                            
-                            return `
-                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
-                                    <span>✨ PICKUP</span>
+                            return \`
+                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('\${{raceId}}')">
+                                    <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
+                                    <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
                                 </div>
-                            `;
+                            \`;
                         }})()}}
                     </div>
                     <div>
@@ -1178,6 +1175,78 @@ def generate_static_html():
                     bar.style.width = bar.getAttribute('data-target');
                 }});
             }}, 50);
+        }}
+
+        function showRecommendation(raceId) {{
+            const raceData = allRaceData[raceId];
+            if (!raceData || !raceData.strategies) return;
+
+            const modal = document.getElementById('recommend-modal');
+            const body = document.getElementById('modal-body');
+            
+            // Need to pass stats to generateBettingEyes
+            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+            const raceStats = {{}};
+            scoreModels.forEach(m => {{
+                const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, raceData.horses.length - 1);
+                const std = Math.sqrt(variance) || 1.0;
+                raceStats[m] = {{ mean, std }};
+            }});
+
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px; position: relative;">
+                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">\${{raceData.title}}</h2>
+                    <button onclick="event.stopPropagation(); fetchRaceResults('\${{raceId}}', true)" 
+                            style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
+                            title="Refresh Results">
+                        🔄
+                    </button>
+                    <button onclick="closeRecommendation()" style="position: absolute; top: 0; left: 0; background:none; border:none; color:var(--text-muted); font-size: 1.8rem; cursor:pointer; line-height: 32px;">&times;</button>
+                </div>
+            `;
+
+            let hasValidRec = false;
+            raceData.strategies.forEach(s => {{
+                const bettingEyes = generateBettingEyes(raceData.horses, s, raceStats);
+                if (bettingEyes === '--') return;
+
+                hasValidRec = true;
+                const displayType = s.type.replace('三連', '3連');
+                html += \`
+                    <div class="strategy-item-modal" data-strategy-type="\${s.type}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">\${displayType} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by \${s.model}</span></div>
+                        </div>
+                        <div class="bet-eyes-box">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                            <div class="bet-eyes-text">\${bettingEyes}</div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
+                            Z-Score: Jiku1 > \${s.score_th}\${s.axis_count >= 2 ? \` / Jiku2 > \${s.axis2_score_th || s.partner_score_th}\` : ''} / Partner > \${s.partner_score_th} \　ROI \${s.roi}% | Hit \${s.hit_rate}%
+                        </div>
+                        <div class="bet-result-details"></div>
+                    </div>
+                \`;
+            }});
+
+            if (!hasValidRec) {{
+                html += \`
+                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                        <div style="font-weight: 700;">現在、オススメの買い目はありません</div>
+                        <div style="font-size: 0.75rem; margin-top: 4px;">閾値を超えるスコアの馬が見つかりませんでした。</div>
+                    </div>
+                \`;
+            }}
+
+            body.innerHTML = html;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            fetchRaceResults(raceId);
         }}
 
         async function fetchRaceResults(raceId) {{
