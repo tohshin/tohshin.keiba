@@ -1142,7 +1142,7 @@ def generate_static_html():
                             </div>
                         </div>
                     `;
-                });
+                }});
 
                 card.innerHTML = `
                     <div class="race-info-header" style="padding-right: 140px;">
