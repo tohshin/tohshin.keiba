@@ -1201,8 +1201,8 @@ def generate_static_html():
                 const doc = parser.parseFromString(html, 'text/html');
                 console.log("[DEBUG] Fetched Page Title:", doc.title);
                 
-                // 複数のセレクタを試す (PC用とスマホ用)
-                let payoutTables = doc.querySelectorAll('.Pay_Table_01, .pay_table_01, .Result_Pay table, .Payout_Table, table[summary="払い戻し"]');
+                // 複数のセレクタを試す (ユーザー指定の Payout_Detail_Table を優先)
+                let payoutTables = doc.querySelectorAll('.Payout_Detail_Table, .Pay_Table_01, .pay_table_01, .Result_Pay table, .Payout_Table');
                 console.log("[DEBUG] Found payout tables count:", payoutTables.length);
                 
                 if (payoutTables.length === 0) {{
