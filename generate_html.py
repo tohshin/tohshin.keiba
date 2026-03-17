@@ -1156,7 +1156,7 @@ def generate_static_html():
                         ${{( () => {{
                             if (!raceData.strategies || raceData.strategies.length === 0) return '';
                             return \`
-                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('\${{raceId}}')">
+                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
                                     <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
                                     <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
                                 </div>
@@ -1178,7 +1178,7 @@ def generate_static_html():
         }}
 
         function showRecommendation(raceId) {{
-            const raceData = allRaceData[raceId];
+            const raceData = currentData[raceId];
             if (!raceData || !raceData.strategies) return;
 
             const modal = document.getElementById('recommend-modal');
@@ -1198,8 +1198,8 @@ def generate_static_html():
             let html = `
                 <div style="text-align: center; margin-bottom: 25px; position: relative;">
                     <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
-                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">\${{raceData.title}}</h2>
-                    <button onclick="event.stopPropagation(); fetchRaceResults('\${{raceId}}', true)" 
+                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
+                    <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
                             style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
                             title="Refresh Results">
                         🔄
@@ -1215,21 +1215,21 @@ def generate_static_html():
 
                 hasValidRec = true;
                 const displayType = s.type.replace('三連', '3連');
-                html += \`
-                    <div class="strategy-item-modal" data-strategy-type="\${s.type}">
+                html += `
+                    <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">\${displayType} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by \${s.model}</span></div>
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${{displayType}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span></div>
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text">\${bettingEyes}</div>
+                            <div class="bet-eyes-text">${{bettingEyes}}</div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
-                            Z-Score: Jiku1 > ${{s.score_th}}${{s.axis_count >= 2 ? \` / Jiku2 > \${{s.axis2_score_th || s.partner_score_th}}\` : ''}} / Partner > ${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
+                            Z-Score: Jiku1 > ${{s.score_th}}${{s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th || s.partner_score_th}}` : ''}} / Partner > ${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
                         </div>
                         <div class="bet-result-details"></div>
                     </div>
-                \`;
+                `;
             }});
 
             if (!hasValidRec) {{
