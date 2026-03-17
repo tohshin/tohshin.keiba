@@ -1526,7 +1526,8 @@ def generate_static_html():
                 if (valid.length < count) return "--";
                 
                 const finalValid = valid.slice(0, count);
-                if (finalValid.length < 2) return "--";
+                const is3Ren = strategy.type.includes("3連") || strategy.type.includes("三連");
+                if (finalValid.length < (is3Ren ? 3 : 2)) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }}
 
@@ -1551,6 +1552,11 @@ def generate_static_html():
 
             const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, partnerCount);
             if (partners.length === 0) return "--";
+
+            // 3連系（3連単・3連複）の場合、合計3頭以上必要
+            if ((strategy.type.includes("3連") || strategy.type.includes("三連")) && (finalAxes.length + partners.length < 3)) {{
+                return "--";
+            }}
 
             return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
         }}
