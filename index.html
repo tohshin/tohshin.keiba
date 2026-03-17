@@ -399,16 +399,7 @@
     </style>
 </head>
 <body>
-    <div id="auth-overlay">
-        <div class="auth-box">
-            <h2>Keiba AI Login</h2>
-            <input type="password" id="auth-pw" placeholder="Password" onkeydown="if(event.key==='Enter') checkAuth()" />
-            <button onclick="checkAuth()">Enter</button>
-            <div id="login-error">Invalid credentials</div>
-        </div>
-    </div>
-
-    <div id="app-content" style="display: none;">
+    <div id="app-content">
         <header>
             <h1>Keiba AI</h1>
             <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.0)</div>
@@ -454,33 +445,9 @@
     <script>
         let currentData = {};
 
-        async function checkAuth() {
-            const pw = document.getElementById('auth-pw').value;
-            if (pw === 'tohshin20') {
-                localStorage.setItem('keiba_auth_time', new Date().getTime());
-                document.getElementById('auth-overlay').style.display = 'none';
-                document.getElementById('app-content').style.display = 'block';
-                loadData();
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-            }
-        }
-
-        // ページ読み込み時に認証チェック
+        // ページ読み込み時にデータロード
         window.onload = function() {
-            const authTime = localStorage.getItem('keiba_auth_time');
-            if (authTime) {
-                const now = new Date().getTime();
-                const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
-                if (diffHours < 24) {
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    document.getElementById('app-content').style.display = 'block';
-                    loadData();
-                    return;
-                }
-            }
-            // 認証が必要な場合
-            document.getElementById('auth-overlay').style.display = 'flex';
+            loadData();
         };
 
         async function loadData() {
