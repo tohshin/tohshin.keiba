@@ -1426,9 +1426,14 @@ def generate_static_html():
             const body = document.getElementById('modal-body');
             
             let html = `
-                <div style="text-align: center; margin-bottom: 25px;">
+                <div style="text-align: center; margin-bottom: 25px; position: relative;">
                     <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
+                    <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
+                            style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
+                            title="Refresh Results">
+                        🔄
+                    </button>
                 </div>
             `;
 
