@@ -1185,7 +1185,7 @@ def generate_static_html():
                 // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
                 const targetUrl = "https://race.sp.netkeiba.com/?pid=race_result&race_id=" + raceId;
                 // 自前の Cloudflare Worker プロキシを使用
-                const proxyUrl = "https://cors.tohshin.workers.dev/" + targetUrl;
+                const proxyUrl = "https://cors.toshin-toshin1.workers.dev/" + targetUrl;
                 
                 console.log("[DEBUG] Fetching results via custom Cloudflare Worker:", proxyUrl);
                 const response = await fetch(proxyUrl);
