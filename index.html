@@ -886,38 +886,53 @@
                 console.log("[DEBUG] Fetched Page Title:", doc.title);
                 
                 // 複数のセレクタを試す (PC用とスマホ用)
-                let payoutTables = doc.querySelectorAll('.Pay_Table_01');
-                if (payoutTables.length === 0) {
-                    console.log("[DEBUG] .Pay_Table_01 not found, trying mobile selectors...");
-                    payoutTables = doc.querySelectorAll('.Result_Pay table, .Payout_Table, table[summary="払い戻し"]');
-                }
+                let payoutTables = doc.querySelectorAll('.Pay_Table_01, .pay_table_01, .Result_Pay table, .Payout_Table, table[summary="払い戻し"]');
                 console.log("[DEBUG] Found payout tables count:", payoutTables.length);
-
+                
                 if (payoutTables.length === 0) {
-                    resultDiv.innerHTML = '<div style="color:var(--text-muted); text-align:center;">Results not available yet.</div>';
+                    resultDiv.innerHTML = '<div style="color:#ffcc00; text-align:center;">Results not available yet for this race ID.<br><small>(Check if the race has finished)</small></div>';
                     return;
                 }
 
                 let resultsHtml = '<h3 style="color:#4ade80; font-size:1rem; margin-bottom:10px; border-bottom:1px solid rgba(74,222,128,0.2); padding-bottom:5px;">Race Results</h3>';
                 payoutTables.forEach(table => {
-                    resultsHtml += `<div style="font-size:0.8rem; margin-bottom:10px; overflow-x:auto;">${table.outerHTML}</div>`;
+                    resultsHtml += `<div class="payout-item" style="font-size:0.8rem; margin-bottom:15px; overflow-x:auto;">${table.outerHTML}</div>`;
                 });
                 
                 resultDiv.innerHTML = resultsHtml;
 
-                // スタイル調整
-                const tables = resultDiv.querySelectorAll('table');
-                tables.forEach(t => {
+                // スタイル調整 (table と dl 両方に対応)
+                resultDiv.querySelectorAll('table').forEach(t => {
                     t.style.width = '100%';
                     t.style.borderCollapse = 'collapse';
                     t.style.color = '#f8fafc';
                     t.querySelectorAll('th, td').forEach(cell => {
-                        cell.style.padding = '4px 8px';
+                        cell.style.padding = '6px 8px';
                         cell.style.border = '1px solid rgba(255,255,255,0.1)';
                     });
                     t.querySelectorAll('th').forEach(th => {
-                        th.style.background = 'rgba(255,255,255,0.05)';
+                        th.style.background = 'rgba(255,255,255,0.1)';
                         th.style.textAlign = 'left';
+                        th.style.width = '30%';
+                    });
+                });
+
+                resultDiv.querySelectorAll('dl.Pay_Table_01').forEach(dl => {
+                    dl.style.display = 'grid';
+                    dl.style.gridTemplateColumns = 'auto 1fr auto';
+                    dl.style.gap = '2px';
+                    dl.style.background = 'rgba(255,255,255,0.05)';
+                    dl.style.padding = '8px';
+                    dl.style.borderRadius = '8px';
+                    dl.style.color = '#f8fafc';
+                    dl.querySelectorAll('dt').forEach(dt => {
+                        dt.style.fontWeight = 'bold';
+                        dt.style.color = '#fbbf24';
+                        dt.style.gridColumn = '1';
+                    });
+                    dl.querySelectorAll('dd').forEach(dd => {
+                        dd.style.margin = '0';
+                        // 2番目のddが金額、3番目が人気などの場合があるため柔軟に
                     });
                 });
 
