@@ -1172,22 +1172,27 @@ def generate_static_html():
         async function fetchRaceResults(raceId) {{
             console.log("[DEBUG] fetchRaceResults entry, raceId:", raceId);
             const container = document.getElementById('modal-body');
+            
+            // 既存の結果表示があれば削除
+            const existing = document.getElementById('race-results-container');
+            if (existing) existing.remove();
+
             const resultDiv = document.createElement('div');
             resultDiv.id = 'race-results-container';
-            resultDiv.style.marginTop = '20px';
+            resultDiv.style.marginBottom = '25px'; // 上に配置するため margin-bottom
             resultDiv.style.padding = '15px';
-            resultDiv.style.background = 'rgba(0,0,0,0.2)';
+            resultDiv.style.background = 'rgba(74, 222, 128, 0.05)';
+            resultDiv.style.border = '1px solid rgba(74, 222, 128, 0.2)';
             resultDiv.style.borderRadius = '12px';
-            resultDiv.innerHTML = '<div style="text-align:center;">Fetching actual results...</div>';
-            container.appendChild(resultDiv);
+            resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:var(--text-muted);">Fetching results...</div>';
+            
+            // モーダルの先頭に挿入
+            container.insertBefore(resultDiv, container.firstChild);
 
             try {{
-                // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
                 const targetUrl = "https://race.sp.netkeiba.com/?pid=race_result&race_id=" + raceId;
-                // 自前の Cloudflare Worker プロキシを使用
                 const proxyUrl = "https://cors.toshin-toshin1.workers.dev/" + targetUrl;
                 
-                console.log("[DEBUG] Fetching results via custom Cloudflare Worker:", proxyUrl);
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
@@ -1195,94 +1200,108 @@ def generate_static_html():
                 const decoder = new TextDecoder('euc-jp');
                 const html = decoder.decode(buffer);
                 
-                console.log("[DEBUG] Fetch HTML preview (first 500 chars):", html.substring(0, 500));
-                
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
-                console.log("[DEBUG] Fetched Page Title:", doc.title);
                 
-                // 複数のセレクタを試す (ユーザー指定の Payout_Detail_Table を優先)
-                let payoutTables = doc.querySelectorAll('.Payout_Detail_Table, .Pay_Table_01, .pay_table_01, .Result_Pay table, .Payout_Table');
-                console.log("[DEBUG] Found payout tables count:", payoutTables.length);
+                const payoutData = {{ nums: {{}}, pays: {{}} }};
+                const payoutTables = doc.querySelectorAll('.Payout_Detail_Table, .Pay_Table_01, .pay_table_01');
                 
-                if (payoutTables.length === 0) {{
-                    resultDiv.innerHTML = '<div style="color:#ffcc00; text-align:center;">Results not available yet for this race ID.<br><small>(Check if the race has finished)</small></div>';
+                payoutTables.forEach(table => {{
+                    table.querySelectorAll('tr').forEach(tr => {{
+                        const type = tr.querySelector('th')?.innerText.trim();
+                        const resultCell = tr.querySelector('td.Result');
+                        const payoutCell = tr.querySelector('td.Payout');
+                        
+                        if (type && resultCell && payoutCell) {{
+                            const numbers = Array.from(resultCell.querySelectorAll('span, li'))
+                                .map(el => el.innerText.trim())
+                                .filter(txt => txt && !txt.includes('円') && /^\d+$/.test(txt));
+                            
+                            const payTexts = payoutCell.innerText.trim().split(/\s+/);
+                            
+                            if (numbers.length > 0) {{
+                                payoutData.nums[type] = numbers;
+                                payoutData.pays[type] = payTexts;
+                            }}
+                        }}
+                    }});
+                }});
+
+                if (Object.keys(payoutData.nums).length === 0) {{
+                    resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ffcc00;">Results not yet available.</div>';
                     return;
                 }}
 
-                let resultsHtml = '<h3 style="color:#4ade80; font-size:1rem; margin-bottom:10px; border-bottom:1px solid rgba(74,222,128,0.2); padding-bottom:5px;">Race Results</h3>';
-                payoutTables.forEach(table => {{
-                    resultsHtml += `<div class="payout-item" style="font-size:0.8rem; margin-bottom:15px; overflow-x:auto;">${{table.outerHTML}}</div>`;
-                }});
-                
-                resultDiv.innerHTML = resultsHtml;
+                // 結果表示の構築 (サマリー形式)
+                let htmlRes = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="color:#4ade80; font-weight:800; font-size:0.75rem; text-transform:uppercase;">Confirmed Results</span>
+                        <span style="font-size:0.7rem; color:var(--text-muted);">${{doc.title.split('|')[0].trim()}}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                `;
 
-                // スタイル調整 (table と dl 両方に対応)
-                resultDiv.querySelectorAll('table').forEach(t => {{
-                    t.style.width = '100%';
-                    t.style.borderCollapse = 'collapse';
-                    t.style.color = '#f8fafc';
-                    t.style.fontSize = '0.75rem';
-                    
-                    t.querySelectorAll('th, td').forEach(cell => {{
-                        cell.style.padding = '6px 8px';
-                        cell.style.border = '1px solid rgba(255,255,255,0.1)';
-                        cell.style.verticalAlign = 'middle';
-                    }});
-                    
-                    t.querySelectorAll('th').forEach(th => {{
-                        th.style.background = 'rgba(74, 222, 128, 0.1)';
-                        th.style.textAlign = 'left';
-                        th.style.width = '20%';
-                        th.style.color = '#4ade80';
-                        th.style.fontWeight = 'bold';
-                    }});
+                for (const [type, nums] of Object.entries(payoutData.nums)) {{
+                    const pay = payoutData.pays[type][0] || "";
+                    htmlRes += `
+                        <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${{type}}</div>
+                            <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap;">
+                                ${{nums.map(n => `<span style="background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:1px 5px; border-radius:4px;">${{n}}</span>`).join('')}}
+                            </div>
+                            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700;">${{pay}}</div>
+                        </div>
+                    `;
+                }}
+                htmlRes += '</div>';
+                resultDiv.innerHTML = htmlRes;
 
-                    // 内部のデザイン調整
-                    t.querySelectorAll('ul').forEach(ul => {{
-                        ul.style.listStyle = 'none';
-                        ul.style.margin = '0';
-                        ul.style.padding = '0';
-                        ul.style.display = 'inline-flex';
-                        ul.style.gap = '5px';
-                        ul.style.alignItems = 'center';
-                    }});
-
-                    t.querySelectorAll('li').forEach(li => {{
-                        li.style.display = 'inline-block';
-                        li.style.background = 'rgba(255,255,255,0.1)';
-                        li.style.padding = '2px 6px';
-                        li.style.borderRadius = '4px';
-                        li.style.minWidth = '24px';
-                        li.style.textAlign = 'center';
-                    }});
-                    
-                    t.querySelectorAll('td.Result br').forEach(br => br.remove()); // 不要な改行を削除
-                }});
-
-                resultDiv.querySelectorAll('dl.Pay_Table_01').forEach(dl => {{
-                    dl.style.display = 'grid';
-                    dl.style.gridTemplateColumns = 'auto 1fr auto';
-                    dl.style.gap = '2px';
-                    dl.style.background = 'rgba(255,255,255,0.05)';
-                    dl.style.padding = '8px';
-                    dl.style.borderRadius = '8px';
-                    dl.style.color = '#f8fafc';
-                    dl.querySelectorAll('dt').forEach(dt => {{
-                        dt.style.fontWeight = 'bold';
-                        dt.style.color = '#fbbf24';
-                        dt.style.gridColumn = '1';
-                    }});
-                    dl.querySelectorAll('dd').forEach(dd => {{
-                        dd.style.margin = '0';
-                        // 2番目のddが金額、3番目が人気などの場合があるため柔軟に
-                    }});
-                }});
+                // 当たり判定の実行
+                checkHits(payoutData);
 
             }} catch (error) {{
-                console.error("[ERROR] Failed to fetch results:", error);
-                resultDiv.innerHTML = `<div style="color:#ef4444; font-size:0.8rem;">Failed to load results: ${{error.message}}</div>`;
+                console.error("[ERROR]", error);
+                resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ef4444;">Failed to load results.</div>';
             }}
+        }}
+
+        function checkHits(payoutData) {{
+            const strategyItems = document.querySelectorAll('.strategy-item-modal');
+            strategyItems.forEach(item => {{
+                const type = item.getAttribute('data-strategy-type');
+                const eyesText = item.querySelector('.bet-eyes-text')?.innerText.trim();
+                if (!eyesText || eyesText === '--') return;
+
+                let isHit = false;
+                const winNums = payoutData.nums[type] || [];
+                
+                if (winNums.length > 0) {{
+                    if (type === "単勝") {{
+                        isHit = (eyesText === winNums[0].padStart(2, '0'));
+                    }} else if (type.includes("複勝")) {{
+                        isHit = winNums.some(n => eyesText === n.padStart(2, '0'));
+                    }} else if (type.includes("馬連") || type.includes("ワイド")) {{
+                        const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.every(n => predicted.includes(n)) && (predicted.length >= winNums.length);
+                    }} else if (type.includes("馬単") || type.includes("3連単")) {{
+                        const predicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.every((n, i) => predicted[i] === n);
+                    }} else if (type.includes("3連複")) {{
+                        const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.every(n => predicted.includes(n));
+                    }}
+                }}
+
+                if (isHit) {{
+                    item.style.border = '2px solid #4ade80';
+                    item.style.background = 'rgba(74, 222, 128, 0.1)';
+                    const hitBadge = document.createElement('div');
+                    hitBadge.innerHTML = '🎯 HIT';
+                    hitBadge.style.cssText = 'position:absolute; top:-10px; right:10px; background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:2px 8px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.3);';
+                    item.style.position = 'relative';
+                    item.appendChild(hitBadge);
+                }}
+            }});
         }}
 
         function showRecommendation(raceId) {{
@@ -1312,10 +1331,10 @@ def generate_static_html():
                 }});
 
                 const bettingEyes = generateBettingEyes(raceData.horses, s, stats);
-                if (bettingEyes === '--') return; // Skip if no recommendation
+                if (bettingEyes === '--') return;
 
                 html += `
-                    <div class="strategy-item-modal">
+                    <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                             <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${{s.type}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span></div>
                             <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%</div>
@@ -1333,9 +1352,8 @@ def generate_static_html():
 
             body.innerHTML = html;
             modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden'; // Prevent background scroll
+            document.body.style.overflow = 'hidden';
 
-            // ヒストリーから結果の取得を試みる
             fetchRaceResults(raceId);
         }}
 
@@ -1372,13 +1390,37 @@ def generate_static_html():
             if (strategy.type.includes("BOX")) {{
                 const count = parseInt(strategy.partners) || 5;
                 const valid = allSorted.filter(h => getZ(h) >= sTh);
-                // 閾値を超えた馬が指定頭数(count)に満たない場合は、不成立として扱う
                 if (valid.length < count) return "--";
                 
                 const finalValid = valid.slice(0, count);
                 if (finalValid.length < 2) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }}
+
+            const axisCount = parseInt(strategy.axis_count) || 1;
+            const partnerCount = parseInt(strategy.partners) || 5;
+            
+            // 軸1
+            const axes1 = allSorted.filter(h => getZ(h) >= sTh).slice(0, 1);
+            if (axes1.length < 1) return "--";
+            
+            let finalAxes = [...axes1];
+            let remaining = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
+
+            // 軸2
+            if (axisCount >= 2) {{
+                const axes2 = remaining.filter(h => getZ(h) >= a2Th).slice(0, axisCount - 1);
+                if (axes2.length < axisCount - 1) return "--";
+                finalAxes = finalAxes.concat(axes2);
+                const axis2Set = new Set(axes2.map(ax => ax.horse_number));
+                remaining = remaining.filter(h => !axis2Set.has(h.horse_number));
+            }}
+
+            const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, partnerCount);
+            if (partners.length === 0) return "--";
+
+            return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
+        }}
 
             const axisCount = parseInt(strategy.axis_count) || 1;
             const partnerCount = parseInt(strategy.partners) || 5;
