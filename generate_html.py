@@ -995,8 +995,8 @@ def generate_static_html():
                         }}
                     }} else if (s.type.includes("BOX")) {{
                         const count = parseInt(s.partners) || 5;
-                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= pTh).slice(0, count);
-                        if (valid.length >= 2) {{
+                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= sTh).slice(0, count);
+                        if (valid.length >= (s.type.includes("三連") || s.type.includes("3連") ? 3 : 2)) {{
                             valid.forEach(h => partnerSet.add(String(h.horse_number)));
                         }}
                     }} else {{
