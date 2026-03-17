@@ -866,18 +866,16 @@
             container.appendChild(resultDiv);
 
             try {
-                // allorigins.win を使用して CORS を回避
+                // api.codetabs.com を使用して CORS を回避 (AllOriginsのタイムアウト回避)
                 const targetUrl = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${raceId}`;
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${new Date().getTime()}`;
+                const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
                 
-                console.log("[DEBUG] Fetching results via AllOrigins:", proxyUrl);
+                console.log("[DEBUG] Fetching results via CodeTabs:", proxyUrl);
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
-                const data = await response.json();
-                const html = data.contents;
+                const html = await response.text();
                 
-                // netkeibaはEUC-JPだが、alloriginsが文字列として返してくれるはず
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 
