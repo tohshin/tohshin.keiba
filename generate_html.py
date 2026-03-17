@@ -771,22 +771,13 @@ def generate_static_html():
         let currentData = {{}};
 
         async function checkAuth() {{
-            const pwInput = document.getElementById('auth-pw');
-            if (!pwInput) {{
-                console.error("auth-pw element not found!");
-                return;
-            }}
-            const pw = pwInput.value.trim();
-            console.log("Password entered (trimmed) length:", pw.length);
-                
+            const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshin20') {{
-                console.log("Password correct, logging in...");
-                localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
+                localStorage.setItem('keiba_auth_time', new Date().getTime());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
-                console.warn("Invalid password attempt");
                 document.getElementById('login-error').style.display = 'block';
             }}
         }}
