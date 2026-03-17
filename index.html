@@ -894,11 +894,13 @@
                         const payoutCell = tr.querySelector('td.Payout');
                         
                         if (type && resultCell && payoutCell) {
-                            // より確実に数字のみを抽出（1→01などの変換も考慮）
-                            const numbers = [...new Set(
-                                (resultCell.innerText.match(/\d+/g) || [])
-                                    .map(n => n.replace(/^0+/, ''))
-                            )];
+                            // より確実に数字のみを抽出
+                            const allNums = (resultCell.innerText.match(/\d+/g) || [])
+                                    .map(n => n.replace(/^0+/, ''));
+                            
+                            // 馬連などで "7 7 10 10" となるのを防ぐため基本はSetで重複排除するが、
+                            // ワイドは "7-10, 10-4" のように同じ数字が別ペアで出ることがあるため重複を許容する
+                            const numbers = (type === 'ワイド' || type.includes('ワイド')) ? allNums : [...new Set(allNums)];
                             
                             // 払戻金のパース（"110円110円140円" のような結合を解消）
                             const payRaw = payoutCell.innerText.trim();
@@ -991,7 +993,11 @@
                 const winPays = payoutData.pays[type] || [];
                 
                 if (winNums.length > 0) {
-                    const eyesCount = eyesText.split(',').length;
+                    let eyesCount = eyesText.split(',').length;
+                    // マルチの場合の買い目数調整 (3連単 2頭軸マルチは 6 * partnerCount)
+                    if (type.includes('3連単') && type.includes('マルチ')) {
+                        eyesCount *= 6;
+                    }
                     
                     if (type === "単勝") {
                         isHit = (eyesText === winNums[0].padStart(2, '0'));
