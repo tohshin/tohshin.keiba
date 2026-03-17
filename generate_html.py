@@ -1507,9 +1507,7 @@ def generate_static_html():
                         eyesBox.appendChild(hitBadge);
                     }}
                 }}
-                // --- Dynamic Font Scaling For Betting Eyes ---
-                const eyesElem = item.querySelector('.bet-eyes-text');
-                const eyesBox = item.querySelector('.bet-eyes-box');
+                // --- Dynamic Font Scaling For Betting Eyes (Already declared eyesElem/eyesBox) ---
                 if (eyesElem && eyesBox) {{
                     let fontSize = 1.8; // rem
                     eyesElem.style.fontSize = fontSize + 'rem';
