@@ -866,15 +866,18 @@
             container.appendChild(resultDiv);
 
             try {
-                // api.codetabs.com を使用して CORS を回避 (AllOriginsのタイムアウト回避)
+                // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
                 const targetUrl = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${raceId}`;
-                const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+                // allorigins の raw エンドポイントを使用
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&t=${new Date().getTime()}`;
                 
-                console.log("[DEBUG] Fetching results via CodeTabs:", proxyUrl);
+                console.log("[DEBUG] Fetching results via AllOrigins Raw:", proxyUrl);
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
-                const html = await response.text();
+                const buffer = await response.arrayBuffer();
+                const decoder = new TextDecoder('euc-jp');
+                const html = decoder.decode(buffer);
                 
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
