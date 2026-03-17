@@ -1195,10 +1195,18 @@ def generate_static_html():
                 const decoder = new TextDecoder('euc-jp');
                 const html = decoder.decode(buffer);
                 
+                console.log("[DEBUG] Fetch HTML preview (first 500 chars):", html.substring(0, 500));
+                
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
+                console.log("[DEBUG] Fetched Page Title:", doc.title);
                 
-                const payoutTables = doc.querySelectorAll('.Pay_Table_01');
+                // 複数のセレクタを試す (PC用とスマホ用)
+                let payoutTables = doc.querySelectorAll('.Pay_Table_01');
+                if (payoutTables.length === 0) {{
+                    console.log("[DEBUG] .Pay_Table_01 not found, trying mobile selectors...");
+                    payoutTables = doc.querySelectorAll('.Result_Pay table, .Payout_Table, table[summary="払い戻し"]');
+                }}
                 console.log("[DEBUG] Found payout tables count:", payoutTables.length);
 
                 if (payoutTables.length === 0) {{

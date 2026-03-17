@@ -879,6 +879,8 @@
                 const decoder = new TextDecoder('euc-jp');
                 const html = decoder.decode(buffer);
                 
+                console.log("[DEBUG] Fetch HTML preview (first 500 chars):", html.substring(0, 500));
+                
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 
