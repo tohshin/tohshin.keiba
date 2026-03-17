@@ -1586,8 +1586,7 @@ def generate_static_html():
 
     # HTML の保存先
     output_html_paths = [
-        r"C:\Users\kyoui\tohshin_keiba\index.html",
-        r"C:\Users\kyoui\tohshin_keiba\deploy_tmp\index.html"
+        r"C:\Users\kyoui\Documents\index_test.html"
     ]
     
     for out_html in output_html_paths:
