@@ -345,6 +345,7 @@
             border: 2px solid rgba(74, 222, 128, 0.3);
             text-align: center;
             box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.05);
+            position: relative;
         }
 
         .bet-eyes-text {
@@ -961,8 +962,7 @@
                             <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
                                 ${numbersHtml}
                             </div>
-                            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700; line-height:1.2;">
-                                ${payTexts.join('<br>')}
+                            <div style="font-size: 0.75rem; color: #fbbf24; font-weight: 700; line-height: 1.2;">
                             </div>
                         </div>
                     `;
@@ -1082,20 +1082,24 @@
 
                 if (resultArea) {
                     resultArea.innerHTML = `
-                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.75rem;">
-                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}</span></div>
+                if (resultArea) {
+                    resultArea.innerHTML = `
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.85rem;">
+                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}点(${investment}円)</span></div>
                             <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fff; font-weight:700;">${totalPay.toLocaleString()}円</span></div>
-                            <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円</span></div>
+                            <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${Math.abs(profit).toLocaleString()}円</span></div>
                         </div>
                     `;
                 }
 
                 if (isHit) {
-                    const hitBadge = document.createElement('div');
-                    hitBadge.innerHTML = '🎯 HIT';
-                    hitBadge.style.cssText = 'position:absolute; top:12px; right:12px; background:#4ade80; color:#064e3b; font-size:0.55rem; font-weight:900; padding:1px 4px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.3); z-index:10;';
-                    item.style.position = 'relative';
-                    item.appendChild(hitBadge);
+                    const eyesBox = item.querySelector('.bet-eyes-box');
+                    if (eyesBox) {
+                        const hitBadge = document.createElement('div');
+                        hitBadge.innerHTML = '🎯 HIT';
+                        hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
+                        eyesBox.appendChild(hitBadge);
+                    }
                 }
             });
         }
