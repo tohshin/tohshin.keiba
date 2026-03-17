@@ -1155,12 +1155,12 @@ def generate_static_html():
                         </div>
                         ${{( () => {{
                             if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                            return \`
+                            return `
                                 <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
                                     <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
                                     <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
                                 </div>
-                            \`;
+                            `;
                         }})()}}
                     </div>
                     <div>
