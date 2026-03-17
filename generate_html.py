@@ -1116,7 +1116,11 @@ def generate_static_html():
                                 <div class="horse-details">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
                                         <div class="horse-name">${{hName}}</div>
-                                        <div style="font-size: 0.85rem; font-weight: 600; color: #fbbf24;">単勝: ${{winOdds}} | KV: <span style="color: ${{kv >= 1.5 ? '#4ade80' : (kv >= 1.0 ? '#f8fafc' : '#94a3b8')}}">${{kv > 0 ? kv.toFixed(2) : '-'}}</span></div>
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: #fbbf24;">
+                                            単勝: ${{winOdds}} | 
+                                            Prob: <span style="color: #f8fafc;">${{(pWin * 100).toFixed(1)}}%</span> | 
+                                            KV: <span style="color: ${{kv >= 1.5 ? '#4ade80' : (kv >= 1.0 ? '#f8fafc' : '#94a3b8')}}">${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
+                                        </div>
                                     </div>
                                     <div class="horse-score-bar-bg">
                                         <div class="horse-score-bar-fill" style="width: 0%" data-target="${{widthPct}}%"></div>
