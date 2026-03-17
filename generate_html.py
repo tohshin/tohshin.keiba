@@ -675,9 +675,6 @@ def generate_static_html():
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
-            white-space: nowrap;
-            display: inline-block;
-            transition: font-size 0.2s ease;
         }}
 
         .strategy-item-modal {{
@@ -773,30 +770,15 @@ def generate_static_html():
     <script>
         let currentData = {{}};
 
-                async function checkAuth() {{
-            console.log("checkAuth started");
-            try {{
-                const pwInput = document.getElementById('auth-pw');
-                if (!pwInput) {{
-                    console.error("auth-pw element not found!");
-                    return;
-                }}
-                const pw = pwInput.value.trim();
-                console.log("Password entered (trimmed) length:", pw.length);
-                
-                if (pw === 'tohshin20') {{
-                    console.log("Password correct, logging in...");
-                    localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    document.getElementById('app-content').style.display = 'block';
-                    loadData();
-                }} else {{
-                    console.warn("Invalid password attempt");
-                    document.getElementById('login-error').style.display = 'block';
-                }}
-            }} catch (e) {{
-                console.error("Login Error:", e);
-                alert("Login Error: " + e.message);
+        async function checkAuth() {{
+            const pw = document.getElementById('auth-pw').value;
+            if (pw === 'tohshin20') {{
+                localStorage.setItem('keiba_auth_time', new Date().getTime());
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('app-content').style.display = 'block';
+                loadData();
+            }} else {{
+                document.getElementById('login-error').style.display = 'block';
             }}
         }}
 
@@ -1241,9 +1223,7 @@ def generate_static_html():
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text-container" style="width: 100%; overflow: hidden;">
-                                <div class="bet-eyes-text">${{bettingEyes}}</div>
-                            </div>
+                            <div class="bet-eyes-text">${{bettingEyes}}</div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
                             Z-Score: Jiku1 > ${{s.score_th}}${{s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th || s.partner_score_th}}` : ''}} / Partner > ${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
@@ -1253,18 +1233,15 @@ def generate_static_html():
                 `;
             }});
 
-                        if (!hasValidRec) {{
+            if (!hasValidRec) {{
                 html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">Currently no recommendations available</div>
+                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Recommendations Available</div>
                         <div style="font-weight: 700; font-size: 0.8rem;">オススメの買い目はありません</div>
                     </div>
                 `;
             }}
-
-
-
 
             body.innerHTML = html;
             modal.style.display = 'flex';
@@ -1527,18 +1504,6 @@ def generate_static_html():
                         hitBadge.innerHTML = '🎯 HIT';
                         hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
                         eyesBox.appendChild(hitBadge);
-                    }}
-                }}
-                
-                // --- Dynamic Font Scaling For Betting Eyes ---
-                const eyesText = item.querySelector('.bet-eyes-text');
-                const box = item.querySelector('.bet-eyes-box');
-                if (eyesText && box) {{
-                    let fontSize = 1.8; // rem
-                    eyesText.style.fontSize = fontSize + 'rem';
-                    while (eyesText.scrollWidth > box.clientWidth - 40 && fontSize > 0.6) {{
-                        fontSize -= 0.1;
-                        eyesText.style.fontSize = fontSize + 'rem';
                     }}
                 }}
             }});
