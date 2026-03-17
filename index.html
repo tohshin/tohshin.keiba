@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
-    <title>Tohshin Keiba Simulator [v2.2]</title>
+    <title>Keiba AI Predictions</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -480,74 +480,54 @@
             document.getElementById('auth-overlay').style.display = 'flex';
         };
 
-        let metaData = {};
-        let loadedDates = new Set();
-
         async function loadData() {
             const container = document.getElementById('races-container');
-            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading configuration...</p></div>';
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
 
             try {
-                // 1. メタデータと単勝データの取得
-                const [metaRes, tanshoRes] = await Promise.all([
-                    fetch('jsons/meta.json?t=' + new Date().getTime()),
+                const [dataRes, tanshoRes] = await Promise.all([
+                    fetch('jsons/data.json?t=' + new Date().getTime()),
                     fetch('jsons/tansho_data.json?t=' + new Date().getTime())
                 ]);
 
-                if (!metaRes.ok) throw new Error('Meta data fetch failed');
-                metaData = await metaRes.json();
+                if (!dataRes.ok) throw new Error('Data fetch failed');
+                currentData = await dataRes.json();
                 
                 if (tanshoRes.ok) {
                     window.tanshoData = await tanshoRes.json();
                 } else {
-                    console.warn("tansho_data.json not found.");
+                    console.warn("tansho_data.json not found, using empty data.");
                     window.tanshoData = {};
                 }
-
-                // 日付フィルタの初期化
-                initFilters();
-
-                // 最新日のデータをロード
-                if (metaData.latest) {
-                    await fetchDateData(metaData.latest);
-                }
                 
+                initFilters();
                 renderRaces();
             } catch (error) {
                 console.error("Fetch error details: ", error);
-                container.innerHTML = `<div style="text-align:center; padding: 40px; color: #ef4444;"><p>${error.message}</p></div>`;
-            }
-        }
-
-        async function fetchDateData(date) {
-            if (loadedDates.has(date)) return;
-            
-            const container = document.getElementById('races-container');
-            const originalContent = container.innerHTML;
-            container.innerHTML = `<div style="text-align:center; padding: 20px;"><p>Fetching data for ${date}...</p></div>` + originalContent;
-
-            try {
-                const res = await fetch(`jsons/data_${date}.json?t=` + new Date().getTime());
-                if (!res.ok) throw new Error(`Failed to load data for ${date}`);
-                const newData = await res.json();
-                
-                // 既存のデータとマージ
-                Object.assign(currentData, newData);
-                loadedDates.add(date);
-                
-                container.innerHTML = originalContent; // ローディング表示を戻す
-            } catch (error) {
-                console.error(error);
-                alert(`Error loading data for ${date}`);
-                container.innerHTML = originalContent;
+                const isLocal = window.location.protocol === 'file:';
+                container.innerHTML = `
+                    <div style="text-align:center; padding: 40px; color: #ef4444;">
+                        <p style="font-weight: 800; font-size: 1.2rem; margin-bottom: 15px;">Data Load Error</p>
+                        <p style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 20px;">
+                            ${error.message}<br>
+                            ${isLocal ? '【重要】ローカルファイルとして直接開いているため、ブラウザのセキュリティ制限（CORS）により読み込みがブロックされています。' : ''}
+                        </p>
+                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: left; display: inline-block;">
+                            <p style="font-size: 0.8rem; font-weight: 800; margin-bottom: 8px;">解決方法:</p>
+                            <ol style="font-size: 0.8rem; color: #f8fafc; padding-left: 20px;">
+                                <li>VSCode の "Live Server" 拡張機能を使用する</li>
+                                <li>ターミナルで <code>python -m http.server</code> を実行し、localhost:8000 にアクセスする</li>
+                                <li><code>serve.bat</code> を作成して実行する</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
             }
         }
 
         function initFilters() {
             const dp = document.getElementById('filter-date');
-            dp.innerHTML = '';
-            
-            const datesArr = metaData.dates || [];
+            const datesArr = [...new Set(Object.values(currentData).map(r => r.date))].sort();
             
             datesArr.forEach(d => {
                 const opt = document.createElement('option');
@@ -555,8 +535,8 @@
                 dp.appendChild(opt);
             });
             
-            if (metaData.latest) {
-                dp.value = metaData.latest;
+            if (datesArr.length > 0) {
+                dp.value = datesArr[datesArr.length - 1]; // Default to latest date
             }
             
             // Round フィルタの選択肢を初期化 (1R-12R)
@@ -572,14 +552,7 @@
             updatePlaceFilter();
         }
 
-        async function onDateChange() {
-            const dp = document.getElementById('filter-date');
-            const selectedDate = dp.value;
-            
-            if (selectedDate && !loadedDates.has(selectedDate)) {
-                await fetchDateData(selectedDate);
-            }
-            
+        function onDateChange() {
             updatePlaceFilter();
             renderRaces();
         }
@@ -669,7 +642,7 @@
                 scoreModels.forEach(m => {
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
                     const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - 1);
                     const std = Math.sqrt(variance) || 1.0;
                     raceStats[m] = { mean, std };
                 });
@@ -703,9 +676,9 @@
                         }
                     } else if (s.type.includes("BOX")) {
                         const count = parseInt(s.partners) || 5;
-                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= sTh);
-                        if (valid.length >= count) {
-                            valid.slice(0, count).forEach(h => partnerSet.add(String(h.horse_number)));
+                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= pTh).slice(0, count);
+                        if (valid.length >= 2) {
+                            valid.forEach(h => partnerSet.add(String(h.horse_number)));
                         }
                     } else {
                         const axisCount = parseInt(s.axis_count) || 1;
@@ -869,13 +842,8 @@
                     <div>
                         ${horsesHtml}
                     </div>
-                    </div>
                 `;
                 container.appendChild(card);
-            }
-
-            if (container.innerHTML === '') {
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); font-size: 1.1rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">該当する推奨レース（PICKUP）がありません</div>';
             }
 
             setTimeout(() => {
@@ -885,78 +853,55 @@
             }, 50);
         }
 
-        let lastModalRaceId = null;
+        function showRecommendation(raceId) {
+            const raceData = currentData[raceId];
+            if (!raceData || !raceData.strategies) return;
 
-        async function showRecommendation(raceId) {
-            try {
-                lastModalRaceId = raceId;
-                const now = new Date().toLocaleTimeString();
-                console.log(`[DEBUG] [${now}] showRecommendation start for:`, raceId);
-                const raceData = currentData[raceId];
-                if (!raceData) {
-                    console.error("[DEBUG] No raceData found for raceId:", raceId);
-                    return;
-                }
-                if (!raceData.strategies) {
-                    console.warn("[DEBUG] No strategies found for raceData:", raceData);
-                    return;
-                }
+            const modal = document.getElementById('recommend-modal');
+            const body = document.getElementById('modal-body');
+            
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
+                </div>
+            `;
 
-                const modal = document.getElementById('recommend-modal');
-                const body = document.getElementById('modal-body');
-                
-                body.innerHTML = `
-                    <div style="text-align: center; margin-bottom: 25px;">
-                        <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
-                        <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
-                    </div>
-                    <div id="modal-results-container" style="margin-bottom: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">Fetching race results for ID: ${raceId}...</div>
-                    </div>
-                    <div id="modal-strategies-list"></div>
-                `;
-
-                // 第一弾：戦略リストを先に表示
+            raceData.strategies.forEach(s => {
+                // Need to pass stats for Z-Score filtering in generateBettingEyes
                 const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
                 const stats = {};
                 scoreModels.forEach(m => {
-                    const horses = raceData.horses || [];
-                    const vals = horses.map(h => parseFloat(h[m]) || 0);
-                    const mean = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                    const variance = vals.length > 0 ? vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length : 0;
+                    const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, raceData.horses.length - 1);
                     const std = Math.sqrt(variance) || 1.0;
                     stats[m] = { mean, std };
                 });
 
-                const strategyItems = raceData.strategies.map(s => {
-                    return { strategy: s, eyes: generateBettingEyes(raceData.horses, s, stats) };
-                }).filter(item => item.eyes !== '--');
+                const bettingEyes = generateBettingEyes(raceData.horses, s, stats);
+                if (bettingEyes === '--') return; // Skip if no recommendation
 
-                const finalStrategyItems = deduplicateStrategies(strategyItems);
+                html += `
+                    <div class="strategy-item-modal">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${s.type} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${s.model}</span></div>
+                            <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${s.roi}% | Hit ${s.hit_rate}%</div>
+                        </div>
+                        <div class="bet-eyes-box">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                            <div class="bet-eyes-text">${bettingEyes}</div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
+                            Z-Score: Jiku1 > ${s.score_th} ${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th}
+                        </div>
+                    </div>
+                `;
+            });
 
-                renderStrategies(finalStrategyItems, null);
-                modal.style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-
-                // 第二弾：レース結果を取得して的中判定
-                console.log("[DEBUG] calling fetchRaceResults for:", raceId);
-                const results = await fetchRaceResults(raceId);
-                if (results) {
-                    console.log("[DEBUG] Fetch success, rendering results.");
-                    renderResults(results);
-                    renderStrategies(finalStrategyItems, results);
-                } else {
-                    console.warn("[DEBUG] Fetch returned null, results not found yet.");
-                    document.getElementById('modal-results-container').innerHTML = `
-                        <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">
-                            Result not yet available.
-                            <button onclick="retryFetchResults()" style="display:inline-block; margin-left:10px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:2px 10px; border-radius:4px; font-size:0.7rem; cursor:pointer;">Retry</button>
-                        </div>`;
-                }
-            } catch (e) {
-                console.error("[DEBUG] Error in showRecommendation:", e);
-                alert("An error occurred. Check the console.");
-            }
+            body.innerHTML = html;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
         }
 
         function closeRecommendation() {
@@ -1023,368 +968,6 @@
             if (partners.length === 0) return "--";
 
             return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
-        }
-
-        function renderStrategies(items, results) {
-            const container = document.getElementById('modal-strategies-list');
-            if (!container) return;
-            
-            let html = '';
-            items.forEach(item => {
-                const s = item.strategy;
-                const eyes = item.eyes;
-                const displayType = s.type.replace('三連', '3連');
-                
-                // Calculate Finance
-                const count = calculateCombinations(eyes, s.type);
-                const investment = count * 100;
-                const returnAmount = results ? checkHit(eyes, s.type, results) : 0;
-                const balance = returnAmount - investment;
-                const isHit = returnAmount > 0;
-                const recoveryRate = investment > 0 ? Math.round((returnAmount / investment) * 100) : 0;
-
-                html += `
-                    <div class="strategy-item-modal" style="padding: 15px; margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.05rem;">
-                                ${displayType} <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:400; margin-left:8px;">by ${s.model}</span>
-                                ${isHit ? '<span style="margin-left:8px; background:#4ade80; color:#000; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:900;">HIT</span>' : ''}
-                            </div>
-                        </div>
-                        <div class="bet-eyes-box" style="padding: 10px 15px; margin-bottom: 12px; ${isHit ? 'border-color:#4ade80; background:rgba(74,222,128,0.05);' : ''}">
-                            <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">Recommended Combination</div>
-                            <div class="bet-eyes-text" style="font-size: 1rem; ${isHit ? 'color:#4ade80;' : ''}">${eyes}</div>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 0.75rem; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 12px; align-items: center;">
-                            <div>
-                                <span style="color:var(--text-muted); font-size:0.65rem; display:block; margin-bottom:2px;">INVESTMENT</span>
-                                <span style="font-weight:700; font-size:0.85rem;">¥${investment.toLocaleString()}</span>
-                                <span style="color:var(--text-muted); font-size:0.65rem; margin-left:2px;">(${count}点)</span>
-                            </div>
-                            <div style="text-align: center;">
-                                <span style="color:var(--text-muted); font-size:0.65rem; display:block; margin-bottom:2px;">RETURN</span>
-                                <span style="font-weight:700; font-size:0.85rem; color:${isHit ? '#4ade80' : '#fff'}">¥${returnAmount.toLocaleString()}</span>
-                            </div>
-                            <div style="text-align: right;">
-                                <span style="color:var(--text-muted); font-size:0.65rem; display:block; margin-bottom:2px;">BALANCE</span>
-                                <span style="font-size: 0.85rem; font-weight: 700; color: ${balance > 0 ? '#4ade80' : (balance < 0 ? '#f87171' : '#fff')};">
-                                    ¥${Math.abs(balance).toLocaleString()}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div style="font-size: 0.65rem; color: var(--text-muted); text-align: right; margin-top: 10px; opacity: 0.7;">
-                            ${displayType.includes("BOX") 
-                                ? `Z-Score: score > ${s.score_th} / ROI ${s.roi}%`
-                                : `Z-Score: Jiku1 > ${s.score_th} ${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th} / ROI ${s.roi}%`
-                            }
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        async function retryFetchResults() {
-            if (!lastModalRaceId) return;
-            const resDiv = document.getElementById('modal-results-container');
-            if (resDiv) {
-                resDiv.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">Reloading race results...</div>';
-            }
-            
-            const results = await fetchRaceResults(lastModalRaceId);
-            if (results) {
-                renderResults(results);
-                // 戦略リストも的中判定ありで再描画
-                showRecommendationRecursive(lastModalRaceId, results);
-            } else {
-                if (resDiv) {
-                    resDiv.innerHTML = `
-                        <div style="text-align:center; color:var(--text-muted); font-size:0.8rem;">
-                            Result not yet available.
-                            <button onclick="retryFetchResults()" style="display:inline-block; margin-left:10px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:2px 10px; border-radius:4px; font-size:0.7rem; cursor:pointer;">Retry</button>
-                        </div>`;
-                }
-            }
-        }
-
-        function showRecommendationRecursive(raceId, results) {
-            const raceData = currentData[raceId];
-            if (!raceData) return;
-            
-            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
-            const stats = {};
-            scoreModels.forEach(m => {
-                const horses = raceData.horses || [];
-                const vals = horses.map(h => parseFloat(h[m]) || 0);
-                const mean = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                const variance = vals.length > 0 ? vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length : 0;
-                const std = Math.sqrt(variance) || 1.0;
-                stats[m] = { mean, std };
-            });
-
-            const strategyItems = raceData.strategies.map(s => {
-                return { strategy: s, eyes: generateBettingEyes(raceData.horses, s, stats) };
-            }).filter(item => item.eyes !== '--');
-            
-            const finalStrategyItems = deduplicateStrategies(strategyItems);
-            renderStrategies(finalStrategyItems, results);
-        }
-
-        function deduplicateStrategies(items) {
-            const uniqueMap = new Map();
-            items.forEach(item => {
-                const key = `${item.strategy.type}_${item.strategy.model}`;
-                const current = uniqueMap.get(key);
-                if (!current || (parseFloat(item.strategy.roi) || 0) > (parseFloat(current.strategy.roi) || 0)) {
-                    uniqueMap.set(key, item);
-                }
-            });
-            return Array.from(uniqueMap.values());
-        }
-
-        function renderResults(results) {
-             const resDiv = document.getElementById('modal-results-container');
-             if (!resDiv || !results || !results.nums) return;
-             
-             const pad = (n) => String(n).padStart(2, '0');
-             const formatCombinations = (items, sep) => {
-                 return items.map(item => item.split('-').map(pad).join(sep)).join(', ');
-             };
-
-             let resHtml = `
-                <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <div style="font-size:0.8rem; color:var(--primary); font-weight:800;">RACE RESULT</div>
-                    <button onclick="retryFetchResults()" style="background:none; border:none; color:var(--text-muted); font-size:0.7rem; cursor:pointer; opacity:0.6; padding:0; vertical-align:middle;">🔄 Reload</button>
-                </div>
-             `;
-             resHtml += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; font-size:0.85rem;">';
-             
-             if (results.nums.tan) resHtml += `<div><span style="color:var(--text-muted)">単勝:</span> <span style="font-weight:700">${results.nums.tan.map(pad).join(', ')}</span></div>`;
-             if (results.nums.fuku) resHtml += `<div><span style="color:var(--text-muted)">複勝:</span> <span style="font-weight:700">${results.nums.fuku.map(pad).join(', ')}</span></div>`;
-             if (results.nums.umaren) resHtml += `<div><span style="color:var(--text-muted)">馬連:</span> <span style="font-weight:700">${formatCombinations(results.nums.umaren, '-')}</span></div>`;
-             if (results.nums.umatan) resHtml += `<div><span style="color:var(--text-muted)">馬単:</span> <span style="font-weight:700">${formatCombinations(results.nums.umatan, '→')}</span></div>`;
-             if (results.nums.wide) resHtml += `<div><span style="color:var(--text-muted)">ワイド:</span> <span style="font-weight:700">${formatCombinations(results.nums.wide, '-')}</span></div>`;
-             if (results.nums.sanrenpuku) resHtml += `<div><span style="color:var(--text-muted)">3連複:</span> <span style="font-weight:700">${formatCombinations(results.nums.sanrenpuku, '-')}</span></div>`;
-             if (results.nums.sanrentan) resHtml += `<div><span style="color:var(--text-muted)">3連単:</span> <span style="font-weight:700">${formatCombinations(results.nums.sanrentan, '→')}</span></div>`;
-             
-             resHtml += '</div>';
-             resDiv.innerHTML = resHtml;
-        }
-
-        async function fetchRaceResults(raceId) {
-            console.log("[DEBUG] fetchRaceResults entry, raceId:", raceId);
-            let fullRaceId = String(raceId);
-            if (fullRaceId.length === 10) {
-                fullRaceId = "20" + fullRaceId;
-            }
-            
-            console.log("[DEBUG] Fetching results for race:", fullRaceId);
-            const url = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${fullRaceId}&t=${new Date().getTime()}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-            
-            try {
-                const res = await fetch(proxyUrl);
-                console.log("[DEBUG] Fetch response status:", res.status);
-                
-                // netkeibaはEUC-JPを使用しているため、明示的にデコードする
-                const buffer = await res.arrayBuffer();
-                let html = new TextDecoder('euc-jp').decode(buffer);
-                
-                // 万が一デコードが怪しい場合（日本語が含まれない等）はUTF-8を試す
-                if (!html.includes('払戻') && !html.includes('結果')) {
-                    console.log("[DEBUG] euc-jp decoding seems failed, trying utf-8");
-                    html = new TextDecoder('utf-8').decode(buffer);
-                }
-
-                console.log("[DEBUG] Fetch HTML length:", html.length);
-                console.log("[DEBUG] HTML Preview:", html.substring(0, 200).replace(/\s+/g, ' '));
-                
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                
-                const results = { nums: {}, pays: {} };
-                // netkeiba SP版の払戻テーブルは複数のクラス名の可能性がある
-                const tables = doc.querySelectorAll('table.Pay_Table_01, table.Result_Pay_Table, table.Payout_Detail_Table, table.ResultRefund, .RaceCommon_Table.ResultRefund');
-                console.log("[DEBUG] Found payout tables count:", tables.length);
-                
-                tables.forEach((table, tIdx) => {
-                    const rows = table.querySelectorAll('tr');
-                    console.log(`[DEBUG] Table ${tIdx} (${table.className}) rows count:`, rows.length);
-                    
-                    rows.forEach(row => {
-                        const th = row.querySelector('th');
-                        let typeText = th ? th.innerText.trim() : "";
-                        if (!typeText) return;
-
-                        // 文字化け文字を日本語に置換して正規化
-                        typeText = typeText.replace(/ñ/g, '単').replace(/ʣ/g, '複').replace(/Ϣ/g, '連');
-
-                        const tds = row.querySelectorAll('td');
-                        let numbers = Array.from(row.querySelectorAll('.Num')).map(n => n.innerText.trim().replace(/[^0-9]/g, ''));
-                        
-                        // クラス名で取れない場合のフォールバック (tdの並びから取得)
-                        if (numbers.length === 0 && tds.length >= 1) {
-                            numbers = tds[0].innerText.trim().split(/\s+/).map(n => n.replace(/[^0-9]/g, '')).filter(n => n.length > 0);
-                        }
-
-                        // .Payクラス優先、なければ2番目のTDを使用。innerHTMLで取得してBR分割
-                        const payCell = row.querySelector('.Pay') || tds[1];
-                        let payTextArr = [];
-                        if (payCell) {
-                            payTextArr = payCell.innerHTML.split(/<br\s*\/?>/i)
-                                .map(h => h.replace(/<[^>]*>/g, '').replace(/[^0-9]/g, ''))
-                                .filter(v => v.length > 0);
-                        }
-                        const pays = payTextArr.map(v => parseInt(v) || 0);
-
-                        console.log(`[DEBUG] Row processing: type=${typeText}, nums=${numbers.join(',')}, pays=${pays.join('|')}`);
-
-                        if (typeText.includes("単勝") || typeText === "単") {
-                            results.nums.tan = numbers;
-                            results.pays.tan = pays[0] || 0;
-                        } else if (typeText.includes("複勝") || typeText === "複") {
-                            if (!results.nums.fuku) { results.nums.fuku = []; results.pays.fuku = []; }
-                            numbers.forEach((n, i) => {
-                                results.nums.fuku.push(n);
-                                results.pays.fuku.push(pays[i] || 0);
-                            });
-                        } else if (typeText.includes("馬連") || (typeText.includes("馬") && typeText.includes("連"))) {
-                            results.nums.umaren = []; results.pays.umaren = [];
-                            for (let i = 0; i < numbers.length; i += 2) {
-                                if (numbers[i+1]) {
-                                    results.nums.umaren.push(numbers[i] + '-' + numbers[i+1]);
-                                    results.pays.umaren.push(pays[Math.floor(i/2)] || 0);
-                                }
-                            }
-                        } else if (typeText.includes("馬単") || (typeText.includes("馬") && typeText.includes("単"))) {
-                            results.nums.umatan = []; results.pays.umatan = [];
-                            for (let i = 0; i < numbers.length; i += 2) {
-                                if (numbers[i+1]) {
-                                    results.nums.umatan.push(numbers[i] + '-' + numbers[i+1]);
-                                    results.pays.umatan.push(pays[Math.floor(i/2)] || 0);
-                                }
-                            }
-                        } else if (typeText.includes("ワイド") || typeText.includes("ワイ")) {
-                            if (!results.nums.wide) { results.nums.wide = []; results.pays.wide = []; }
-                            for (let i = 0, pIdx = 0; i < numbers.length; i += 2, pIdx++) {
-                                if (numbers[i+1]) {
-                                    results.nums.wide.push(numbers[i].padStart(2, '0') + '-' + numbers[i+1].padStart(2, '0'));
-                                    results.pays.wide.push(pays[pIdx] || 0); 
-                                }
-                            }
-                        } else if (typeText.includes("3連複") || (typeText.includes("3") && typeText.includes("複"))) {
-                            results.nums.sanrenpuku = []; results.pays.sanrenpuku = [];
-                            for (let i = 0; i < numbers.length; i += 3) {
-                                if (numbers[i+2]) {
-                                    results.nums.sanrenpuku.push(numbers[i] + '-' + numbers[i+1] + '-' + numbers[i+2]);
-                                    results.pays.sanrenpuku.push(pays[Math.floor(i/3)] || 0);
-                                }
-                            }
-                        } else if (typeText.includes("3連単") || (typeText.includes("3") && typeText.includes("単"))) {
-                            results.nums.sanrentan = []; results.pays.sanrentan = [];
-                            for (let i = 0; i < numbers.length; i += 3) {
-                                if (numbers[i+2]) {
-                                    results.nums.sanrentan.push(numbers[i] + '-' + numbers[i+1] + '-' + numbers[i+2]);
-                                    results.pays.sanrentan.push(pays[Math.floor(i/3)] || 0);
-                                }
-                            }
-                        }
-                    });
-                });
-
-                console.log("[DEBUG] Final parsed results:", JSON.stringify(results));
-                return (Object.keys(results.nums).length > 0) ? results : null;
-            } catch (e) {
-                console.error("[DEBUG] Result fetch error:", e);
-                return null;
-            }
-        }
-
-        function checkHit(eyes, type, results) {
-            console.log("[DEBUG] checkHit processing:", { type, eyes });
-            if (!results || !results.nums) return 0;
-
-            // 券種のベースキーを特定 (全角・表記揺れ対応)
-            let baseKey = "";
-            const normType = type.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace('三連', '3連');
-            
-            if (normType.includes("3連単")) baseKey = "sanrentan";
-            else if (normType.includes("3連複")) baseKey = "sanrenpuku";
-            else if (normType.includes("馬単")) baseKey = "umatan";
-            else if (normType.includes("馬連")) baseKey = "umaren";
-            else if (normType.includes("ワイド")) baseKey = "wide";
-            else if (normType.includes("単勝")) baseKey = "tan";
-            else if (normType.includes("複勝")) baseKey = "fuku";
-
-            let totalReturn = 0;
-            const resNums = results.nums[baseKey]; 
-            const resPays = results.pays[baseKey];
-            if (!resNums || resNums.length === 0) return 0;
-
-            const parts = eyes.split(' → ');
-            const axes = parts.slice(0, parts.length - 1).map(p => p.split(',').map(n => n.trim().padStart(2, '0')));
-            const partners = parts[parts.length - 1].split(',').map(n => n.trim().padStart(2, '0'));
-            const allSelected = axes.flat().concat(partners);
-
-            resNums.forEach((winCombo, winIdx) => {
-                const winHorses = winCombo.split('-').map(n => n.padStart(2, '0'));
-                const currentPay = Array.isArray(resPays) ? resPays[winIdx] : resPays;
-
-                // 1. 単勝・複勝
-                if (baseKey === "tan" || baseKey === "fuku") {
-                    if (winHorses.includes(eyes.padStart(2, '0'))) totalReturn += currentPay;
-                }
-                // 2. BOX馬券 (順不同)
-                else if (type.includes("BOX")) {
-                    const horses = eyes.split(',').map(n => n.trim().padStart(2, '0'));
-                    if (winHorses.every(h => horses.includes(h))) totalReturn += currentPay;
-                }
-                // 3. マルチ / 3連複 / 馬連 / ワイド (順不動・軸指定あり)
-                else if (type.includes("マルチ") || baseKey === "sanrenpuku" || baseKey === "umaren" || baseKey === "wide") {
-                    if (winHorses.every(h => allSelected.includes(h)) && axes.flat().every(a => winHorses.includes(a))) totalReturn += currentPay;
-                } 
-                // 4. 流し (順序指定: 3連単, 馬単)
-                else if (baseKey === "umatan") {
-                    if (axes[0].includes(winHorses[0]) && partners.includes(winHorses[1])) totalReturn += currentPay;
-                } else if (baseKey === "sanrentan") {
-                    if (axes.length === 1) { // 1頭軸流し
-                        if (axes[0].includes(winHorses[0]) && partners.includes(winHorses[1]) && partners.includes(winHorses[2])) totalReturn += currentPay;
-                    } else if (axes.length === 2) { // 2頭軸流し
-                        if (axes[0].includes(winHorses[0]) && axes[1].includes(winHorses[1]) && partners.includes(winHorses[2])) totalReturn += currentPay;
-                    }
-                }
-            });
-
-            return totalReturn;
-        }
-
-        function calculateCombinations(eyes, type) {
-            const displayType = type.replace('三連', '3連');
-            if (displayType === "単勝") return 1;
-            const parts = eyes.split(' → ');
-            if (displayType.includes("BOX")) {
-                const n = eyes.split(',').length;
-                if (displayType.includes("3連単")) return n * (n - 1) * (n - 2);
-                if (displayType.includes("3連複")) return n * (n - 1) * (n - 2) / 6;
-                return n * (n - 1) / (displayType.includes("馬単") ? 1 : 2);
-            }
-            const axisCount = parts.slice(0, -1).reduce((acc, p) => acc + p.split(',').length, 0);
-            const partnerCount = parts[parts.length - 1].split(',').length;
-            
-            if (displayType.includes("3連単")) {
-                if (displayType.includes("マルチ")) {
-                    return (axisCount === 1) ? partnerCount * (partnerCount - 1) * 3 : (partnerCount * 6);
-                }
-                return (axisCount === 1) ? partnerCount * (partnerCount - 1) : partnerCount;
-            }
-            if (displayType.includes("3連複")) {
-                return (axisCount === 1) ? partnerCount * (partnerCount - 1) / 2 : partnerCount;
-            }
-            if (displayType.includes("馬単")) return displayType.includes("マルチ") ? partnerCount * 2 : partnerCount;
-            if (displayType.includes("馬連") || displayType.includes("ワイド")) return displayType.includes("マルチ") ? partnerCount * 1 : partnerCount;
-            return partnerCount;
         }
 
     </script>

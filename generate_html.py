@@ -958,7 +958,7 @@ def generate_static_html():
                 scoreModels.forEach(m => {{
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
                     const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - 1);
                     const std = Math.sqrt(variance) || 1.0;
                     raceStats[m] = {{ mean, std }};
                 }});
@@ -1158,7 +1158,6 @@ def generate_static_html():
                     <div>
                         ${{horsesHtml}}
                     </div>
-                    </div>
                 `;
                 container.appendChild(card);
             }}
@@ -1191,7 +1190,7 @@ def generate_static_html():
                 scoreModels.forEach(m => {{
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
                     const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, raceData.horses.length - 1);
                     const std = Math.sqrt(variance) || 1.0;
                     stats[m] = {{ mean, std }};
                 }});
