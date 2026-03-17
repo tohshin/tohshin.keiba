@@ -1305,28 +1305,40 @@ def generate_static_html():
                 const resultArea = item.querySelector('.bet-result-details');
                 if (resultArea) resultArea.innerHTML = ''; // Reset
 
-                // Normalize type for matching
-                const normType = type.replace('3連', '三連');
-                const winNums = (payoutData.nums[type] || payoutData.nums[normType] || payoutData.nums[type.replace('三連', '3連')] || []);
-                const winPays = (payoutData.pays[type] || payoutData.pays[normType] || payoutData.pays[type.replace('三連', '3連')] || []);
+                // 券種に応じたキーを抽出 (例: "3連単-2頭軸マルチ" -> "3連単")
+                let baseType = "";
+                const types = ["単勝", "複勝", "枠連", "枠単", "馬連", "馬単", "ワイド", "3連複", "3連単", "三連複", "三連単"];
+                for (const t of types) {{
+                    if (type.includes(t)) {{
+                        baseType = t;
+                        break;
+                    }}
+                }}
+                
+                if (!baseType) return;
+
+                const normBaseType = baseType.replace('3連', '三連');
+                const winNums = (payoutData.nums[baseType] || payoutData.nums[normBaseType] || payoutData.nums[baseType.replace('三連', '3連')] || []);
+                const winPays = (payoutData.pays[baseType] || payoutData.pays[normBaseType] || payoutData.pays[baseType.replace('三連', '3連')] || []);
                 let isHit = false;
                 
                 if (winNums.length > 0) {{
                     let eyesCount = eyesText.split(',').length;
-                    // マルチの場合の買い目数調整 (3連単 2頭軸マルチは 6 * partnerCount)
-                    if (type.includes('3連単') || type.includes('三連単')) {{
-                        if (type.includes('マルチ')) eyesCount *= 6;
+                    // マルチの場合の買い目数調整
+                    if (type.includes('マルチ')) {{
+                        if (type.includes('3連単') || type.includes('三連単')) eyesCount *= 6;
+                        if (type.includes('馬単')) eyesCount *= 2;
                     }}
                     
                     const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
 
-                    if (type === "単勝") {{
+                    if (baseType === "単勝") {{
                         isHit = (predicted[0] === winNums[0]);
-                    }} else if (type.includes("複勝")) {{
+                    }} else if (baseType === "複勝") {{
                         isHit = winNums.some(n => predicted.includes(n));
-                    }} else if (type.includes("馬連")) {{
+                    }} else if (baseType === "馬連") {{
                         isHit = winNums.every(n => predicted.includes(n));
-                    }} else if (type.includes("ワイド")) {{
+                    }} else if (baseType === "ワイド") {{
                         // Wide: check if any pair is fully contained in predicted
                         for (let i = 0; i < winNums.length; i += 2) {{
                             if (winNums[i] && winNums[i+1]) {{
@@ -1335,24 +1347,30 @@ def generate_static_html():
                                 }}
                             }}
                         }}
-                    }} else if (type.includes("馬単") || type.includes("3連単") || type.includes("三連単")) {{
+                    }} else if (baseType.includes("馬単") || baseType.includes("3連単") || baseType.includes("三連単")) {{
                         const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
                         isHit = winNums.every((n, i) => seqPredicted[i] === n);
-                    }} else if (type.includes("3連複") || type.includes("三連複")) {{
+                    }} else if (baseType.includes("3連複") || baseType.includes("三連複")) {{
                         isHit = winNums.every(n => predicted.includes(n));
                     }}
 
                     if (isHit && resultArea) {{
-                        // Calculate payout and profit
                         let totalPay = 0;
-                        if (type.includes("複勝") || type.includes("ワイド")) {{
-                            // Multiple hits possible
-                            const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
-                            // This is a simplification; ideally we match specific pairs
-                            // For now, if hit, show the first relevant payout
-                            totalPay = parseInt(winPays[0].replace(/,/g, '')) || 0;
+                        if (baseType === "複勝" || baseType === "ワイド") {{
+                            // 的中したペア/番号に対応する配当を探す
+                            if (baseType === "複勝") {{
+                                const hitIdx = winNums.indexOf(predicted[0]);
+                                totalPay = parseInt((winPays[hitIdx] || winPays[0] || '0').replace(/,/g, '')) || 0;
+                            }} else {{
+                                // ワイド
+                                for (let i = 0; i < winNums.length; i += 2) {{
+                                    if (predicted.includes(winNums[i]) && predicted.includes(winNums[i+1])) {{
+                                        totalPay += parseInt((winPays[i/2] || '0').replace(/,/g, '')) || 0;
+                                    }}
+                                }}
+                            }}
                         }} else {{
-                            totalPay = parseInt(winPays[0].replace(/,/g, '')) || 0;
+                            totalPay = parseInt((winPays[0] || '0').replace(/,/g, '')) || 0;
                         }}
 
                         const investment = eyesCount * 100;
