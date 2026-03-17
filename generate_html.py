@@ -1025,13 +1025,13 @@ def generate_static_html():
                     }}
                 }});
 
-                // --- Calculate Softmax Probabilities (Top 8 Softmax using Ensemble) ---
-                const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b.Ensemble) || 0) - (parseFloat(a.Ensemble) || 0));
+                // --- Calculate Softmax Probabilities (Top 8 Softmax using selected model) ---
+                const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b[mainModelKey]) || 0) - (parseFloat(a[mainModelKey]) || 0));
                 const top8Horses = sortedByScore.slice(0, 8);
                 
-                const top8Scores = top8Horses.map(h => parseFloat(h.Ensemble) || 0);
-                const maxEns = top8Scores.length > 0 ? Math.max(...top8Scores) : 0;
-                const expScores = top8Scores.map(s => Math.exp(s - maxEns));
+                const top8Scores = top8Horses.map(h => parseFloat(h[mainModelKey]) || 0);
+                const maxScoreVal = top8Scores.length > 0 ? Math.max(...top8Scores) : 0;
+                const expScores = top8Scores.map(s => Math.exp(s - maxScoreVal));
                 const sumExp = expScores.reduce((a, b) => a + b, 0);
                 
                 sortedHorses.forEach(h => {{ h.pWin = 0; }});
