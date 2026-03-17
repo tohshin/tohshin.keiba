@@ -1307,6 +1307,7 @@ def generate_static_html():
 
                 const winNums = payoutData.nums[type] || [];
                 const winPays = payoutData.pays[type] || [];
+                let isHit = false;
                 
                 if (winNums.length > 0) {{
                     let eyesCount = eyesText.split(',').length;
@@ -1400,20 +1401,15 @@ def generate_static_html():
                 const displayType = s.type.replace('三連', '3連');
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
-                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem; flex: 1; min-width: 150px;">
-                                ${{displayType}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="font-size: 0.85rem; color: #4ade80; font-weight: 700;">ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%</div>
-                                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">
-                                    Z: ${{s.score_th}}${{s.axis_count >= 2 ? `/${{s.axis2_score_th || s.partner_score_th}}` : ''}}/${{s.partner_score_th}}
-                                </div>
-                            </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${{displayType}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span></div>
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
                             <div class="bet-eyes-text">${{bettingEyes}}</div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
+                            Z: ${{s.score_th}}${{s.axis_count >= 2 ? `/${{s.axis2_score_th || s.partner_score_th}}` : ''}}/${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
                         </div>
                         <div class="bet-result-details"></div>
                     </div>
