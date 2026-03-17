@@ -929,14 +929,21 @@
                 for (const [type, nums] of Object.entries(payoutData.nums)) {
                     const payTexts = payoutData.pays[type] || [];
                     const displayType = type.replace('三連', '3連');
-                    const separator = (type.includes('単') || type.includes('枠連')) ? '→' : ',';
+                    
+                    // 区切り文字の決定
+                    let separator = ',';
+                    if (type.includes('単') || type.includes('枠連')) {
+                        separator = '→';
+                    } else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) {
+                        separator = '-';
+                    }
                     
                     htmlRes += `
                         <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
                             <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${displayType}</div>
                             <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
                                 ${nums.map((n, i) => `
-                                    <span style="background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:1px 5px; border-radius:4px;">${n}</span>
+                                    <span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${n}</span>
                                     ${i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold;">${separator}</span>` : ''}
                                 `).join('')}
                             </div>
