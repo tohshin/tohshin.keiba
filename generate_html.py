@@ -1376,7 +1376,7 @@ def generate_static_html():
 
             }} catch (error) {{
                 console.error("[ERROR]", error);
-                resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ef4444;">Failed to load results.</div>';
+                resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ef4444;">Failed to load results/status.</div>';
             }}
         }}
 
@@ -1391,6 +1391,7 @@ def generate_static_html():
                 if (resultArea) resultArea.innerHTML = ''; // Reset
 
                 const eyesElem = item.querySelector('.bet-eyes-text');
+                const eyesBox = item.querySelector('.bet-eyes-box');
                 if (eyesElem) eyesElem.innerHTML = eyesText; // Clear previous HIT mark
 
                 // 券種に応じたキーを抽出 (例: "3連単-2頭軸マルチ" -> "3連単")
@@ -1499,7 +1500,6 @@ def generate_static_html():
                 }}
 
                 if (isHit) {{
-                    const eyesBox = item.querySelector('.bet-eyes-box');
                     if (eyesBox) {{
                         const hitBadge = document.createElement('div');
                         hitBadge.innerHTML = '🎯 HIT';
