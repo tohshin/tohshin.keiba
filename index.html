@@ -868,10 +868,10 @@
             try {
                 // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
                 const targetUrl = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${raceId}`;
-                // allorigins の raw エンドポイントを使用
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&t=${new Date().getTime()}`;
+                // api.codetabs.com を使用して CORS を回避
+                const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
                 
-                console.log("[DEBUG] Fetching results via AllOrigins Raw:", proxyUrl);
+                console.log("[DEBUG] Fetching results via CodeTabs:", proxyUrl);
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
