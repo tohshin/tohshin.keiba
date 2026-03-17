@@ -1238,7 +1238,7 @@ def generate_static_html():
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
                         <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Recommendations Available</div>
-                        <div style="font-weight: 700; font-size: 0.8rem;">現在、オススメの買い目はありません</div>
+                        <div style="font-weight: 700; font-size: 0.8rem;">オススメの買い目はありません</div>
                     </div>
                 `;
             }}
@@ -1319,53 +1319,54 @@ def generate_static_html():
                     return;
                 }}
 
-                // 結果表示の構築 (サマリー形式)
+                // 結果表示の構築 (サマリー形式・グループ化)
                 let htmlRes = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <span style="color:#4ade80; font-weight:800; font-size:0.75rem; text-transform:uppercase;">Confirmed Results</span>
-                        <span style="font-size:0.7rem; color:var(--text-muted);">${{doc.title.split('|')[0].trim()}}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="color:#4ade80; font-weight:800; font-size:0.7rem; text-transform:uppercase;">Confirmed Results</span>
+                        <span style="font-size:0.65rem; color:var(--text-muted);">${{doc.title.split('|')[0].trim()}}</span>
                     </div>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
                 `;
 
-                for (const [type, nums] of Object.entries(payoutData.nums)) {{
-                    const payTexts = payoutData.pays[type] || [];
-                    const displayType = type.replace('三連', '3連');
+                const renderBlock = (type) => {{
+                    const nums = payoutData.nums[type] || payoutData.nums[type.replace('3連', '三連')] || payoutData.nums[type.replace('三連', '3連')];
+                    if (!nums) return '';
                     
-                    // 区切り文字の決定
+                    const displayType = type.replace('三連', '3連');
                     let separator = ',';
-                    if (type.includes('単') || type.includes('枠連')) {{
-                        separator = '→';
-                    }} else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) {{
-                        separator = '-';
-                    }}
+                    if (type.includes('単') || type.includes('枠連')) separator = '→';
+                    else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) separator = '-';
                     
                     let numbersHtml = '';
                     if (type === 'ワイド' && nums.length >= 2) {{
-                        // ワイドの場合、2つずつのペアで表示 (例: 7-10, 10-4)
                         const pairs = [];
                         for (let i = 0; i < nums.length; i += 2) {{
                             if (nums[i+1]) pairs.push(`${{nums[i]}}-${{nums[i+1]}}`);
                         }}
-                        numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${{p}}</span>`).join('<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold; margin:0 2px;">,</span>');
+                        numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${{p}}</span>`).join('<span style="color:var(--text-muted); font-size:0.55rem; margin:0 1px;">,</span>');
                     }} else {{
                         numbersHtml = nums.map((n, i) => `
-                            <span style="color:#4ade80; font-size:0.75rem; font-weight:900;">${{n}}</span>
-                            ${{i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.6rem; font-weight:bold;">${{separator}}</span>` : ''}}
+                            <span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${{n}}</span>
+                            ${{i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.55rem; font-weight:bold;">${{separator}}</span>` : ''}}
                         `).join('');
                     }}
 
-                    htmlRes += `
-                        <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                            <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:4px;">${{displayType}}</div>
-                            <div style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
-                                ${{numbersHtml}}
-                            </div>
-                            <div style="font-size: 0.75rem; color: #fbbf24; font-weight: 700; line-height: 1.2;">
-                            </div>
-                        </div>
-                    `;
-                }}
+                    return `<div style="background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:6px; flex:1; min-width:60px;">
+                        <div style="font-size:0.55rem; color:var(--text-muted); margin-bottom:1px;">${{displayType}}</div>
+                        <div style="display:flex; gap:2px; flex-wrap:wrap; align-items:center;">${{numbersHtml}}</div>
+                    </div>`;
+                }};
+
+                const groups = [
+                    ['単勝', '複勝'],
+                    ['馬連', '馬単', '枠連'],
+                    ['ワイド', '3連複', '3連単']
+                ];
+
+                groups.forEach(g => {{
+                    const rowHtml = g.map(t => renderBlock(t)).join('');
+                    if (rowHtml) htmlRes += `<div style="display:flex; gap:4px;">${{rowHtml}}</div>`;
+                }});
                 htmlRes += '</div>';
                 resultDiv.innerHTML = htmlRes;
 
