@@ -359,6 +359,9 @@
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
+            white-space: nowrap;
+            display: inline-block;
+            transition: font-size 0.2s ease;
         }
 
         .strategy-item-modal {
@@ -399,7 +402,16 @@
     </style>
 </head>
 <body>
-    <div id="app-content">
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>Keiba AI Login</h2>
+            <input type="password" id="auth-pw" placeholder="Password" onkeydown="if(event.key==='Enter') checkAuth()" />
+            <button onclick="checkAuth()">Enter</button>
+            <div id="login-error">Invalid credentials</div>
+        </div>
+    </div>
+
+    <div id="app-content" style="display: none;">
         <header>
             <h1>Keiba AI</h1>
             <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.0)</div>
@@ -445,9 +457,57 @@
     <script>
         let currentData = {};
 
-        // ページ読み込み時にデータロード
+        async function checkAuth() {
+            console.log("checkAuth started");
+            try {
+                const pwInput = document.getElementById('auth-pw');
+                if (!pwInput) {
+                    console.error("auth-pw element not found!");
+                    return;
+                }
+                const pw = pwInput.value.trim();
+                console.log("Password length entered:", pw.length);
+                
+                if (pw === 'tohshin20') {
+                    console.log("Password correct, logging in...");
+                    localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
+                    document.getElementById('auth-overlay').style.display = 'none';
+                    document.getElementById('app-content').style.display = 'block';
+                    loadData();
+                } else {
+                    console.warn("Invalid password attempt");
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            } catch (e) {
+                console.error("Login Error:", e);
+                alert("Login Error: " + e.message);
+            }
+        }
+
+        // ページ読み込み時に認証チェック
         window.onload = function() {
-            loadData();
+            console.log("window.onload triggered");
+            try {
+                const authTime = localStorage.getItem('keiba_auth_time');
+                if (authTime) {
+                    const now = new Date().getTime();
+                    const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                    console.log("Auth time diff (hours):", diffHours);
+                    if (diffHours < 24) {
+                        console.log("Automatically logging in from valid session");
+                        document.getElementById('auth-overlay').style.display = 'none';
+                        document.getElementById('app-content').style.display = 'block';
+                        loadData();
+                        return;
+                    }
+                }
+                console.log("Relogging required, showing overlay");
+                document.getElementById('auth-overlay').style.display = 'flex';
+                document.getElementById('auth-pw').focus();
+            } catch (e) {
+                console.error("Auth initialization error:", e);
+                document.getElementById('auth-overlay').style.display = 'flex';
+            }
         };
 
         async function loadData() {
@@ -874,7 +934,9 @@
                         </div>
                         <div class="bet-eyes-box">
                             <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text">${bettingEyes}</div>
+                            <div class="bet-eyes-text-container" style="width: 100%; overflow: hidden;">
+                                <div class="bet-eyes-text">${bettingEyes}</div>
+                            </div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
                             Z-Score: Jiku1 > ${s.score_th}${s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th || s.partner_score_th}` : ''} / Partner > ${s.partner_score_th} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
@@ -1157,20 +1219,17 @@
                         eyesBox.appendChild(hitBadge);
                     }
                 }
-
+                
                 // --- Dynamic Font Scaling For Betting Eyes ---
-                const eyesElem = item.querySelector('.bet-eyes-text');
-                const eyesBox = item.querySelector('.bet-eyes-box');
-                if (eyesElem && eyesBox) {
+                const eyesText = item.querySelector('.bet-eyes-text');
+                const container = item.querySelector('.bet-eyes-text-container');
+                if (eyesText && container) {
                     let fontSize = 1.8; // rem
-                    eyesElem.style.fontSize = fontSize + 'rem';
-                    // モーダル表示後に幅が確定するため、少し待つ必要がある
-                    setTimeout(() => {
-                        while (eyesElem.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {
-                            fontSize -= 0.1;
-                            eyesElem.style.fontSize = fontSize + 'rem';
-                        }
-                    }, 0);
+                    eyesText.style.fontSize = fontSize + 'rem';
+                    while (eyesText.scrollWidth > container.offsetWidth && fontSize > 0.6) {
+                        fontSize -= 0.1;
+                        eyesText.style.fontSize = fontSize + 'rem';
+                    }
                 }
             });
         }
