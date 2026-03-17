@@ -675,6 +675,7 @@ def generate_static_html():
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
+            white-space: nowrap;
         }}
 
         .strategy-item-modal {{
@@ -1505,6 +1506,20 @@ def generate_static_html():
                         hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
                         eyesBox.appendChild(hitBadge);
                     }}
+                }}
+                // --- Dynamic Font Scaling For Betting Eyes ---
+                const eyesElem = item.querySelector('.bet-eyes-text');
+                const eyesBox = item.querySelector('.bet-eyes-box');
+                if (eyesElem && eyesBox) {{
+                    let fontSize = 1.8; // rem
+                    eyesElem.style.fontSize = fontSize + 'rem';
+                    // モーダル表示後に幅が確定するため、少し待つ必要がある
+                    setTimeout(() => {{
+                        while (eyesElem.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {{
+                            fontSize -= 0.1;
+                            eyesElem.style.fontSize = fontSize + 'rem';
+                        }}
+                    }}, 0);
                 }}
             }});
         }}
