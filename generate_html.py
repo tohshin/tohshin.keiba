@@ -1222,15 +1222,42 @@ def generate_static_html():
                     t.style.width = '100%';
                     t.style.borderCollapse = 'collapse';
                     t.style.color = '#f8fafc';
+                    t.style.fontSize = '0.75rem';
+                    
                     t.querySelectorAll('th, td').forEach(cell => {{
                         cell.style.padding = '6px 8px';
                         cell.style.border = '1px solid rgba(255,255,255,0.1)';
+                        cell.style.verticalAlign = 'middle';
                     }});
+                    
                     t.querySelectorAll('th').forEach(th => {{
-                        th.style.background = 'rgba(255,255,255,0.1)';
+                        th.style.background = 'rgba(74, 222, 128, 0.1)';
                         th.style.textAlign = 'left';
-                        th.style.width = '30%';
+                        th.style.width = '20%';
+                        th.style.color = '#4ade80';
+                        th.style.fontWeight = 'bold';
                     }});
+
+                    // 内部のデザイン調整
+                    t.querySelectorAll('ul').forEach(ul => {{
+                        ul.style.listStyle = 'none';
+                        ul.style.margin = '0';
+                        ul.style.padding = '0';
+                        ul.style.display = 'inline-flex';
+                        ul.style.gap = '5px';
+                        ul.style.alignItems = 'center';
+                    }});
+
+                    t.querySelectorAll('li').forEach(li => {{
+                        li.style.display = 'inline-block';
+                        li.style.background = 'rgba(255,255,255,0.1)';
+                        li.style.padding = '2px 6px';
+                        li.style.borderRadius = '4px';
+                        li.style.minWidth = '24px';
+                        li.style.textAlign = 'center';
+                    }});
+                    
+                    t.querySelectorAll('td.Result br').forEach(br => br.remove()); // 不要な改行を削除
                 }});
 
                 resultDiv.querySelectorAll('dl.Pay_Table_01').forEach(dl => {{
