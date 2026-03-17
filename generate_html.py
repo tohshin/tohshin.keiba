@@ -1183,9 +1183,9 @@ def generate_static_html():
 
             try {{
                 // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
-                const targetUrl = `https://race.sp.netkeiba.com/?pid=race_result&race_id=${{raceId}}`;
-                // api.codetabs.com を使用して CORS を回避
-                const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${{encodeURIComponent(targetUrl)}}`;
+                const targetUrl = "https://race.sp.netkeiba.com/?pid=race_result&race_id=" + raceId;
+                // api.codetabs.com を使用して CORS を回避 (末尾に / を追加)
+                const proxyUrl = "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(targetUrl);
                 
                 console.log("[DEBUG] Fetching results via CodeTabs:", proxyUrl);
                 const response = await fetch(proxyUrl);
