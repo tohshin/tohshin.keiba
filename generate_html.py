@@ -771,13 +771,22 @@ def generate_static_html():
         let currentData = {{}};
 
         async function checkAuth() {{
-            const pw = document.getElementById('auth-pw').value;
+            const pwInput = document.getElementById('auth-pw');
+            if (!pwInput) {{
+                console.error("auth-pw element not found!");
+                return;
+            }}
+            const pw = pwInput.value.trim();
+            console.log("Password entered (trimmed) length:", pw.length);
+                
             if (pw === 'tohshin20') {{
-                localStorage.setItem('keiba_auth_time', new Date().getTime());
+                console.log("Password correct, logging in...");
+                localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
+                console.warn("Invalid password attempt");
                 document.getElementById('login-error').style.display = 'block';
             }}
         }}
@@ -795,169 +804,725 @@ def generate_static_html():
                     return;
                 }}
             }}
+            // 認証が必要な場合
             document.getElementById('auth-overlay').style.display = 'flex';
         }};
 
         async function loadData() {{
+            const container = document.getElementById('races-container');
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
+
             try {{
-                const resp = await fetch('jsons/meta.json');
-                const meta = await resp.json();
-                const dateSelect = document.getElementById('filter-date');
-                meta.dates.reverse().forEach(d => {{
-                    const opt = document.createElement('option');
-                    opt.value = d;
-                    opt.textContent = d;
-                    dateSelect.appendChild(opt);
-                }});
-                if (meta.latest) {{
-                    dateSelect.value = meta.latest;
-                    onDateChange();
+                const [dataRes, tanshoRes] = await Promise.all([
+                    fetch('jsons/data.json?t=' + new Date().getTime()),
+                    fetch('jsons/tansho_data.json?t=' + new Date().getTime())
+                ]);
+
+                if (!dataRes.ok) throw new Error('Data fetch failed');
+                currentData = await dataRes.json();
+                
+                if (tanshoRes.ok) {{
+                    window.tanshoData = await tanshoRes.json();
+                }} else {{
+                    console.warn("tansho_data.json not found, using empty data.");
+                    window.tanshoData = {{}};
                 }}
-            }} catch (e) {{
-                console.error("Failed to load data:", e);
-            }}
-        }}
-
-        async function onDateChange() {{
-            const d = document.getElementById('filter-date').value;
-            try {{
-                const resp = await fetch(`jsons/data_${{d}}.json`);
-                currentData = await resp.json();
-                updateFilters();
+                
+                initFilters();
                 renderRaces();
-            }} catch (e) {{
-                console.error(`Failed to load data_${{d}}.json:`, e);
+            }} catch (error) {{
+                console.error("Fetch error details: ", error);
+                const isLocal = window.location.protocol === 'file:';
+                container.innerHTML = `
+                    <div style="text-align:center; padding: 40px; color: #ef4444;">
+                        <p style="font-weight: 800; font-size: 1.2rem; margin-bottom: 15px;">Data Load Error</p>
+                        <p style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 20px;">
+                            ${{error.message}}<br>
+                            ${{isLocal ? '【重要】ローカルファイルとして直接開いているため、ブラウザのセキュリティ制限（CORS）により読み込みがブロックされています。' : ''}}
+                        </p>
+                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: left; display: inline-block;">
+                            <p style="font-size: 0.8rem; font-weight: 800; margin-bottom: 8px;">解決方法:</p>
+                            <ol style="font-size: 0.8rem; color: #f8fafc; padding-left: 20px;">
+                                <li>VSCode の "Live Server" 拡張機能を使用する</li>
+                                <li>ターミナルで <code>python -m http.server</code> を実行し、localhost:8000 にアクセスする</li>
+                                <li><code>serve.bat</code> を作成して実行する</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
             }}
         }}
 
-        function updateFilters() {{
-            const placeSelect = document.getElementById('filter-place');
-            const roundSelect = document.getElementById('filter-round');
-            const places = new Set();
-            const rounds = new Set();
-            Object.values(currentData).forEach(r => {{
-                places.add(r.place);
-                rounds.add(r.round);
+        function initFilters() {{
+            const dp = document.getElementById('filter-date');
+            const datesArr = [...new Set(Object.values(currentData).map(r => r.date))].sort();
+            
+            datesArr.forEach(d => {{
+                const opt = document.createElement('option');
+                opt.value = d; opt.innerText = d;
+                dp.appendChild(opt);
             }});
             
-            const curPlace = placeSelect.value;
-            placeSelect.innerHTML = '<option value="ALL">All Places</option>';
-            Array.from(places).sort().forEach(p => {{
+            if (datesArr.length > 0) {{
+                dp.value = datesArr[datesArr.length - 1]; // Default to latest date
+            }}
+            
+            // Round フィルタの選択肢を初期化 (1R-12R)
+            const rp = document.getElementById('filter-round');
+            rp.innerHTML = '<option value="ALL">All Races</option>';
+            for (let i = 1; i <= 12; i++) {{
                 const opt = document.createElement('option');
-                opt.value = p; opt.textContent = p;
-                placeSelect.appendChild(opt);
-            }});
-            placeSelect.value = places.has(curPlace) ? curPlace : "ALL";
+                opt.value = String(i);
+                opt.innerText = i + "R";
+                rp.appendChild(opt);
+            }}
+            
+            updatePlacesForDate();
+        }}
 
-            const curRound = roundSelect.value;
-            roundSelect.innerHTML = '<option value="ALL">All Races</option>';
-            Array.from(rounds).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(r => {{
+        function onDateChange() {{
+            updatePlacesForDate();
+            renderRaces();
+        }}
+
+        function updatePlacesForDate() {{
+            const fDate = document.getElementById('filter-date').value;
+            const pp = document.getElementById('filter-place');
+            const prevValue = pp.value;
+            pp.innerHTML = '<option value="ALL">All Places</option>';
+            
+            const placesForDate = [];
+            for (const [rid, rdata] of Object.entries(currentData)) {{
+                if (rdata.date === fDate && !placesForDate.includes(rdata.place)) {{
+                    placesForDate.push(rdata.place);
+                }}
+            }}
+            
+            placesForDate.sort().forEach(p => {{
                 const opt = document.createElement('option');
-                opt.value = r; opt.textContent = r + "R";
-                roundSelect.appendChild(opt);
+                opt.value = p;
+                opt.innerText = p;
+                pp.appendChild(opt);
             }});
-            roundSelect.value = rounds.has(curRound) ? curRound : "ALL";
+            
+            // Try to restore previous selection if valid
+            if (placesForDate.includes(prevValue)) {{
+                pp.value = prevValue;
+            }}
         }}
 
         function renderRaces() {{
             const container = document.getElementById('races-container');
-            const placeFilter = document.getElementById('filter-place').value;
-            const roundFilter = document.getElementById('filter-round').value;
-            const model = document.getElementById('model-select').value;
-            const scoreKey = model === 'Ensemble' ? 'Ensemble' : model + "_raw";
+            container.innerHTML = '';
+            
+            const sortBy = document.getElementById('sort-select').value;
+            const sortModel = document.getElementById('model-select').value;
+            const mSelect = document.getElementById('model-select');
+            const fDate = document.getElementById('filter-date').value;
+            const fPlace = document.getElementById('filter-place').value;
+            const fRound = document.getElementById('filter-round').value;
 
-            container.innerHTML = "";
-            const sortedRaces = Object.values(currentData).sort((a,b) => parseInt(a.round) - parseInt(b.round));
+            // Show model selector only when sorting by score
+            if (sortBy === 'score') {{
+                mSelect.style.display = 'inline-block';
+            }} else {{
+                mSelect.style.display = 'none';
+            }}
 
-            sortedRaces.forEach(race => {{
-                if (placeFilter !== "ALL" && race.place !== placeFilter) return;
-                if (roundFilter !== "ALL" && race.round !== roundFilter) return;
+            let delay = 0;
+
+            for (const [raceId, raceData] of Object.entries(currentData)) {{
+                
+                // Filtering
+                if (fDate !== 'ALL' && raceData.date !== fDate) continue;
+                if (fPlace !== 'ALL' && raceData.place !== fPlace) continue;
+                if (fRound !== 'ALL' && String(raceData.round) !== String(fRound)) continue;
+
+                // Sort horses
+                let sortedHorses = [...raceData.horses];
+                
+                const getWinOdds = (h) => {{
+                    const rIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
+                    const rOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[rIdShort]) : null;
+                    if (rOdds) {{
+                        const hO = rOdds.find(o => o[0] == h.horse_number);
+                        if (hO) return parseFloat(hO[1]) || 999;
+                    }}
+                    return 999;
+                }};
+
+                if (sortBy === 'score') {{
+                    const mKey = (sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw';
+                    sortedHorses.sort((a, b) => (parseFloat(b[mKey]) || 0)  - (parseFloat(a[mKey]) || 0));
+                }} else if (sortBy === 'odds') {{
+                    sortedHorses.sort((a, b) => getWinOdds(a) - getWinOdds(b));
+                }} else {{
+                    sortedHorses.sort((a, b) => (parseInt(a.horse_number) || 0)  - (parseInt(b.horse_number) || 0));
+                }}
+
+                // Decide main score vs sub scores display key for the whole race
+                const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
+
+                // --- 1. Calculate Z-Scores for Each Model Per Race ---
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+                const raceStats = {{}};
+                scoreModels.forEach(m => {{
+                    const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                    const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - 1);
+                    const std = Math.sqrt(variance) || 1.0;
+                    raceStats[m] = {{ mean, std }};
+                }});
+
+                // Helper to get Z-Score (Synchronized between Display and Logic)
+                const getZ = (h, m) => {{
+                    const stats = raceStats[m];
+                    const val = parseFloat(h[m]) || 0;
+                    return (val - stats.mean) / stats.std;
+                }};
+
+                // --- 2. Strategy Highlighting Calculation (Z-Score Based Thresholding) ---
+                const jikuSet = new Set();
+                const partnerSet = new Set();
+
+                (raceData.strategies || []).forEach(s => {{
+                    const scoreKey = s.model === 'Ensemble' ? 'Ensemble' : s.model + "_raw";
+                    const allSorted = [...raceData.horses].sort((a,b) => getZ(b, scoreKey) - getZ(a, scoreKey));
+                    if (allSorted.length === 0) return;
+
+                    const sThRaw = parseFloat(s.score_th);
+                    const a2ThRaw = parseFloat(s.axis2_score_th);
+                    const pThRaw = parseFloat(s.partner_score_th);
+                    const sTh = isNaN(sThRaw) ? -9.9 : sThRaw;
+                    const a2Th = isNaN(a2ThRaw) ? pThRaw : (isNaN(a2ThRaw) ? -9.9 : a2ThRaw); // axis2 missing -> use partner_th
+                    const pTh = isNaN(pThRaw) ? -9.9 : pThRaw;
+
+                    if (s.type === "単勝") {{
+                        if (getZ(allSorted[0], scoreKey) >= sTh) {{
+                            jikuSet.add(String(allSorted[0].horse_number));
+                        }}
+                    }} else if (s.type.includes("BOX")) {{
+                        const count = parseInt(s.partners) || 5;
+                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= pTh).slice(0, count);
+                        if (valid.length >= 2) {{
+                            valid.forEach(h => partnerSet.add(String(h.horse_number)));
+                        }}
+                    }} else {{
+                        const axisCount = parseInt(s.axis_count) || 1;
+                        const partnerCount = parseInt(s.partners) || 5;
+                        
+                        // 1軸目の判定
+                        const axes1 = allSorted.filter(h => getZ(h, scoreKey) >= sTh).slice(0, 1);
+                        if (axes1.length > 0) {{
+                            let finalAxes = [...axes1];
+                            let others = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
+                            
+                            // 2軸目がある場合
+                            if (axisCount >= 2) {{
+                                const axis2Candidate = others.filter(h => getZ(h, scoreKey) >= a2Th).slice(0, axisCount - 1);
+                                if (axis2Candidate.length < axisCount - 1) {{
+                                    return; // 2軸目が条件を満たさない場合はこの戦略はスキップ
+                                }}
+                                finalAxes = finalAxes.concat(axis2Candidate);
+                                const axis2Numbers = new Set(axis2Candidate.map(ax => ax.horse_number));
+                                others = others.filter(h => !axis2Numbers.has(h.horse_number));
+                            }}
+
+                            const partners = others.filter(h => getZ(h, scoreKey) >= pTh).slice(0, partnerCount);
+                            
+                            if (partners.length > 0) {{
+                                finalAxes.forEach(h => jikuSet.add(String(h.horse_number)));
+                                partners.forEach(h => partnerSet.add(String(h.horse_number)));
+                            }}
+                        }}
+                    }}
+                }});
+
+                // --- Calculate Softmax Probabilities (Top 8 Softmax using selected model) ---
+                const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b[mainModelKey]) || 0) - (parseFloat(a[mainModelKey]) || 0));
+                const top8Horses = sortedByScore.slice(0, 8);
+                
+                const top8Scores = top8Horses.map(h => parseFloat(h[mainModelKey]) || 0);
+                const maxScoreVal = top8Scores.length > 0 ? Math.max(...top8Scores) : 0;
+                const expScores = top8Scores.map(s => Math.exp(s - maxScoreVal));
+                const sumExp = expScores.reduce((a, b) => a + b, 0);
+                
+                sortedHorses.forEach(h => {{ h.pWin = 0; }});
+                
+                top8Horses.forEach((h, idx) => {{
+                    h.pWin = expScores[idx] / sumExp;
+                }});
+
+                // calculate max score for bar formatting based on main model
+                const allMainScores = sortedHorses.map(h => parseFloat(h[mainModelKey]) || 0);
+                const maxScore = Math.max(...allMainScores, 0.1);
+                const minScore = Math.min(...allMainScores, 0);
 
                 const card = document.createElement('div');
                 card.className = 'race-card';
-                card.onclick = () => showRecommendation(race.race_id);
+                card.style.animationDelay = `${{delay}}ms`;
+                delay += 50;
 
-                const stats = calculateStats(race.horses, scoreKey);
-                const sortedHorses = [...race.horses].sort((a,b) => b[scoreKey] - a[scoreKey]);
-                const top3 = sortedHorses.slice(0, 3);
+                let horsesHtml = '';
+                sortedHorses.forEach((horse, index) => {{
+                    const hNum = horse.horse_number;
+                    const hName = horse.horse_name;
+                    const ensScore = parseFloat(horse.Ensemble) || 0;
+                    const pWin = horse.pWin || 0;
+                    
+                    // Normalize width for bar
+                    let widthPct = 0;
+                    const mainScoreVal = parseFloat(horse[mainModelKey]) || 0;
+                    if(maxScore > 0) {{
+                        widthPct = Math.max(5, ((mainScoreVal - Math.min(0, minScore)) / (maxScore - Math.min(0, minScore))) * 100);
+                    }}
+                    
+                    // Get Win Odds and calculate KV
+                    // Support both 12-digit (2026...) and 10-digit (26...) keys
+                    const raceIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
+                    const raceWinOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[raceIdShort]) : null;
+                    let winOdds = "-";
+                    let kv = 0;
+                    if (raceWinOdds) {{
+                        const horseOdds = raceWinOdds.find(o => o[0] == hNum);
+                        if (horseOdds) {{
+                            winOdds = horseOdds[1];
+                            kv = pWin * parseFloat(winOdds);
+                        }}
+                    }}
+                    
+                    let rankClass = '';
+                    if(sortBy === 'score') {{
+                        if(index === 0) rankClass = 'rank-1';
+                        else if(index === 1) rankClass = 'rank-2';
+                        else if(index === 2) rankClass = 'rank-3';
+                    }}
 
-                let horsesHtml = "";
-                top3.forEach((h, idx) => {{
-                    const z = stats.std > 0 ? (h[scoreKey] - stats.mean) / stats.std : 0;
-                    const percent = Math.min(100, Math.max(0, (z + 2) * 25));
+                    // Strategy highlighting class
+                    const isJiku = jikuSet.has(String(hNum));
+                    const isPartner = partnerSet.has(String(hNum)) && !isJiku;
+                    const highlightClass = isJiku ? 'is-jiku' : (isPartner ? 'is-partner' : '');
+
+                    // Decide main score vs sub scores display
+                    // mainModelKey decided above
+                    const scoreModels = ['Ensemble', 'LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw'];
+                    const subModels = scoreModels.filter(m => m !== mainModelKey);
+                    const modelShortNames = {{
+                        'Ensemble': 'Ens',
+                        'LightGBM_raw': 'LGBM',
+                        'XGBoost_raw': 'XGB',
+                        'CatBoost_raw': 'CB',
+                        'LSTM_raw': 'LSTM',
+                        'RandomForest_raw': 'RF',
+                        'DecisionTree_raw': 'DT'
+                    }};
+
+                    let subScoresHtml = '';
+                    subModels.forEach(m => {{
+                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${{modelShortNames[m]}}: ${{getZ(horse, m).toFixed(4)}}</span> `;
+                    }});
+
+                    const winOddsNum = parseFloat(winOdds) || 999;
+                    const probVal = pWin * 100;
+                    
+                    const oddsColor = winOddsNum <= 1.9 ? '#4ade80' : '#f8fafc';
+                    const probColor = probVal >= 50 ? '#4ade80' : '#f8fafc';
+                    const kvColor = kv >= 2.0 ? '#4ade80' : '#f8fafc';
+
+                    const blockStyle = (color) => `background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; color: ${{color}}; border: 1px solid ${{color === '#4ade80' ? 'rgba(74, 222, 128, 0.2)' : 'transparent'}};`;
+
                     horsesHtml += `
-                        <div class="horse-row rank-${{idx+1}}">
-                            <div class="horse-num">${{h.horse_number}}</div>
-                            <div class="horse-details">
-                                <div class="horse-name">${{h.horse_name}}</div>
-                                <div class="horse-score-bar-bg"><div class="horse-score-bar-fill" style="width:${{percent}}%"></div></div>
+                        <div class="horse-row ${{rankClass}} ${{highlightClass}}" style="flex-wrap: wrap; padding-left: 8px;">
+                            <div style="display: flex; width: 100%; align-items: center; margin-bottom: 6px;">
+                                <div class="horse-num">${{hNum}}</div>
+                                <div class="horse-details" style="min-width: 0;">
+                                    <div class="horse-name">${{hName}}</div>
+                                    <div class="horse-score-bar-bg">
+                                        <div class="horse-score-bar-fill" style="width: 0%" data-target="${{widthPct}}%"></div>
+                                    </div>
+                                </div>
+                                <div class="horse-score-val" title="${{mainModelKey}} Z-Score">${{getZ(horse, mainModelKey).toFixed(4)}}</div>
                             </div>
-                            <div class="horse-score-val">${{z.toFixed(2)}}</div>
+                            <div style="display: flex; width: 100%; justify-content: flex-end; gap: 6px; font-size: 0.72rem; color: var(--text-muted); flex-wrap: wrap; margin-left: 50px; margin-bottom: 4px;">
+                                ${{subScoresHtml}}
+                            </div>
+                            <div style="display: flex; width: 100%; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 4px; margin-left: 50px;">
+                                <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
+                                <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
+                                <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
+                            </div>
                         </div>
                     `;
                 }});
 
                 card.innerHTML = `
-                    <div class="race-info-header">
-                        <div class="race-id">${{race.title}}</div>
-                        <div class="race-meta">${{race.horses.length}} Horses</div>
+                    <div class="race-info-header" style="padding-right: 140px;">
+                        <div class="race-id">
+                            <span style="color:var(--primary);">${{raceData.title}}</span>
+                            <div style="display: inline-flex; gap: 8px; margin-left: 10px; font-size: 0.8rem; align-items: center;">
+                                <a href="https://race.sp.netkeiba.com/race/shutuba.html?race_id=${{raceData.race_id}}" target="_blank" style="color:var(--text-muted); text-decoration:none; background:rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 6px;">🌐 Web</a>
+                                <a href="https://netkeiba.onelink.me/Wmzg?af_xp=custom&af_dp=jp.co.netdreamers.netkeiba%3A%2F%2F&deep_link_value=https%3A%2F%2Frace.sp.netkeiba.com%2Frace%2Fshutuba.html%3Frace_id%3D${{raceData.race_id}}&rf=race_toggle_menu" style="color:var(--primary); text-decoration:none; background:rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--primary);">🏇 App</a>
+                            </div>
+                        </div>
+                        ${{( () => {{
+                            if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                            return `
+                                <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
+                                    <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
+                                    <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                                </div>
+                            `;
+                        }})()}}
                     </div>
-                    <div class="horse-list">${{horsesHtml}}</div>
+                    <div>
+                        ${{horsesHtml}}
+                    </div>
                 `;
                 container.appendChild(card);
-            }});
-        }}
+            }}
 
-        function calculateStats(horses, key) {{
-            const vals = horses.map(h => parseFloat(h[key]) || 0);
-            const n = vals.length;
-            if (n === 0) return {{ mean: 0, std: 0 }};
-            const mean = vals.reduce((a, b) => a + b, 0) / n;
-            const variance = vals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n > 1 ? n - 1 : 1);
-            return {{ mean: mean, std: Math.sqrt(variance) }};
+            setTimeout(() => {{
+                document.querySelectorAll('.horse-score-bar-fill').forEach(bar => {{
+                    bar.style.width = bar.getAttribute('data-target');
+                }});
+            }}, 50);
         }}
 
         function showRecommendation(raceId) {{
-            const race = currentData[raceId];
-            if (!race) return;
-            
+            const raceData = currentData[raceId];
+            if (!raceData || !raceData.strategies) return;
+
             const modal = document.getElementById('recommend-modal');
             const body = document.getElementById('modal-body');
-            const model = document.getElementById('model-select').value;
-            const scoreKey = model === 'Ensemble' ? 'Ensemble' : model + "_raw";
-            const stats = calculateStats(race.horses, scoreKey);
-
-            let html = `<h2>${{race.title}} AI Pick</h2>`;
             
-            if (!race.strategies || race.strategies.length === 0) {{
-                html += '<p style="text-align:center; padding:20px;">No matching strategies found.</p>';
-            }} else {{
-                race.strategies.forEach(st => {{
-                    const eyes = generateBettingEyes(race.horses, st, stats);
-                    if (eyes === "--") return;
-                    
-                    html += `
-                        <div class="strategy-item-modal">
-                            <div style="font-weight:800; color:var(--primary); margin-bottom:8px;">${{st.strategy_name}}</div>
-                            <div class="bet-eyes-box">
-                                <div class="bet-eyes-text">${{eyes}}</div>
-                            </div>
+            // Need to pass stats to generateBettingEyes
+            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+            const raceStats = {{}};
+            scoreModels.forEach(m => {{
+                const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+                const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+                const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, raceData.horses.length - 1);
+                const std = Math.sqrt(variance) || 1.0;
+                raceStats[m] = {{ mean, std }};
+            }});
+
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px; position: relative;">
+                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
+                    <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
+                            style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
+                            title="Refresh Results">
+                        🔄
+                    </button>
+                </div>
+            `;
+
+            let hasValidRec = false;
+            raceData.strategies.forEach(s => {{
+                const bettingEyes = generateBettingEyes(raceData.horses, s, raceStats);
+                if (bettingEyes === '--') return;
+
+                hasValidRec = true;
+                const displayType = s.type.replace('三連', '3連');
+                html += `
+                    <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${{displayType}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span></div>
                         </div>
-                    `;
-                }});
+                        <div class="bet-eyes-box">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                            <div class="bet-eyes-text">${{bettingEyes}}</div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
+                            Z-Score: Jiku1 > ${{s.score_th}}${{s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th || s.partner_score_th}}` : ''}} / Partner > ${{s.partner_score_th}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
+                        </div>
+                        <div class="bet-result-details"></div>
+                    </div>
+                `;
+            }});
+
+            if (!hasValidRec) {{
+                html += `
+                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Recommendations Available</div>
+                        <div style="font-weight: 700; font-size: 0.8rem;">オススメの買い目はありません</div>
+                    </div>
+                `;
             }}
 
             body.innerHTML = html;
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
 
-            // --- Dynamic Font Scaling For Betting Eyes ---
-            body.querySelectorAll('.strategy-item-modal').forEach(item => {{
+            fetchRaceResults(raceId);
+        }}
+
+        async function fetchRaceResults(raceId) {{
+            console.log("[DEBUG] fetchRaceResults entry, raceId:", raceId);
+            const container = document.getElementById('modal-body');
+            
+            // 既存の結果表示があれば削除
+            const existing = document.getElementById('race-results-container');
+            if (existing) existing.remove();
+
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'race-results-container';
+            resultDiv.style.marginBottom = '15px'; // Reduce bottom margin
+            resultDiv.style.padding = '8px 12px';  // Tighten padding
+            resultDiv.style.background = 'rgba(74, 222, 128, 0.03)'; // Darker/lower background
+            resultDiv.style.border = 'none'; // Remove border
+            resultDiv.style.borderRadius = '12px';
+            resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:var(--text-muted);">Fetching results...</div>';
+            
+            // モーダルの先頭に挿入
+            container.insertBefore(resultDiv, container.firstChild);
+
+            try {{
+                const targetUrl = "https://race.sp.netkeiba.com/?pid=race_result&race_id=" + raceId;
+                const proxyUrl = "https://cors.toshin-toshin1.workers.dev/" + targetUrl;
+                
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Proxy response not OK');
+                
+                const buffer = await response.arrayBuffer();
+                const decoder = new TextDecoder('euc-jp');
+                const html = decoder.decode(buffer);
+                
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                const payoutData = {{ nums: {{}}, pays: {{}} }};
+                const payoutTables = doc.querySelectorAll('.Payout_Detail_Table, .Pay_Table_01, .pay_table_01');
+                
+                payoutTables.forEach(table => {{
+                    table.querySelectorAll('tr').forEach(tr => {{
+                        const type = tr.querySelector('th')?.innerText.trim();
+                        const resultCell = tr.querySelector('td.Result');
+                        const payoutCell = tr.querySelector('td.Payout');
+                        
+                        if (type && resultCell && payoutCell) {{
+                            // より確実に数字のみを抽出
+                            const allNums = (resultCell.innerText.match(/\\d+/g) || [])
+                                    .map(n => n.replace(/^0+/, ''));
+                            
+                            // 馬連などで "7 7 10 10" となるのを防ぐため基本はSetで重複排除するが、
+                            // ワイドは "7-10, 10-4" のように同じ数字が別ペアで出ることがあるため重複を許容する
+                            const numbers = (type === 'ワイド' || type.includes('ワイド')) ? allNums : [...new Set(allNums)];
+                            
+                            // 払戻金のパース（"110円110円140円" のような結合を解消）
+                            const payRaw = payoutCell.innerText.trim();
+                            const payTexts = payRaw.match(/[\\d,]+円/g) || [];
+                            
+                            if (numbers.length > 0) {{
+                                payoutData.nums[type] = numbers;
+                                payoutData.pays[type] = payTexts;
+                            }}
+                        }}
+                    }});
+                }});
+
+                if (Object.keys(payoutData.nums).length === 0) {{
+                    resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ffcc00;">Results not yet available.</div>';
+                    return;
+                }}
+
+                // 結果表示の構築 (サマリー形式・グループ化)
+                let htmlRes = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="color:#4ade80; font-weight:800; font-size:0.7rem; text-transform:uppercase;">Confirmed Results</span>
+                        <span style="font-size:0.65rem; color:var(--text-muted);">${{doc.title.split('|')[0].trim()}}</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                `;
+
+                const renderBlock = (type) => {{
+                    const nums = payoutData.nums[type] || payoutData.nums[type.replace('3連', '三連')] || payoutData.nums[type.replace('三連', '3連')];
+                    if (!nums) return '';
+                    
+                    const displayType = type.replace('三連', '3連');
+                    let separator = ',';
+                    if (type.includes('単') || type.includes('枠連')) separator = '→';
+                    else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) separator = '-';
+                    
+                    let numbersHtml = '';
+                    if (type === 'ワイド' && nums.length >= 2) {{
+                        const pairs = [];
+                        for (let i = 0; i < nums.length; i += 2) {{
+                            if (nums[i+1]) pairs.push(`${{nums[i]}}-${{nums[i+1]}}`);
+                        }}
+                        numbersHtml = pairs.map(p => `<span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${{p}}</span>`).join('<span style="color:var(--text-muted); font-size:0.55rem; margin:0 1px;">,</span>');
+                    }} else {{
+                        numbersHtml = nums.map((n, i) => `
+                            <span style="color:#4ade80; font-size:0.72rem; font-weight:900;">${{n}}</span>
+                            ${{i < nums.length - 1 ? `<span style="color:var(--text-muted); font-size:0.55rem; font-weight:bold;">${{separator}}</span>` : ''}}
+                        `).join('');
+                    }}
+
+                    return `<div style="background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:6px; flex:1; min-width:60px;">
+                        <div style="font-size:0.55rem; color:var(--text-muted); margin-bottom:1px;">${{displayType}}</div>
+                        <div style="display:flex; gap:2px; flex-wrap:wrap; align-items:center;">${{numbersHtml}}</div>
+                    </div>`;
+                }};
+
+                const groups = [
+                    ['単勝', '複勝'],
+                    ['馬連', '馬単', '枠連'],
+                    ['ワイド', '3連複', '3連単']
+                ];
+
+                groups.forEach(g => {{
+                    const rowHtml = g.map(t => renderBlock(t)).join('');
+                    if (rowHtml) htmlRes += `<div style="display:flex; gap:4px;">${{rowHtml}}</div>`;
+                }});
+                htmlRes += '</div>';
+                resultDiv.innerHTML = htmlRes;
+
+                // 当たり判定の実行
+                checkHits(payoutData);
+
+            }} catch (error) {{
+                console.error("[ERROR]", error);
+                resultDiv.innerHTML = '<div style="text-align:center; font-size:0.8rem; color:#ef4444;">Failed to load results.</div>';
+            }}
+        }}
+
+        function checkHits(payoutData) {{
+            const strategyItems = document.querySelectorAll('.strategy-item-modal');
+            strategyItems.forEach(item => {{
+                const type = item.getAttribute('data-strategy-type');
+                const eyesText = item.querySelector('.bet-eyes-text')?.innerText.trim();
+                if (!eyesText || eyesText === '--') return;
+
+                const resultArea = item.querySelector('.bet-result-details');
+                if (resultArea) resultArea.innerHTML = ''; // Reset
+
+                const eyesElem = item.querySelector('.bet-eyes-text');
+                if (eyesElem) eyesElem.innerHTML = eyesText; // Clear previous HIT mark
+
+                // 券種に応じたキーを抽出 (例: "3連単-2頭軸マルチ" -> "3連単")
+                let baseType = "";
+                const types = ["単勝", "複勝", "枠連", "枠単", "馬連", "馬単", "ワイド", "3連複", "3連単", "三連複", "三連単"];
+                for (const t of types) {{
+                    if (type.includes(t)) {{
+                        baseType = t;
+                        break;
+                    }}
+                }}
+                
+                if (!baseType) return;
+
+                const normBaseType = baseType.replace('3連', '三連');
+                const winNums = (payoutData.nums[baseType] || payoutData.nums[normBaseType] || payoutData.nums[baseType.replace('三連', '3連')] || []);
+                const winPays = (payoutData.pays[baseType] || payoutData.pays[normBaseType] || payoutData.pays[baseType.replace('三連', '3連')] || []);
+                
+                let isHit = false;
+                let totalPay = 0;
+                let eyesCount = 0;
+
+                // 買い目数の正確な計算 (正規化して3連/三連を統一)
+                const normType = type.replace('三連', '3連');
+                const axisCount = (eyesText.match(/→/g) || []).length; 
+                const partners = eyesText.split('→').pop().split(',').length;
+                
+                if (normType.includes("単勝") || normType.includes("複勝")) {{
+                    eyesCount = 1;
+                }} else if (normType.includes("BOX")) {{
+                    const n = eyesText.split(',').length;
+                    if (normType.includes("3連単")) eyesCount = n * (n-1) * (n-2);
+                    else if (normType.includes("3連複")) eyesCount = n * (n-1) * (n-2) / 6;
+                    else if (normType.includes("馬単")) eyesCount = n * (n-1);
+                    else if (normType.includes("馬連") || normType.includes("ワイド")) eyesCount = n * (n-1) / 2;
+                }} else if (normType.includes("マルチ")) {{
+                    if (normType.includes("3連単")) {{
+                        if (axisCount === 1) eyesCount = 3 * partners * (partners - 1);
+                        else eyesCount = 6 * partners;
+                    }} else if (normType.includes("馬単")) {{
+                        eyesCount = 2 * partners;
+                    }}
+                }} else {{
+                    // 流し
+                    if (normType.includes("3連単")) {{
+                        if (axisCount === 1) eyesCount = partners * (partners - 1);
+                        else eyesCount = partners;
+                    }} else if (normType.includes("3連複")) {{
+                        if (axisCount === 1) eyesCount = (partners * (partners - 1)) / 2;
+                        else eyesCount = partners;
+                    }} else {{
+                        eyesCount = partners;
+                    }}
+                }}
+
+                if (winNums.length > 0) {{
+                    const predictedSet = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                    const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
+
+                    if (baseType === "単勝") {{
+                        isHit = (predictedSet[0] === winNums[0]);
+                    }} else if (baseType === "複勝") {{
+                        isHit = winNums.some(n => predictedSet.includes(n));
+                    }} else if (isMulti) {{
+                        if (baseType === "ワイド") {{
+                            for (let i = 0; i < winNums.length; i += 2) {{
+                                if (predictedSet.includes(winNums[i]) && predictedSet.includes(winNums[i+1])) {{
+                                    isHit = true; break;
+                                }}
+                            }}
+                        }} else {{
+                            isHit = winNums.every(n => predictedSet.includes(n));
+                        }}
+                    }} else {{
+                        const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
+                        isHit = winNums.every((n, i) => seqPredicted[i] === n);
+                    }}
+
+                    if (isHit) {{
+                        if (baseType === "複勝") {{
+                            const hitIdx = winNums.indexOf(predictedSet[0]);
+                            totalPay = parseInt((winPays[hitIdx] || winPays[0] || '0').replace(/,/g, '')) || 0;
+                        }} else if (baseType === "ワイド") {{
+                            for (let i = 0; i < winNums.length; i += 2) {{
+                                if (predictedSet.includes(winNums[i]) && predictedSet.includes(winNums[i+1])) {{
+                                    totalPay += parseInt((winPays[i/2] || '0').replace(/,/g, '')) || 0;
+                                }}
+                            }}
+                        }} else {{
+                            totalPay = parseInt((winPays[0] || '0').replace(/,/g, '')) || 0;
+                        }}
+                    }}
+                }}
+
+                const investment = eyesCount * 100;
+                const profit = totalPay - investment;
+
+                if (resultArea) {{
+                    resultArea.innerHTML = `
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.85rem;">
+                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${{eyesCount}}点(${{investment}}円)</span></div>
+                            <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fff; font-weight:700;">${{totalPay.toLocaleString()}}円</span></div>
+                            <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${{profit >= 0 ? '#4ade80' : '#ef4444'}}; font-weight:800;">${{profit < 0 ? '-' : ''}}${{Math.abs(profit).toLocaleString()}}円</span></div>
+                        </div>
+                    `;
+                }}
+
+                if (isHit) {{
+                    const eyesBox = item.querySelector('.bet-eyes-box');
+                    if (eyesBox) {{
+                        const hitBadge = document.createElement('div');
+                        hitBadge.innerHTML = '🎯 HIT';
+                        hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
+                        eyesBox.appendChild(hitBadge);
+                    }}
+                }}
+
+                // --- Dynamic Font Scaling For Betting Eyes ---
                 const eyesText = item.querySelector('.bet-eyes-text');
                 const eyesBox = item.querySelector('.bet-eyes-box');
                 if (eyesText && eyesBox) {{
-                    let fontSize = 1.8;
+                    let fontSize = 1.8; // rem
                     eyesText.style.fontSize = fontSize + 'rem';
+                    // モーダル表示後に幅が確定するため、少し待つ必要がある
                     setTimeout(() => {{
                         while (eyesText.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {{
                             fontSize -= 0.1;
@@ -968,6 +1533,7 @@ def generate_static_html():
             }});
         }}
 
+
         function closeRecommendation() {{
             document.getElementById('recommend-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
@@ -977,44 +1543,69 @@ def generate_static_html():
             const scoreKey = strategy.model === 'Ensemble' ? 'Ensemble' : strategy.model + "_raw";
             const getZ = (h) => {{
                 const s = stats[scoreKey];
-                return s.std > 0 ? (parseFloat(h[scoreKey]) - s.mean) / s.std : 0;
+                return ((parseFloat(h[scoreKey]) || 0) - s.mean) / s.std;
             }};
+            
             const allSorted = [...horses].sort((a,b) => getZ(b) - getZ(a));
             const pad = (n) => String(n).padStart(2, '0');
-            
-            const sTh = parseFloat(strategy.score_th) || -9.9;
-            const a2Th = parseFloat(strategy.axis2_score_th) || (parseFloat(strategy.partner_score_th) || -9.9);
-            const pTh = parseFloat(strategy.partner_score_th) || -9.9;
+            if (allSorted.length === 0) return "--";
 
+            const sThRaw = parseFloat(strategy.score_th);
+            const a2ThRaw = parseFloat(strategy.axis2_score_th);
+            const pThRaw = parseFloat(strategy.partner_score_th);
+            const sTh = isNaN(sThRaw) ? -9.9 : sThRaw;
+            const a2Th = isNaN(a2ThRaw) ? pThRaw : (isNaN(a2ThRaw) ? -9.9 : a2ThRaw);
+            const pTh = isNaN(pThRaw) ? -9.9 : pThRaw;
+
+            // 単勝
             if (strategy.type === "単勝") {{
                 if (getZ(allSorted[0]) < sTh) return "--";
                 return pad(allSorted[0].horse_number);
             }}
+            
+            // BOX
             if (strategy.type.includes("BOX")) {{
                 const count = parseInt(strategy.partners) || 5;
-                const valid = allSorted.filter(h => getZ(h) >= sTh).slice(0, count);
-                if (valid.length < (strategy.type.includes("3連") ? 3 : 2)) return "--";
-                return valid.map(h => pad(h.horse_number)).sort((a,b)=>a-b).join(',');
+                const valid = allSorted.filter(h => getZ(h) >= sTh);
+                if (valid.length < count) return "--";
+                
+                const finalValid = valid.slice(0, count);
+                const is3Ren = strategy.type.includes("3連") || strategy.type.includes("三連");
+                if (finalValid.length < (is3Ren ? 3 : 2)) return "--";
+                return finalValid.map(h => pad(h.horse_number)).join(',');
             }}
 
+            const axisCount = parseInt(strategy.axis_count) || 1;
+            const partnerCount = parseInt(strategy.partners) || 5;
+            
+            // 軸1
             const axes1 = allSorted.filter(h => getZ(h) >= sTh).slice(0, 1);
-            if (axes1.length === 0) return "--";
-            let finalAxes = [axes1[0]];
+            if (axes1.length < 1) return "--";
+            
+            let finalAxes = [...axes1];
             let remaining = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
 
-            if ((parseInt(strategy.axis_count) || 1) >= 2) {{
-                const axes2 = remaining.filter(h => getZ(h) >= a2Th).slice(0, 1);
-                if (axes2.length === 0) return "--";
-                finalAxes.push(axes2[0]);
-                remaining = remaining.filter(h => h.horse_number !== axes2[0].horse_number);
+            // 軸2
+            if (axisCount >= 2) {{
+                const axes2 = remaining.filter(h => getZ(h) >= a2Th).slice(0, axisCount - 1);
+                if (axes2.length < axisCount - 1) return "--";
+                finalAxes = finalAxes.concat(axes2);
+                const axis2Set = new Set(axes2.map(ax => ax.horse_number));
+                remaining = remaining.filter(h => !axis2Set.has(h.horse_number));
             }}
 
-            const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, parseInt(strategy.partners) || 5);
+            const partners = remaining.filter(h => getZ(h) >= pTh).slice(0, partnerCount);
             if (partners.length === 0) return "--";
-            
+
+            // 3連系（3連単・3連複）の場合、合計3頭以上必要
+            if ((strategy.type.includes("3連") || strategy.type.includes("三連")) && (finalAxes.length + partners.length < 3)) {{
+                return "--";
+            }}
+
             return finalAxes.map(h => pad(h.horse_number)).join(' → ') + " → " + partners.map(h => pad(h.horse_number)).join(',');
         }}
-</script>
+
+    </script>
 </body>
 </html>
 """
