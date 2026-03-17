@@ -989,6 +989,9 @@
                 const resultArea = item.querySelector('.bet-result-details');
                 if (resultArea) resultArea.innerHTML = ''; // Reset
 
+                const eyesElem = item.querySelector('.bet-eyes-text');
+                if (eyesElem) eyesElem.innerHTML = eyesText; // Clear previous HIT mark
+
                 // 券種に応じたキーを抽出 (例: "3連単-2頭軸マルチ" -> "3連単")
                 let baseType = "";
                 const types = ["単勝", "複勝", "枠連", "枠単", "馬連", "馬単", "ワイド", "3連複", "3連単", "三連複", "三連単"];
@@ -1004,80 +1007,93 @@
                 const normBaseType = baseType.replace('3連', '三連');
                 const winNums = (payoutData.nums[baseType] || payoutData.nums[normBaseType] || payoutData.nums[baseType.replace('三連', '3連')] || []);
                 const winPays = (payoutData.pays[baseType] || payoutData.pays[normBaseType] || payoutData.pays[baseType.replace('三連', '3連')] || []);
-                let isHit = false;
                 
-                if (winNums.length > 0) {
-                    let eyesCount = eyesText.split(',').length;
-                    // マルチの場合の買い目数調整
-                    if (type.includes('マルチ')) {
-                        if (type.includes('3連単') || type.includes('三連単')) eyesCount *= 6;
-                        if (type.includes('馬単')) eyesCount *= 2;
+                let isHit = false;
+                let totalPay = 0;
+                let eyesCount = 0;
+
+                // 買い目数の正確な計算
+                const axisCount = (eyesText.match(/→/g) || []).length; 
+                const partners = eyesText.split('→').pop().split(',').length;
+                
+                if (type.includes("単勝") || type.includes("複勝")) {
+                    eyesCount = 1;
+                } else if (type.includes("BOX")) {
+                    const n = eyesText.split(',').length;
+                    if (type.includes("3連単")) eyesCount = n * (n-1) * (n-2);
+                    else if (type.includes("3連複")) eyesCount = n * (n-1) * (n-2) / 6;
+                    else if (type.includes("馬単")) eyesCount = n * (n-1);
+                    else if (type.includes("馬連") || type.includes("ワイド")) eyesCount = n * (n-1) / 2;
+                } else if (type.includes("マルチ")) {
+                    if (type.includes("3連単")) {
+                        if (axisCount === 1) eyesCount = 3 * partners * (partners - 1);
+                        else eyesCount = 6 * partners;
+                    } else if (type.includes("馬単")) {
+                        eyesCount = 2 * partners;
                     }
-                    
-                    const predicted = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                } else {
+                    // 流し
+                    if (type.includes("3連単") && axisCount === 1) eyesCount = partners * (partners - 1);
+                    else eyesCount = partners;
+                }
+
+                if (winNums.length > 0) {
+                    const predictedSet = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                    const isMulti = type.includes("マルチ") || type.includes("BOX") || type.includes("3連複") || type.includes("馬連") || type.includes("ワイド");
 
                     if (baseType === "単勝") {
-                        isHit = (predicted[0] === winNums[0]);
+                        isHit = (predictedSet[0] === winNums[0]);
                     } else if (baseType === "複勝") {
-                        isHit = winNums.some(n => predicted.includes(n));
-                    } else if (baseType === "馬連") {
-                        isHit = winNums.every(n => predicted.includes(n));
-                    } else if (baseType === "ワイド") {
-                        // Wide: check if any pair is fully contained in predicted
-                        for (let i = 0; i < winNums.length; i += 2) {
-                            if (winNums[i] && winNums[i+1]) {
-                                if (predicted.includes(winNums[i]) && predicted.includes(winNums[i+1])) {
+                        isHit = winNums.some(n => predictedSet.includes(n));
+                    } else if (isMulti) {
+                        if (baseType === "ワイド") {
+                            // Check for any winning pair in predicted set
+                            for (let i = 0; i < winNums.length; i += 2) {
+                                if (predictedSet.includes(winNums[i]) && predictedSet.includes(winNums[i+1])) {
                                     isHit = true; break;
                                 }
                             }
+                        } else {
+                            // Order independent: all win horses must be in predicted set
+                            isHit = winNums.every(n => predictedSet.includes(n));
                         }
-                    } else if (baseType.includes("馬単") || baseType.includes("3連単") || baseType.includes("三連単")) {
+                    } else {
+                        // Order dependent (流し)
                         const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
                         isHit = winNums.every((n, i) => seqPredicted[i] === n);
-                    } else if (baseType.includes("3連複") || baseType.includes("三連複")) {
-                        isHit = winNums.every(n => predicted.includes(n));
                     }
 
-                    if (isHit && resultArea) {
-                        let totalPay = 0;
-                        if (baseType === "複勝" || baseType === "ワイド") {
-                            // 的中したペア/番号に対応する配当を探す
-                            if (baseType === "複勝") {
-                                const hitIdx = winNums.indexOf(predicted[0]);
-                                totalPay = parseInt((winPays[hitIdx] || winPays[0] || '0').replace(/,/g, '')) || 0;
-                            } else {
-                                // ワイド
-                                for (let i = 0; i < winNums.length; i += 2) {
-                                    if (predicted.includes(winNums[i]) && predicted.includes(winNums[i+1])) {
-                                        totalPay += parseInt((winPays[i/2] || '0').replace(/,/g, '')) || 0;
-                                    }
+                    if (isHit) {
+                        if (baseType === "複勝") {
+                            const hitIdx = winNums.indexOf(predictedSet[0]);
+                            totalPay = parseInt((winPays[hitIdx] || winPays[0] || '0').replace(/,/g, '')) || 0;
+                        } else if (baseType === "ワイド") {
+                            for (let i = 0; i < winNums.length; i += 2) {
+                                if (predictedSet.includes(winNums[i]) && predictedSet.includes(winNums[i+1])) {
+                                    totalPay += parseInt((winPays[i/2] || '0').replace(/,/g, '')) || 0;
                                 }
                             }
                         } else {
                             totalPay = parseInt((winPays[0] || '0').replace(/,/g, '')) || 0;
                         }
-
-                        const investment = eyesCount * 100;
-                        const profit = totalPay - investment;
-
-                        resultArea.innerHTML = `
-                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.75rem;">
-                                <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}</span></div>
-                                <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fbbf24; font-weight:700;">${totalPay.toLocaleString()}円</span></div>
-                                <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円</span></div>
-                            </div>
-                        `;
                     }
                 }
 
-                if (isHit) {
-                    item.style.border = '2px solid #4ade80';
-                    item.style.background = 'rgba(74, 222, 128, 0.1)';
-                    const hitBadge = document.createElement('div');
-                    hitBadge.innerHTML = '🎯 HIT';
-                    hitBadge.style.cssText = 'position:absolute; top:-10px; right:10px; background:#4ade80; color:#064e3b; font-size:0.7rem; font-weight:900; padding:2px 8px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.3);';
-                    item.style.position = 'relative';
-                    item.appendChild(hitBadge);
+                const investment = eyesCount * 100;
+                const profit = totalPay - investment;
+
+                if (resultArea) {
+                    resultArea.innerHTML = `
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.75rem;">
+                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}</span></div>
+                            <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fbbf24; font-weight:700;">${totalPay.toLocaleString()}円</span></div>
+                            <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円</span></div>
+                        </div>
+                    `;
+                }
+
+                if (isHit && eyesElem) {
+                    eyesElem.innerHTML = eyesText + ' <span style="color:#4ade80; font-size:1.2rem; margin-left:8px;">🎯</span>';
                 }
             });
         }
