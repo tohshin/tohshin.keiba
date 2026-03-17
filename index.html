@@ -455,14 +455,29 @@
         let currentData = {};
 
         async function checkAuth() {
-            const pw = document.getElementById('auth-pw').value;
-            if (pw === 'tohshin20') {
-                localStorage.setItem('keiba_auth_time', new Date().getTime());
-                document.getElementById('auth-overlay').style.display = 'none';
-                document.getElementById('app-content').style.display = 'block';
-                loadData();
-            } else {
-                document.getElementById('login-error').style.display = 'block';
+            console.log("checkAuth started");
+            try {
+                const pwInput = document.getElementById('auth-pw');
+                if (!pwInput) {
+                    console.error("auth-pw element not found!");
+                    return;
+                }
+                const pw = pwInput.value.trim();
+                console.log("Password entered (trimmed) length:", pw.length);
+                
+                if (pw === 'tohshin20') {
+                    console.log("Password correct, logging in...");
+                    localStorage.setItem('keiba_auth_time', new Date().getTime().toString());
+                    document.getElementById('auth-overlay').style.display = 'none';
+                    document.getElementById('app-content').style.display = 'block';
+                    loadData();
+                } else {
+                    console.warn("Invalid password attempt");
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            } catch (e) {
+                console.error("Login Error:", e);
+                alert("Login Error: " + e.message);
             }
         }
 
@@ -1189,6 +1204,21 @@
                         hitBadge.style.cssText = 'position:absolute; top:8px; right:8px; background:#4ade80; color:#064e3b; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:10;';
                         eyesBox.appendChild(hitBadge);
                     }
+                }
+
+                // --- Dynamic Font Scaling For Betting Eyes ---
+                const eyesText = item.querySelector('.bet-eyes-text');
+                const eyesBox = item.querySelector('.bet-eyes-box');
+                if (eyesText && eyesBox) {
+                    let fontSize = 1.8; // rem
+                    eyesText.style.fontSize = fontSize + 'rem';
+                    // モーダル表示後に幅が確定するため、少し待つ必要がある
+                    setTimeout(() => {
+                        while (eyesText.scrollWidth > eyesBox.clientWidth - 40 && fontSize > 0.6) {
+                            fontSize -= 0.1;
+                            eyesText.style.fontSize = fontSize + 'rem';
+                        }
+                    }, 0);
                 }
             });
         }
