@@ -1106,8 +1106,12 @@ def generate_static_html():
 
                     let subScoresHtml = '';
                     subModels.forEach(m => {{
-                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Z(${{modelShortNames[m]}}): ${{getZ(horse, m).toFixed(4)}}</span> `;
+                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${{modelShortNames[m]}}: ${{getZ(horse, m).toFixed(4)}}</span> `;
                     }});
+
+                    const winOddsNum = parseFloat(winOdds) || 999;
+                    const isHighlight = (winOddsNum <= 1.9) || (pWin >= 0.5) || (kv >= 2.0);
+                    const labelColor = isHighlight ? '#4ade80' : '#f8fafc';
 
                     horsesHtml += `
                         <div class="horse-row ${{rankClass}} ${{highlightClass}}" style="flex-wrap: wrap; padding-left: 8px;">
@@ -1116,10 +1120,10 @@ def generate_static_html():
                                 <div class="horse-details">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
                                         <div class="horse-name">${{hName}}</div>
-                                        <div style="font-size: 0.85rem; font-weight: 600; color: #fbbf24;">
+                                        <div style="font-size: 0.82rem; font-weight: 600; color: ${{labelColor}};">
                                             単勝: ${{winOdds}} | 
-                                            Prob: <span style="color: #f8fafc;">${{(pWin * 100).toFixed(1)}}%</span> | 
-                                            KV: <span style="color: ${{kv >= 1.5 ? '#4ade80' : (kv >= 1.0 ? '#f8fafc' : '#94a3b8')}}">${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
+                                            勝率予測: ${(pWin * 100).toFixed(1)}% | 
+                                            期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}
                                         </div>
                                     </div>
                                     <div class="horse-score-bar-bg">
