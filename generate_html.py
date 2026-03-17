@@ -1184,10 +1184,10 @@ def generate_static_html():
             try {{
                 // Netkeiba は EUC-JP なので ArrayBuffer で取得してデコードする
                 const targetUrl = "https://race.sp.netkeiba.com/?pid=race_result&race_id=" + raceId;
-                // api.codetabs.com を使用して CORS を回避 (末尾に / を追加)
-                const proxyUrl = "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(targetUrl);
+                // cloudflare-cors-anywhere 形式のプロキシを使用
+                const proxyUrl = "https://cors.tohshin.workers.dev/" + targetUrl;
                 
-                console.log("[DEBUG] Fetching results via CodeTabs:", proxyUrl);
+                console.log("[DEBUG] Fetching results via Cloudflare Proxy:", proxyUrl);
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
