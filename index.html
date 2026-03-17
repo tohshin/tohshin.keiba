@@ -1047,8 +1047,15 @@
                     }
                 } else {
                     // 流し
-                    if (normType.includes("3連単") && axisCount === 1) eyesCount = partners * (partners - 1);
-                    else eyesCount = partners;
+                    if (normType.includes("3連単")) {
+                        if (axisCount === 1) eyesCount = partners * (partners - 1);
+                        else eyesCount = partners;
+                    } else if (normType.includes("3連複")) {
+                        if (axisCount === 1) eyesCount = (partners * (partners - 1)) / 2;
+                        else eyesCount = partners;
+                    } else {
+                        eyesCount = partners;
+                    }
                 }
 
                 if (winNums.length > 0) {
