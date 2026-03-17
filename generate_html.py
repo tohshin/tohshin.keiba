@@ -1210,11 +1210,16 @@ def generate_static_html():
                         const payoutCell = tr.querySelector('td.Payout');
                         
                         if (type && resultCell && payoutCell) {{
-                            const numbers = Array.from(resultCell.querySelectorAll('span, li'))
-                                .map(el => el.innerText.trim())
-                                .filter(txt => txt && !txt.includes('円') && /^\d+$/.test(txt));
+                            // 重複排除のために Set を使用
+                            const numbers = [...new Set(
+                                Array.from(resultCell.querySelectorAll('span, li, b'))
+                                    .map(el => el.innerText.trim())
+                                    .filter(txt => txt && !txt.includes('円') && /^\d+$/.test(txt))
+                            )];
                             
-                            const payTexts = payoutCell.innerText.trim().split(/\s+/);
+                            // 払戻金のパース（"110円110円140円" のような結合を解消）
+                            const payRaw = payoutCell.innerText.trim();
+                            const payTexts = payRaw.match(/\d{1,3}(,\d{3})*円/g) || payRaw.split(/\s+/);
                             
                             if (numbers.length > 0) {{
                                 payoutData.nums[type] = numbers;
