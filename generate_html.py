@@ -1458,6 +1458,16 @@ def generate_static_html():
                                     isHit = true; break;
                                 }}
                             }}
+                        }} else if (normType.includes("マルチ")) {{
+                            const parts = eyesText.split(' → ');
+                            const partners = parts.pop().split(',').map(s => s.trim().replace(/^0+/, ''));
+                            const axes = parts.map(s => s.trim().replace(/^0+/, ''));
+                            
+                            const hasAllAxes = axes.every(a => winNums.includes(a));
+                            const remainingWinNums = winNums.filter(n => !axes.includes(n));
+                            const allRemainingInPartners = remainingWinNums.every(n => partners.includes(n));
+                            
+                            isHit = hasAllAxes && allRemainingInPartners && (remainingWinNums.length + axes.length === winNums.length);
                         }} else {{
                             isHit = winNums.every(n => predictedSet.includes(n));
                         }}
