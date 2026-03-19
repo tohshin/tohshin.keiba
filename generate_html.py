@@ -1030,19 +1030,15 @@ def generate_static_html():
                     }}
                 }});
 
-                // --- Calculate Softmax Probabilities (Top 8 Softmax using selected model) ---
-                const sortedByScore = [...raceData.horses].sort((a, b) => (parseFloat(b[mainModelKey]) || 0) - (parseFloat(a[mainModelKey]) || 0));
-                const top8Horses = sortedByScore.slice(0, 8);
+                // --- Calculate Softmax Probabilities (KV_z_peak using selected model) ---
+                const allResultsForKV = [...raceData.horses];
+                const zAdjScores = allResultsForKV.map(h => getZ(h, mainModelKey) * 2.0);
+                const maxZ = Math.max(...zAdjScores);
+                const expZ = zAdjScores.map(z => Math.exp(z - maxZ));
+                const sumExpZ = expZ.reduce((a, b) => a + b, 0);
                 
-                const top8Scores = top8Horses.map(h => parseFloat(h[mainModelKey]) || 0);
-                const maxScoreVal = top8Scores.length > 0 ? Math.max(...top8Scores) : 0;
-                const expScores = top8Scores.map(s => Math.exp(s - maxScoreVal));
-                const sumExp = expScores.reduce((a, b) => a + b, 0);
-                
-                sortedHorses.forEach(h => {{ h.pWin = 0; }});
-                
-                top8Horses.forEach((h, idx) => {{
-                    h.pWin = expScores[idx] / sumExp;
+                allResultsForKV.forEach((h, idx) => {{
+                    h.pWin = expZ[idx] / sumExpZ;
                 }});
 
                 // calculate max score for bar formatting based on main model
@@ -1079,7 +1075,7 @@ def generate_static_html():
                         const horseOdds = raceWinOdds.find(o => o[0] == hNum);
                         if (horseOdds) {{
                             winOdds = horseOdds[1];
-                            kv = pWin * parseFloat(winOdds);
+                            kv = pWin * Math.log1p(parseFloat(winOdds));
                         }}
                     }}
                     
@@ -1119,7 +1115,7 @@ def generate_static_html():
                     
                     const oddsColor = winOddsNum <= 1.9 ? '#4ade80' : '#f8fafc';
                     const probColor = probVal >= 50 ? '#4ade80' : '#f8fafc';
-                    const kvColor = kv >= 2.0 ? '#4ade80' : '#f8fafc';
+                    const kvColor = kv >= 1.3 ? '#4ade80' : '#f8fafc';
 
                     const blockStyle = (color) => `background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; color: ${{color}}; border: 1px solid ${{color === '#4ade80' ? 'rgba(74, 222, 128, 0.2)' : 'transparent'}};`;
 
@@ -1141,7 +1137,7 @@ def generate_static_html():
                             <div style="display: flex; width: 100%; gap: 6px; font-size: 0.75rem; font-weight: 700; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 4px; margin-left: 50px;">
                                 <span style="${{blockStyle(oddsColor)}}">単勝: ${{winOdds}}</span>
                                 <span style="${{blockStyle(probColor)}}">勝率予測: ${{probVal.toFixed(1)}}%</span>
-                                <span style="${{blockStyle(kvColor)}}">期待値指標: ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
+                                <span style="${{blockStyle(kvColor)}}">期待値(EV): ${{kv > 0 ? kv.toFixed(2) : '-'}}</span>
                             </div>
                         </div>
                     `;
