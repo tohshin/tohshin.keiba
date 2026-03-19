@@ -680,7 +680,7 @@
                     } else if (s.type.includes("BOX")) {
                         const count = parseInt(s.partners) || 5;
                         const valid = allSorted.filter(h => getZ(h, scoreKey) >= sTh).slice(0, count);
-                        if (valid.length >= (s.type.includes("三連") || s.type.includes("3連") ? 3 : 2)) {
+                        if (valid.length >= (s.type.includes("3連") ? 3 : 2)) {
                             valid.forEach(h => partnerSet.add(String(h.horse_number)));
                         }
                     } else {
@@ -896,7 +896,7 @@
                 if (bettingEyes === '--') return;
 
                 hasValidRec = true;
-                const displayType = s.type.replace('三連', '3連');
+                const displayType = s.type;
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${s.type}">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1010,13 +1010,13 @@
                 `;
 
                 const renderBlock = (type) => {
-                    const nums = payoutData.nums[type] || payoutData.nums[type.replace('3連', '三連')] || payoutData.nums[type.replace('三連', '3連')];
+                    const nums = payoutData.nums[type] || payoutData.nums[type.replace('3連', '三連')];
                     if (!nums) return '';
                     
-                    const displayType = type.replace('三連', '3連');
+                    const displayType = type.replace('3連', '3連');
                     let separator = ',';
                     if (type.includes('単') || type.includes('枠連')) separator = '→';
-                    else if (type.includes('3連複') || type.includes('三連複') || type.includes('馬連') || type.includes('ワイド')) separator = '-';
+                    else if (type.includes('3連複') || type.includes('馬連') || type.includes('ワイド')) separator = '-';
                     
                     let numbersHtml = '';
                     if (type === 'ワイド' && nums.length >= 2) {
@@ -1076,7 +1076,7 @@
 
                 // 券種に応じたキーを抽出 (例: "3連単-2頭軸マルチ" -> "3連単")
                 let baseType = "";
-                const types = ["単勝", "複勝", "枠連", "枠単", "馬連", "馬単", "ワイド", "3連複", "3連単", "三連複", "三連単"];
+                const types = ["単勝", "複勝", "枠連", "枠単", "馬連", "馬単", "ワイド", "3連複", "3連単"];
                 for (const t of types) {
                     if (type.includes(t)) {
                         baseType = t;
@@ -1087,15 +1087,15 @@
                 if (!baseType) return;
 
                 const normBaseType = baseType.replace('3連', '三連');
-                const winNums = (payoutData.nums[baseType] || payoutData.nums[normBaseType] || payoutData.nums[baseType.replace('三連', '3連')] || []);
-                const winPays = (payoutData.pays[baseType] || payoutData.pays[normBaseType] || payoutData.pays[baseType.replace('三連', '3連')] || []);
+                const winNums = (payoutData.nums[baseType] || payoutData.nums[normBaseType] || []);
+                const winPays = (payoutData.pays[baseType] || payoutData.pays[normBaseType] || []);
                 
                 let isHit = false;
                 let totalPay = 0;
                 let eyesCount = 0;
 
-                // 買い目数の正確な計算 (正規化して3連/三連を統一)
-                const normType = type.replace('三連', '3連');
+                // 買い目数の正確な計算 (正規化して3連/3連を統一)
+                const normType = type;
                 const axisCount = (eyesText.match(/→/g) || []).length; 
                 const partners = eyesText.split('→').pop().split(',').length;
                 
@@ -1257,7 +1257,6 @@
                 if (valid.length < count) return "--";
                 
                 const finalValid = valid.slice(0, count);
-                const is3Ren = strategy.type.includes("3連") || strategy.type.includes("三連");
                 if (finalValid.length < (is3Ren ? 3 : 2)) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }
@@ -1285,7 +1284,7 @@
             if (partners.length === 0) return "--";
 
             // 3連系（3連単・3連複）の場合、合計3頭以上必要
-            if ((strategy.type.includes("3連") || strategy.type.includes("三連")) && (finalAxes.length + partners.length < 3)) {
+            if (strategy.type.includes("3連") && (finalAxes.length + partners.length < 3)) {
                 return "--";
             }
 
