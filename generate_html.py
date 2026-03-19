@@ -1472,8 +1472,16 @@ def generate_static_html():
                             isHit = winNums.every(n => predictedSet.includes(n));
                         }}
                     }} else {{
-                        const seqPredicted = eyesText.split(' → ').map(s => s.trim().replace(/^0+/, ''));
-                        isHit = winNums.every((n, i) => seqPredicted[i] === n);
+                        // Nagashi (Flow) logic
+                        const parts = eyesText.split(' → ');
+                        const partners = parts.pop().split(',').map(s => s.trim().replace(/^0+/, ''));
+                        const axes = parts.map(s => s.trim().replace(/^0+/, ''));
+                        
+                        const axesMatch = axes.every((a, i) => i < winNums.length && winNums[i] === a);
+                        const remainingWinNums = winNums.slice(axes.length);
+                        const partnersMatch = remainingWinNums.every(n => partners.includes(n));
+                        
+                        isHit = axesMatch && partnersMatch && (axes.length + remainingWinNums.length === winNums.length);
                     }}
 
                     if (isHit) {{
