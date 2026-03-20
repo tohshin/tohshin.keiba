@@ -1072,8 +1072,8 @@ def generate_static_html():
                             }}
 
                             const partners = others.filter(h => getZ(h, scoreKey) >= pTh && getEV(h, scoreKey) >= pEvTh).slice(0, partnerCount);
-                            
-                            if (partners.length > 0) {{
+                            const minTotal = s.type.includes("3連") ? 3 : 2;
+                            if (finalAxes.length + partners.length >= minTotal) {{
                                 finalAxes.forEach(h => jikuSet.add(String(h.horse_number)));
                                 partners.forEach(h => partnerSet.add(String(h.horse_number)));
                             }}
@@ -1302,7 +1302,8 @@ def generate_static_html():
             }}
             
             const partners = others.filter(h => getZ(h) >= pTh && getEV(h) >= pEvTh).slice(0, partnerCount);
-            if (partners.length < 1) return "--";
+            const minTotal = strategy.type.includes("3連") ? 3 : 2;
+            if (finalAxes.length + partners.length < minTotal) return "--";
             
             const separator = (strategy.type.includes("BOX") || strategy.type.includes("複") || strategy.type.includes("連複") || strategy.type.includes("連連") || strategy.type.includes("ワイド")) ? ' - ' : ' → ';
             return finalAxes.map(h => pad(h.horse_number)).join(' → ') + separator + partners.map(h => pad(h.horse_number)).join(', ');
