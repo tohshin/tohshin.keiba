@@ -265,6 +265,7 @@ def generate_static_html():
             "place": place_name,
             "round": str(round_int),
             "horses": records,
+            "strategies": race_strategies
         }
 
     # データを日付ごとにグループ化
