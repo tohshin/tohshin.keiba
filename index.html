@@ -453,11 +453,14 @@
     </div>
 
     <script>
+        console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
 
         async function checkAuth() {
+            console.log("[DEBUG] checkAuth called");
             const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshin20') {
+                console.log("[DEBUG] Password correct, initializing app...");
                 localStorage.setItem('keiba_auth_time', new Date().getTime());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
@@ -486,17 +489,22 @@
 
         async function loadData() {
             const container = document.getElementById('races-container');
-            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading metadata...</p></div>';
 
             try {
-                const [dataRes, tanshoRes] = await Promise.all([
-                    fetch('jsons/data.json?t=' + new Date().getTime()),
-                    fetch('jsons/tansho_data.json?t=' + new Date().getTime())
-                ]);
-
-                if (!dataRes.ok) throw new Error('Data fetch failed');
-                currentData = await dataRes.json();
+                // 1. メタデータ (日付リスト) を取得
+                const metaRes = await fetch('jsons/meta.json?t=' + new Date().getTime());
+                if (!metaRes.ok) throw new Error('Metadata fetch failed');
+                const metaData = await metaRes.json();
                 
+                // フィルタの初期化 (日付リストをセット)
+                initDateFilter(metaData.dates, metaData.latest);
+
+                // 2. 最新日付または選択された日付のデータを読み込む
+                await fetchDailyData(metaData.latest);
+                
+                // 単勝オッズデータの読み込み (これは共通)
+                const tanshoRes = await fetch('jsons/tansho_data.json?t=' + new Date().getTime());
                 if (tanshoRes.ok) {
                     window.tanshoData = await tanshoRes.json();
                 } else {
@@ -504,7 +512,6 @@
                     window.tanshoData = {};
                 }
                 
-                initFilters();
                 renderRaces();
             } catch (error) {
                 console.error("Fetch error details: ", error);
@@ -519,9 +526,9 @@
                         <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: left; display: inline-block;">
                             <p style="font-size: 0.8rem; font-weight: 800; margin-bottom: 8px;">解決方法:</p>
                             <ol style="font-size: 0.8rem; color: #f8fafc; padding-left: 20px;">
-                                <li>VSCode の "Live Server" 拡張機能を使用する</li>
-                                <li>ターミナルで <code>python -m http.server</code> を実行し、localhost:8000 にアクセスする</li>
-                                <li><code>serve.bat</code> を作成して実行する</li>
+                                <li>VSCode の Live Server 拡張機能を使用する</li>
+                                <li>ターミナルで python -m http.server を実行し、localhost:8000 にアクセスする</li>
+                                <li>serve.bat を作成して実行する</li>
                             </ol>
                         </div>
                     </div>
@@ -529,21 +536,21 @@
             }
         }
 
-        function initFilters() {
+        function initDateFilter(dates, latest) {
             const dp = document.getElementById('filter-date');
-            const datesArr = [...new Set(Object.values(currentData).map(r => r.date))].sort();
+            dp.innerHTML = ''; // クリア
             
-            datesArr.forEach(d => {
+            dates.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d; opt.innerText = d;
                 dp.appendChild(opt);
             });
             
-            if (datesArr.length > 0) {
-                dp.value = datesArr[datesArr.length - 1]; // Default to latest date
+            if (latest) {
+                dp.value = latest;
             }
             
-            // Round フィルタの選択肢を初期化 (1R-12R)
+            // Round フィルタの初期化 (1R-12R)
             const rp = document.getElementById('filter-round');
             rp.innerHTML = '<option value="ALL">All Races</option>';
             for (let i = 1; i <= 12; i++) {
@@ -552,13 +559,32 @@
                 opt.innerText = i + "R";
                 rp.appendChild(opt);
             }
-            
-            updatePlacesForDate();
         }
 
-        function onDateChange() {
-            updatePlacesForDate();
-            renderRaces();
+        async function fetchDailyData(date) {
+            const container = document.getElementById('races-container');
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading race data for ' + date + '...</p></div>';
+            
+            try {
+                const dataRes = await fetch(`jsons/data_${date}.json?t=` + new Date().getTime());
+                if (!dataRes.ok) throw new Error('Failed to fetch daily data for ' + date);
+                currentData = await dataRes.json();
+                
+                updatePlacesForDate();
+            } catch (error) {
+                console.error("Daily data fetch error:", error);
+                throw error;
+            }
+        }
+
+        async function onDateChange() {
+            const fDate = document.getElementById('filter-date').value;
+            try {
+                await fetchDailyData(fDate);
+                renderRaces();
+            } catch (e) {
+                alert("データの読み込みに失敗しました: " + fDate);
+            }
         }
 
         function updatePlacesForDate() {
@@ -1257,6 +1283,7 @@
                 if (valid.length < count) return "--";
                 
                 const finalValid = valid.slice(0, count);
+                const is3Ren = strategy.type.includes("3連");
                 if (finalValid.length < (is3Ren ? 3 : 2)) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }

@@ -301,18 +301,19 @@ def generate_static_html():
         logger.error(f"Failed to write meta.json: {e}")
 
     # (互換性維持) 全データをJSON文字列化して保存
-    json_data = json.dumps(races, ensure_ascii=False)
-    output_json_paths = [
-        r"C:\Users\kyoui\tohshin_keiba\jsons\data.json"
-    ]
-    for out_json in output_json_paths:
-        try:
-            os.makedirs(os.path.dirname(out_json), exist_ok=True)
-            with open(out_json, "w", encoding="utf-8") as f:
-                f.write(json_data)
-            logger.info(f"Successfully generated full JSON data at {out_json}")
-        except Exception as e:
-            logger.error(f"Failed to write full JSON to {out_json}: {e}")
+    # 注意: ファイルサイズが巨大化(100MB超)するため、本番運用では生成・Gitプッシュを停止しました。
+    # json_data = json.dumps(races, ensure_ascii=False)
+    # output_json_paths = [
+    #     r"C:\Users\kyoui\tohshin_keiba\jsons\data.json"
+    # ]
+    # for out_json in output_json_paths:
+    #     try:
+    #         os.makedirs(os.path.dirname(out_json), exist_ok=True)
+    #         with open(out_json, "w", encoding="utf-8") as f:
+    #             f.write(json_data)
+    #         logger.info(f"Successfully generated full JSON data at {out_json}")
+    #     except Exception as e:
+    #         logger.error(f"Failed to write full JSON to {out_json}: {e}")
 
     html_template = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -769,11 +770,14 @@ def generate_static_html():
     </div>
 
     <script>
+        console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {{}};
 
         async function checkAuth() {{
+            console.log("[DEBUG] checkAuth called");
             const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshin20') {{
+                console.log("[DEBUG] Password correct, initializing app...");
                 localStorage.setItem('keiba_auth_time', new Date().getTime());
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
@@ -802,17 +806,22 @@ def generate_static_html():
 
         async function loadData() {{
             const container = document.getElementById('races-container');
-            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading data...</p></div>';
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading metadata...</p></div>';
 
             try {{
-                const [dataRes, tanshoRes] = await Promise.all([
-                    fetch('jsons/data.json?t=' + new Date().getTime()),
-                    fetch('jsons/tansho_data.json?t=' + new Date().getTime())
-                ]);
-
-                if (!dataRes.ok) throw new Error('Data fetch failed');
-                currentData = await dataRes.json();
+                // 1. メタデータ (日付リスト) を取得
+                const metaRes = await fetch('jsons/meta.json?t=' + new Date().getTime());
+                if (!metaRes.ok) throw new Error('Metadata fetch failed');
+                const metaData = await metaRes.json();
                 
+                // フィルタの初期化 (日付リストをセット)
+                initDateFilter(metaData.dates, metaData.latest);
+
+                // 2. 最新日付または選択された日付のデータを読み込む
+                await fetchDailyData(metaData.latest);
+                
+                // 単勝オッズデータの読み込み (これは共通)
+                const tanshoRes = await fetch('jsons/tansho_data.json?t=' + new Date().getTime());
                 if (tanshoRes.ok) {{
                     window.tanshoData = await tanshoRes.json();
                 }} else {{
@@ -820,7 +829,6 @@ def generate_static_html():
                     window.tanshoData = {{}};
                 }}
                 
-                initFilters();
                 renderRaces();
             }} catch (error) {{
                 console.error("Fetch error details: ", error);
@@ -835,9 +843,9 @@ def generate_static_html():
                         <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: left; display: inline-block;">
                             <p style="font-size: 0.8rem; font-weight: 800; margin-bottom: 8px;">解決方法:</p>
                             <ol style="font-size: 0.8rem; color: #f8fafc; padding-left: 20px;">
-                                <li>VSCode の "Live Server" 拡張機能を使用する</li>
-                                <li>ターミナルで <code>python -m http.server</code> を実行し、localhost:8000 にアクセスする</li>
-                                <li><code>serve.bat</code> を作成して実行する</li>
+                                <li>VSCode の Live Server 拡張機能を使用する</li>
+                                <li>ターミナルで python -m http.server を実行し、localhost:8000 にアクセスする</li>
+                                <li>serve.bat を作成して実行する</li>
                             </ol>
                         </div>
                     </div>
@@ -845,21 +853,21 @@ def generate_static_html():
             }}
         }}
 
-        function initFilters() {{
+        function initDateFilter(dates, latest) {{
             const dp = document.getElementById('filter-date');
-            const datesArr = [...new Set(Object.values(currentData).map(r => r.date))].sort();
+            dp.innerHTML = ''; // クリア
             
-            datesArr.forEach(d => {{
+            dates.forEach(d => {{
                 const opt = document.createElement('option');
                 opt.value = d; opt.innerText = d;
                 dp.appendChild(opt);
             }});
             
-            if (datesArr.length > 0) {{
-                dp.value = datesArr[datesArr.length - 1]; // Default to latest date
+            if (latest) {{
+                dp.value = latest;
             }}
             
-            // Round フィルタの選択肢を初期化 (1R-12R)
+            // Round フィルタの初期化 (1R-12R)
             const rp = document.getElementById('filter-round');
             rp.innerHTML = '<option value="ALL">All Races</option>';
             for (let i = 1; i <= 12; i++) {{
@@ -868,13 +876,32 @@ def generate_static_html():
                 opt.innerText = i + "R";
                 rp.appendChild(opt);
             }}
-            
-            updatePlacesForDate();
         }}
 
-        function onDateChange() {{
-            updatePlacesForDate();
-            renderRaces();
+        async function fetchDailyData(date) {{
+            const container = document.getElementById('races-container');
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading race data for ' + date + '...</p></div>';
+            
+            try {{
+                const dataRes = await fetch(`jsons/data_${{date}}.json?t=` + new Date().getTime());
+                if (!dataRes.ok) throw new Error('Failed to fetch daily data for ' + date);
+                currentData = await dataRes.json();
+                
+                updatePlacesForDate();
+            }} catch (error) {{
+                console.error("Daily data fetch error:", error);
+                throw error;
+            }}
+        }}
+
+        async function onDateChange() {{
+            const fDate = document.getElementById('filter-date').value;
+            try {{
+                await fetchDailyData(fDate);
+                renderRaces();
+            }} catch (e) {{
+                alert("データの読み込みに失敗しました: " + fDate);
+            }}
         }}
 
         function updatePlacesForDate() {{
@@ -1573,6 +1600,7 @@ def generate_static_html():
                 if (valid.length < count) return "--";
                 
                 const finalValid = valid.slice(0, count);
+                const is3Ren = strategy.type.includes("3連");
                 if (finalValid.length < (is3Ren ? 3 : 2)) return "--";
                 return finalValid.map(h => pad(h.horse_number)).join(',');
             }}
@@ -1633,7 +1661,10 @@ def generate_static_html():
         
         # 1. git add
         # インデックス作成に時間がかかる場合があるため、明示的に指定
-        subprocess.run(["git", "add", "index.html", "jsons/data.json", "generate_html.py"], cwd=repo_dir, check=True)
+        # data.json は巨大なため Git 管理から除外（既存ファイルも後ほど削除）
+        subprocess.run(["git", "add", "index.html", "generate_html.py", "jsons/meta.json", "jsons/tansho_data.json"], cwd=repo_dir, check=True)
+        # 日次JSONも追加
+        subprocess.run(["git", "add", "jsons/data_*.json"], cwd=repo_dir, check=True)
         
         # 2. git commit (変更がある場合のみ)
         status = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, capture_output=True, text=True)
