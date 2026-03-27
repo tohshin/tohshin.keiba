@@ -33,7 +33,8 @@ def generate_static_html():
         try:
             sdf = pd.read_csv(strategies_csv_path)
             # NaNをNoneに置き換える (JSONでnullとして出力される)
-            sdf = sdf.where(pd.notnull(sdf), None)
+            # 数値型のままだとNoneがnp.nanに戻ってしまうため、一度物オブジェクト型に変換する
+            sdf = sdf.astype(object).where(pd.notnull(sdf), None)
             
             # 会場名または venue_code でマッピングできるように準備
             # venue_name をキーにしたリストを作成
