@@ -32,6 +32,9 @@ def generate_static_html():
     if os.path.exists(strategies_csv_path):
         try:
             sdf = pd.read_csv(strategies_csv_path)
+            # NaNをNoneに置き換える (JSONでnullとして出力される)
+            sdf = sdf.where(pd.notnull(sdf), None)
+            
             # 会場名または venue_code でマッピングできるように準備
             # venue_name をキーにしたリストを作成
             for _, row in sdf.iterrows():
@@ -1035,13 +1038,13 @@ def generate_static_html():
                     const allSorted = [...raceData.horses].sort((a,b) => getZ(b, scoreKey) - getZ(a, scoreKey));
                     if (allSorted.length === 0) return;
 
-                    const sTh = parseFloat(s.score_th) || -9.9;
-                    const a2Th = parseFloat(s.axis2_score_th) || parseFloat(s.partner_score_th) || -9.9;
-                    const pTh = parseFloat(s.partner_score_th) || -9.9;
+                    const sTh = s.score_th === null ? -9.9 : parseFloat(s.score_th);
+                    const a2Th = (s.axis2_score_th === null && s.partner_score_th === null) ? -9.9 : parseFloat(s.axis2_score_th || s.partner_score_th);
+                    const pTh = s.partner_score_th === null ? -9.9 : parseFloat(s.partner_score_th);
                     
-                    const evTh = parseFloat(s.EV_th) || 0;
-                    const a2EvTh = parseFloat(s.axis2_EV_th) || parseFloat(s.partner_EV_th) || 0;
-                    const pEvTh = parseFloat(s.partner_EV_th) || 0;
+                    const evTh = s.EV_th === null ? -1 : parseFloat(s.EV_th);
+                    const a2EvTh = (s.axis2_EV_th === null && s.partner_EV_th === null) ? -1 : parseFloat(s.axis2_EV_th || s.partner_EV_th);
+                    const pEvTh = s.partner_EV_th === null ? -1 : parseFloat(s.partner_EV_th);
 
                     if (s.type === "単勝") {{
                         const h = allSorted[0];
@@ -1266,13 +1269,13 @@ def generate_static_html():
             const pad = (n) => String(n).padStart(2, '0');
             if (allSorted.length === 0) return "--";
 
-            const sTh = parseFloat(strategy.score_th) || -9.9;
-            const a2Th = parseFloat(strategy.axis2_score_th) || parseFloat(strategy.partner_score_th) || -9.9;
-            const pTh = parseFloat(strategy.partner_score_th) || -9.9;
+            const sTh = strategy.score_th === null ? -9.9 : parseFloat(strategy.score_th);
+            const a2Th = (strategy.axis2_score_th === null && strategy.partner_score_th === null) ? -9.9 : parseFloat(strategy.axis2_score_th || strategy.partner_score_th);
+            const pTh = strategy.partner_score_th === null ? -9.9 : parseFloat(strategy.partner_score_th);
             
-            const evTh = parseFloat(strategy.EV_th) || 0;
-            const a2EvTh = parseFloat(strategy.axis2_EV_th) || parseFloat(strategy.partner_EV_th) || 0;
-            const pEvTh = parseFloat(strategy.partner_EV_th) || 0;
+            const evTh = strategy.EV_th === null ? -1 : parseFloat(strategy.EV_th);
+            const a2EvTh = (strategy.axis2_EV_th === null && strategy.partner_EV_th === null) ? -1 : parseFloat(strategy.axis2_EV_th || strategy.partner_EV_th);
+            const pEvTh = strategy.partner_EV_th === null ? -1 : parseFloat(strategy.partner_EV_th);
 
             // 単勝
             if (strategy.type === "単勝") {{
@@ -1352,9 +1355,9 @@ def generate_static_html():
 
                 hasValidRec = true;
                 const displayType = s.type;
-                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th || s.partner_score_th}}${{parseFloat(s.axis2_EV_th) > 0 ? ` (EV > ${{s.axis2_EV_th}})` : ''}}` : '';
-                const evDisp = parseFloat(s.EV_th) > 0 ? ` (EV > ${{s.EV_th}})` : '';
-                const pEvDisp = parseFloat(s.partner_EV_th) > 0 ? ` (EV > ${{s.partner_EV_th}})` : '';
+                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}}${{s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? ` (EV > ${{s.axis2_EV_th}})` : ''}}` : '';
+                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? ` (EV > ${{s.EV_th}})` : '';
+                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? ` (EV > ${{s.partner_EV_th}})` : '';
 
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
