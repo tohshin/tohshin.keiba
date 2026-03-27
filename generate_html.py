@@ -181,6 +181,8 @@ def generate_static_html():
         'LSTM': 'LSTM_raw',
         'RandomForest': 'RandomForest_raw',
         'DecisionTree': 'DecisionTree_raw',
+        'Transformer': 'Transformer_raw',
+        'TabNet': 'TabNet_raw',
         'Ensemble': 'Python'
     }
     
@@ -206,7 +208,7 @@ def generate_static_html():
         elif raw_name in df.columns:
             logger.info(f"  {raw_name} already contains data or {base_name} is missing")
 
-    req_scores = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble']
+    req_scores = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble']
     for s in req_scores:
         if s not in df.columns:
             df[s] = 0.0
@@ -755,6 +757,8 @@ def generate_static_html():
                 <option value="LSTM">LSTM</option>
                 <option value="RandomForest">RandomForest</option>
                 <option value="DecisionTree">DecisionTree</option>
+                <option value="Transformer">Transformer</option>
+                <option value="TabNet">TabNet</option>
             </select>
         </div>
 
@@ -983,7 +987,7 @@ def generate_static_html():
                 const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
 
                 // --- 1. Calculate Z-Scores for Each Model Per Race ---
-                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
                 const raceStats = {{}};
                 scoreModels.forEach(m => {{
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
@@ -1153,7 +1157,9 @@ def generate_static_html():
                         'CatBoost_raw': 'CB',
                         'LSTM_raw': 'LSTM',
                         'RandomForest_raw': 'RF',
-                        'DecisionTree_raw': 'DT'
+                        'DecisionTree_raw': 'DT',
+                        'Transformer_raw': 'TF',
+                        'TabNet_raw': 'TN'
                     }};
 
                     let subScoresHtml = '';
@@ -1317,7 +1323,7 @@ def generate_static_html():
             const body = document.getElementById('modal-body');
             
             // Need to pass stats to generateBettingEyes
-            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
             const raceStats = {{}};
             scoreModels.forEach(m => {{
                 const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);

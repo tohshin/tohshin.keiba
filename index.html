@@ -438,6 +438,8 @@
                 <option value="LSTM">LSTM</option>
                 <option value="RandomForest">RandomForest</option>
                 <option value="DecisionTree">DecisionTree</option>
+                <option value="Transformer">Transformer</option>
+                <option value="TabNet">TabNet</option>
             </select>
         </div>
 
@@ -666,7 +668,7 @@
                 const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
 
                 // --- 1. Calculate Z-Scores for Each Model Per Race ---
-                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
                 const raceStats = {};
                 scoreModels.forEach(m => {
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
@@ -836,7 +838,9 @@
                         'CatBoost_raw': 'CB',
                         'LSTM_raw': 'LSTM',
                         'RandomForest_raw': 'RF',
-                        'DecisionTree_raw': 'DT'
+                        'DecisionTree_raw': 'DT',
+                        'Transformer_raw': 'TF',
+                        'TabNet_raw': 'TN'
                     };
 
                     let subScoresHtml = '';
@@ -1000,7 +1004,7 @@
             const body = document.getElementById('modal-body');
             
             // Need to pass stats to generateBettingEyes
-            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Ensemble'];
+            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
             const raceStats = {};
             scoreModels.forEach(m => {
                 const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
