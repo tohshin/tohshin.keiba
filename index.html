@@ -1717,22 +1717,6 @@
                 "next();";
         }
 
-        function copySmappyShortcutJS() {
-            var venueEl = document.getElementById('smappy-venue');
-            if (!venueEl || !window._smappyParsed) return;
-            var v = venueEl.value;
-            var p = window._smappyParsed;
-            var js = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
-            var t = document.createElement('textarea');
-            t.value = js;
-            document.body.appendChild(t);
-            t.select();
-            document.execCommand('copy');
-            document.body.removeChild(t);
-            alert('iOSショートカット用JSをコピーしました！
-
-ショートカットアプリ→WebページでJavaScriptを実行→貼り付け');
-        }
 
         function closeRecommendation() {
             document.getElementById('recommend-modal').style.display = 'none';
