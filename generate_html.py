@@ -1960,7 +1960,7 @@ def generate_static_html():
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            alert('実行用の暗号をコピーしました！\n\nJRAの会場画面でショートカットを実行してください。');
+            alert('実行用の暗号をコピーしました！\\n\\nJRAの会場画面でショートカットを実行してください。');
         }}
 
         function copySmappyBml() {{
