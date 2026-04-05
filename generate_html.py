@@ -1927,12 +1927,17 @@ def generate_static_html():
 
                 <div id="panel-ios" style="display: none;">
                     <div class="step-box">
-                        <span class="step-title">1. 初回設定 (5秒)</span>
-                        <div class="step-desc">「JSを実行」アクションに <b>eval(window.smappy_code)</b> と1行だけ書いて保存！</div>
+                        <span class="step-title">1. 初回設定 (1分)</span>
+                        <div class="step-desc">
+                            1. iOSショートカットアプリで新規作成<br>
+                            2. <b>「クリップボードを取得」</b>アクションを追加<br>
+                            3. <b>「WebページでJavaScriptを実行」</b>を追加<br>
+                            4. JavaScriptの中身を <b>eval(クリップボード)</b> にして完了（※クリップボードの部分は変数で選択）
+                        </div>
                     </div>
                     <div class="step-box">
                         <span class="step-title">2. 使い方</span>
-                        <div class="step-desc">下のボタンで「コード」をコピーして、JRAでそのショートカットを呼ぶだけ！</div>
+                        <div class="step-desc">下のボタンで「コード」をコピー。JRA画面で共有ボタン(⬆️)からそのショートカットを押すだけ！</div>
                     </div>
                     <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用のコードをコピー</button>
                 </div>
@@ -1968,17 +1973,16 @@ def generate_static_html():
             var v = venueEl.value;
             var p = window._smappyParsed;
             
-            // クリップボードに渡すためのコードをラップ
+            // そのままJSとして実行できるコードをクリップボードにコピー
             var rawJS = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
-            var wrappedJS = "window.smappy_code = " + JSON.stringify(rawJS) + ";";
             
             var t = document.createElement('textarea');
-            t.value = wrappedJS; // eval(window.smappy_code) で実行される中身
+            t.value = rawJS;
             document.body.appendChild(t);
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            alert('実行用のコードをコピーしました！\\n\\nJRAの会場画面でショートカットを実行してください。');
+            alert('実行用のコードをコピーしました！\\n\\nSafariの「共有」ボタンからショートカットを起動してください。');
         }}
 
         function copySmappyBml() {{
