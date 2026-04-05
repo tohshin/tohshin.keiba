@@ -1659,7 +1659,10 @@
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            alert('実行用のコードをコピーしました！\n\nSafariの「共有」ボタンからショートカットを起動してください。');
+            
+            if (confirm('コードをコピーしました！\nこのままショートカット「スマッピー」を起動しますか？')) {
+                window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
+            }
         }
 
         function copySmappyBml() {
