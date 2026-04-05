@@ -1134,7 +1134,7 @@
                         </div>
                         <div class="bet-result-details"></div>
                         <div style="margin-top: 8px; text-align: right;">
-                            <button class="smappy-btn" data-eyes="${bettingEyes}" data-type="${s.type}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                            <button class="smappy-btn" data-eyes="${bettingEyes}" data-type="${s.type}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" data-place="${raceData.place}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                         </div>
                     </div>
                 `;
@@ -1558,11 +1558,8 @@
             var hou = getSmappyHou(type, axisCount);
             var parsed = parseSmappyEyes(eyes, type);
             
-            // 会場の判定ロジック
-            var raceId = Object.keys(currentData).find(k => currentData[k].round == round && currentData[k].horses.some(h => eyes.includes(h.horse_name) || eyes.includes(String(h.horse_number).padStart(2, '0'))));
-            // 実際はもっとシンプルに、現在表示中の会場名をPLACE_DICT_CHUOHでソートしてインデックスを決める
-            var currentPlace = "";
-            if (raceId) currentPlace = currentData[raceId].place;
+            // 会場情報をボタンから直接取得する（確実な判定）
+            var currentPlace = btn.getAttribute('data-place') || "";
             
             var vCodes = { "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" };
             var todayPlaces = [];
@@ -1578,8 +1575,8 @@
             popup.className = 'smappy-popup';
             popup.innerHTML = `
                 <div class="smappy-tabs">
-                    <div id="tab-pc" class="smappy-tab active" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
-                    <div id="tab-ios" class="smappy-tab" onclick="switchSmappyTab('ios')">🍎 iPhone (Shortcuts)</div>
+                    <div id="tab-pc" class="smappy-tab" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
+                    <div id="tab-ios" class="smappy-tab active" onclick="switchSmappyTab('ios')">🍎 iPhone (Shortcuts)</div>
                 </div>
 
                 <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
@@ -1591,7 +1588,7 @@
                     </select>
                 </div>
 
-                <div id="panel-pc">
+                <div id="panel-pc" style="display: none;">
                     <div class="step-box">
                         <span class="step-title">使い方</span>
                         <div class="step-desc">下のボタンをブックマークバーにドラッグ登録して、JRAの会場画面で開くだけ！</div>
@@ -1602,7 +1599,7 @@
                     </div>
                 </div>
 
-                <div id="panel-ios" style="display: none;">
+                <div id="panel-ios" style="display: block;">
                     <div class="step-box">
                         <span class="step-title">1. 初回設定 (1分)</span>
                         <div class="step-desc">
