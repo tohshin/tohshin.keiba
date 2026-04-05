@@ -396,7 +396,72 @@
             position: relative;
             overflow: hidden; /* Ensure highlighting doesn't overflow rounded corners */
         }
-
+        .smappy-btn {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        .smappy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+        .smappy-popup {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 16px;
+            margin-top: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.4s ease;
+        }
+        .smappy-tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        .smappy-tab {
+            flex: 1;
+            padding: 6px;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 8px;
+            color: var(--text-muted);
+        }
+        .smappy-tab.active {
+            background: #334155;
+            color: #fff;
+        }
+        .step-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .step-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            color: #4ade80;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .step-desc {
+            font-size: 0.72rem;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -1050,6 +1115,9 @@
                             Z-Score: Jiku1 > ${s.score_th}${evDisp}${axis2Disp} / Partner > ${s.partner_score_th}${pEvDisp} 　ROI ${s.roi}% | Hit ${s.hit_rate}%
                         </div>
                         <div class="bet-result-details"></div>
+                        <div style="margin-top: 8px; text-align: right;">
+                            <button class="smappy-btn" data-eyes="${bettingEyes}" data-type="${s.type}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                        </div>
                     </div>
                 `;
             });
@@ -1360,6 +1428,313 @@
             });
         }
 
+
+        function getSmappySiki(type) {
+            if (type.includes('3連単')) return '8';
+            if (type.includes('3連複')) return '7';
+            if (type.includes('馬単')) return '6';
+            if (type.includes('ワイド')) return '5';
+            if (type.includes('馬連')) return '4';
+            if (type.includes('枠連')) return '3';
+            if (type.includes('複勝')) return '2';
+            return '1';
+        }
+
+        function getSmappyHou(type, axisCount) {
+            if (type.includes('BOX')) return '2';
+            if (type.includes('3連単') && axisCount >= 2) return '6';
+            if (type.includes('3連単')) return '3';
+            return '3';
+        }
+
+        function parseSmappyEyes(text, stratType) {
+            text = text.trim();
+            if (stratType.includes('BOX')) {
+                var all = text.split(',').map(function(s){ return parseInt(s.trim()); }).filter(function(n){ return !isNaN(n); });
+                return {axes: all, partners: []};
+            }
+            var axesStr, partnersStr;
+            if (text.indexOf(' - ') >= 0) {
+                var dp = text.split(' - ');
+                partnersStr = dp.pop();
+                axesStr = dp.join(' - ');
+            } else if (text.indexOf(' → ') >= 0) {
+                var ap = text.split(' → ');
+                partnersStr = ap.pop();
+                axesStr = ap.join(' → ');
+            } else {
+                return {axes: [parseInt(text)], partners: []};
+            }
+            var partners = partnersStr.split(',').map(function(s){ return parseInt(s.trim()); }).filter(function(n){ return !isNaN(n); });
+            var axes;
+            if (axesStr.indexOf(' → ') >= 0) {
+                axes = axesStr.split(' → ').map(function(s){ return parseInt(s.trim()); }).filter(function(n){ return !isNaN(n); });
+            } else {
+                axes = [parseInt(axesStr.trim())];
+            }
+            return {axes: axes, partners: partners};
+        }
+
+        function genSmappyBml(venue, raceRound, siki, hou, axes, partners) {
+            var raceVal = String(parseInt(raceRound) - 1);
+            var simple = (siki === '1' || siki === '2' || siki === '9');
+            var steps = "'" + venue + "','" + raceVal + "','" + siki + "'";
+            if (!simple) steps += ",'" + hou + "'";
+            axes.forEach(function(h) { steps += ",'" + h + "'"; });
+            partners.forEach(function(h) { steps += ",'" + h + "'"; });
+            return "javascript:void((function(){" +
+                "var steps=[" + steps + "];" +
+                "var idx=0;var retries=0;" +
+                "function tap(el){" +
+                    "var r=el.getBoundingClientRect();" +
+                    "var x=r.left+r.width/2;" +
+                    "var y=r.top+r.height/2;" +
+                    "var opt={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};" +
+                    "el.dispatchEvent(new MouseEvent('mousedown',opt));" +
+                    "el.dispatchEvent(new MouseEvent('mouseup',opt));" +
+                    "el.dispatchEvent(new MouseEvent('click',opt));" +
+                "}" +
+                "function clickNext(){" +
+                    "var btns=document.querySelectorAll('a,button');" +
+                    "for(var i=0;i<btns.length;i++){" +
+                        "var t=btns[i].textContent;" +
+                        "var b=btns[i].getBoundingClientRect();" +
+                        "if(b.width>0&&b.height>0&&(t.indexOf('金額')>=0||t.indexOf('セット')>=0||t.indexOf('次へ')>=0)){" +
+                            "tap(btns[i]);return;" +
+                        "}" +
+                    "}" +
+                "}" +
+                "function next(){" +
+                    "if(idx>=steps.length){" +
+                        "setTimeout(clickNext,500);" +
+                        "setTimeout(function(){alert('Complete!')},1500);" +
+                        "return;" +
+                    "}" +
+                    "var val=steps[idx];" +
+                    "var els=document.querySelectorAll('a[data-value=\"'+val+'\"]');" +
+                    "var found=false;" +
+                    "for(var j=0;j<els.length;j++){" +
+                        "var b=els[j].getBoundingClientRect();" +
+                        "if(b.width>0&&b.height>0){" +
+                            "tap(els[j]);idx++;retries=0;" +
+                            "setTimeout(next,800);found=true;break;" +
+                        "}" +
+                    "}" +
+                    "if(!found){retries++;if(retries>50){alert('Not found: '+steps[idx]);return;}setTimeout(next,100);}" +
+                "}" +
+                "next();" +
+            "})())";
+        }
+
+        function showSmappy(btn) {
+            var prev = document.querySelector('.smappy-popup');
+            if (prev) prev.remove();
+            
+            var eyes = btn.getAttribute('data-eyes');
+            var type = btn.getAttribute('data-type');
+            var round = btn.getAttribute('data-round');
+            var axisCount = parseInt(btn.getAttribute('data-axis')) || 1;
+            if (!eyes || eyes === '--') { alert('買い目がありません'); return; }
+            
+            var siki = getSmappySiki(type);
+            var hou = getSmappyHou(type, axisCount);
+            var parsed = parseSmappyEyes(eyes, type);
+            
+            // 会場の判定ロジック
+            var raceId = Object.keys(currentData).find(k => currentData[k].round == round && currentData[k].horses.some(h => eyes.includes(h.horse_name) || eyes.includes(String(h.horse_number).padStart(2, '0'))));
+            // 実際はもっとシンプルに、現在表示中の会場名をPLACE_DICT_CHUOHでソートしてインデックスを決める
+            var currentPlace = "";
+            if (raceId) currentPlace = currentData[raceId].place;
+            
+            var vCodes = { "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" };
+            var todayPlaces = [];
+            for (var k in currentData) {
+                var p = currentData[k].place;
+                if (!todayPlaces.includes(p)) todayPlaces.push(p);
+            }
+            todayPlaces.sort(function(a, b) { return (vCodes[a] || "99") - (vCodes[b] || "99"); });
+            var vIdx = todayPlaces.indexOf(currentPlace);
+            if (vIdx < 0) vIdx = 0;
+
+            var popup = document.createElement('div');
+            popup.className = 'smappy-popup';
+            popup.innerHTML = `
+                <div class="smappy-tabs">
+                    <div id="tab-pc" class="smappy-tab active" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
+                    <div id="tab-ios" class="smappy-tab" onclick="switchSmappyTab('ios')">🍎 iPhone (Shortcuts)</div>
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">会場判定:</label>
+                    <select id="smappy-venue" style="flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem;">
+                        <option value="0" ${vIdx==0?'selected':''}>0 (1場目: ${todayPlaces[0] || '?'})</option>
+                        <option value="1" ${vIdx==1?'selected':''}>1 (2場目: ${todayPlaces[1] || '?'})</option>
+                        <option value="2" ${vIdx==2?'selected':''}>2 (3場目: ${todayPlaces[2] || '?'})</option>
+                    </select>
+                </div>
+
+                <div id="panel-pc">
+                    <div class="step-box">
+                        <span class="step-title">使い方</span>
+                        <div class="step-desc">下のボタンをブックマークバーにドラッグ登録して、JRAの会場画面で開くだけ！</div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <a id="smappy-bml-link" href="#" style="flex: 1; text-align: center; padding: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 800; font-size: 0.8rem; border-radius: 8px; text-decoration: none;">📌 ドラッグ登録</a>
+                        <button onclick="copySmappyBml()" style="padding: 10px 12px; background: #334155; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">📋 コピー</button>
+                    </div>
+                </div>
+
+                <div id="panel-ios" style="display: none;">
+                    <div class="step-box">
+                        <span class="step-title">1. 初回設定 (5秒)</span>
+                        <div class="step-desc">「JSを実行」アクションに <b>eval(window.smappy_code)</b> と1行だけ書いて保存！</div>
+                    </div>
+                    <div class="step-box">
+                        <span class="step-title">2. 使い方</span>
+                        <div class="step-desc">下のボタンで「暗号」をコピーして、JRAでそのショートカットを呼ぶだけ！</div>
+                    </div>
+                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用の暗号をコピー</button>
+                </div>
+                
+                <div style="font-size: 0.55rem; color: var(--text-muted); margin-top: 10px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                    JRAスマッピー → 通常投票 → 会場選択画面で実行してください
+                </div>
+            `;
+            btn.parentElement.appendChild(popup);
+
+            window._smappyParsed = {round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners};
+            
+            function updateBml() {
+                var v = document.getElementById('smappy-venue').value;
+                var bml = genSmappyBml(v, round, siki, hou, parsed.axes, parsed.partners);
+                document.getElementById('smappy-bml-link').href = bml;
+                window._smappyBml = bml;
+            }
+            document.getElementById('smappy-venue').addEventListener('change', updateBml);
+            updateBml();
+        }
+
+        function switchSmappyTab(tab) {
+            document.getElementById('tab-pc').className = 'smappy-tab' + (tab === 'pc' ? ' active' : '');
+            document.getElementById('tab-ios').className = 'smappy-tab' + (tab === 'ios' ? ' active' : '');
+            document.getElementById('panel-pc').style.display = (tab === 'pc' ? 'block' : 'none');
+            document.getElementById('panel-ios').style.display = (tab === 'ios' ? 'block' : 'none');
+        }
+
+        function copySmappyShortcutJS() {
+            var venueEl = document.getElementById('smappy-venue');
+            if (!venueEl || !window._smappyParsed) return;
+            var v = venueEl.value;
+            var p = window._smappyParsed;
+            
+            // クリップボードに渡すためのコードをラップ
+            var rawJS = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
+            var wrappedJS = "window.smappy_code = " + JSON.stringify(rawJS) + ";";
+            
+            var t = document.createElement('textarea');
+            t.value = wrappedJS; // eval(window.smappy_code) で実行される中身
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('実行用の暗号をコピーしました！
+
+JRAの会場画面でショートカットを実行してください。');
+        }
+
+        function copySmappyBml() {
+            if (!window._smappyBml) return;
+            var t = document.createElement('textarea');
+            t.value = window._smappyBml;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('コピーしました！JRA→通常投票→会場選択画面で実行');
+        }
+
+        function genSmappyShortcutJS(venue, raceRound, siki, hou, axes, partners) {
+            var raceVal = String(parseInt(raceRound) - 1);
+            var simple = (siki === '1' || siki === '2' || siki === '9');
+            var steps = "'" + venue + "','" + raceVal + "','" + siki + "'";
+            if (!simple) steps += ",'" + hou + "'";
+            axes.forEach(function(h) { steps += ",'" + h + "'"; });
+            partners.forEach(function(h) { steps += ",'" + h + "'"; });
+            return "var steps=[" + steps + "];
+" +
+                "var idx=0;var retries=0;
+" +
+                "function tap(el){
+" +
+                "  var r=el.getBoundingClientRect();
+" +
+                "  var x=r.left+r.width/2;var y=r.top+r.height/2;
+" +
+                "  var opt={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};
+" +
+                "  el.dispatchEvent(new MouseEvent('mousedown',opt));
+" +
+                "  el.dispatchEvent(new MouseEvent('mouseup',opt));
+" +
+                "  el.dispatchEvent(new MouseEvent('click',opt));
+" +
+                "}
+" +
+                "function clickNext(){
+" +
+                "  var btns=document.querySelectorAll('a,button');
+" +
+                "  for(var i=0;i<btns.length;i++){
+" +
+                "    var t=btns[i].textContent;var b=btns[i].getBoundingClientRect();
+" +
+                "    if(b.width>0&&b.height>0&&(t.indexOf('金額')>=0||t.indexOf('セット')>=0||t.indexOf('次へ')>=0)){tap(btns[i]);return;}
+" +
+                "  }
+" +
+                "}
+" +
+                "function next(){
+" +
+                "  if(idx>=steps.length){setTimeout(clickNext,500);setTimeout(function(){completion(true)},1500);return;}
+" +
+                "  var val=steps[idx];
+" +
+                "  var els=document.querySelectorAll('a[data-value=\"'+val+'\"]');
+" +
+                "  var found=false;
+" +
+                "  for(var j=0;j<els.length;j++){
+" +
+                "    var b=els[j].getBoundingClientRect();
+" +
+                "    if(b.width>0&&b.height>0){tap(els[j]);idx++;retries=0;setTimeout(next,800);found=true;break;}
+" +
+                "  }
+" +
+                "  if(!found){retries++;if(retries>50){completion(false);return;}setTimeout(next,100);}
+" +
+                "}
+" +
+                "next();";
+        }
+
+        function copySmappyShortcutJS() {
+            var venueEl = document.getElementById('smappy-venue');
+            if (!venueEl || !window._smappyParsed) return;
+            var v = venueEl.value;
+            var p = window._smappyParsed;
+            var js = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
+            var t = document.createElement('textarea');
+            t.value = js;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('iOSショートカット用JSをコピーしました！
+
+ショートカットアプリ→WebページでJavaScriptを実行→貼り付け');
+        }
 
         function closeRecommendation() {
             document.getElementById('recommend-modal').style.display = 'none';
