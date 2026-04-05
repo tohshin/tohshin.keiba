@@ -856,7 +856,11 @@ def generate_static_html():
                 }} catch (e) {{
                     console.warn("localStorage is not available:", e);
                 }}
-                document.getElementById('auth-overlay').style.display = 'none';
+                
+                // オーバーレイを完全に削除（Safariのdisplay:flex優先バグ等を回避）
+                const overlay = document.getElementById('auth-overlay');
+                if (overlay) overlay.remove();
+                
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
@@ -866,23 +870,29 @@ def generate_static_html():
 
         // ページ読み込み時に認証チェック
         window.onload = function() {{
+            let isAuthenticated = false;
             try {{
                 const authTime = localStorage.getItem('keiba_auth_time');
                 if (authTime) {{
                     const now = new Date().getTime();
                     const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
                     if (diffHours < 24) {{
-                        document.getElementById('auth-overlay').style.display = 'none';
-                        document.getElementById('app-content').style.display = 'block';
-                        loadData();
-                        return;
+                        isAuthenticated = true;
                     }}
                 }}
             }} catch (e) {{
                 console.warn("localStorage is not available for auth check:", e);
             }}
-            // 認証が必要な場合
-            document.getElementById('auth-overlay').style.display = 'flex';
+            
+            if (isAuthenticated) {{
+                const overlay = document.getElementById('auth-overlay');
+                if (overlay) overlay.remove();
+                document.getElementById('app-content').style.display = 'block';
+                loadData();
+            }} else {{
+                // 認証が必要な場合
+                document.getElementById('auth-overlay').style.display = 'flex';
+            }}
         }};
 
         async function loadData() {{
