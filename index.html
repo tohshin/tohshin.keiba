@@ -528,7 +528,11 @@
             const pw = document.getElementById('auth-pw').value;
             if (pw === 'tohshin20') {
                 console.log("[DEBUG] Password correct, initializing app...");
-                localStorage.setItem('keiba_auth_time', new Date().getTime());
+                try {
+                    localStorage.setItem('keiba_auth_time', new Date().getTime());
+                } catch (e) {
+                    console.warn("localStorage is not available:", e);
+                }
                 document.getElementById('auth-overlay').style.display = 'none';
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
@@ -539,16 +543,20 @@
 
         // ページ読み込み時に認証チェック
         window.onload = function() {
-            const authTime = localStorage.getItem('keiba_auth_time');
-            if (authTime) {
-                const now = new Date().getTime();
-                const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
-                if (diffHours < 24) {
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    document.getElementById('app-content').style.display = 'block';
-                    loadData();
-                    return;
+            try {
+                const authTime = localStorage.getItem('keiba_auth_time');
+                if (authTime) {
+                    const now = new Date().getTime();
+                    const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                    if (diffHours < 24) {
+                        document.getElementById('auth-overlay').style.display = 'none';
+                        document.getElementById('app-content').style.display = 'block';
+                        loadData();
+                        return;
+                    }
                 }
+            } catch (e) {
+                console.warn("localStorage is not available for auth check:", e);
             }
             // 認証が必要な場合
             document.getElementById('auth-overlay').style.display = 'flex';
