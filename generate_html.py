@@ -2032,7 +2032,17 @@ def generate_static_html():
                 "    var b=els[j].getBoundingClientRect();\\n" +
                 "    if(b.width>0&&b.height>0){{tap(els[j]);idx++;retries=0;setTimeout(next,800);found=true;break;}}\\n" +
                 "  }}\\n" +
-                "  if(!found){{retries++;if(retries>50){{completion(false);return;}}setTimeout(next,100);}}\\n" +
+                "  if(!found){{\\n" +
+                "    var btns=document.querySelectorAll('a,button');\\n" +
+                "    var clickedAdvance=false;\\n" +
+                "    for(var k=0;k<btns.length;k++){{\\n" +
+                "      var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();\\n" +
+                "      if(b.width>0&&b.height>0&&(t.indexOf('作成する')>=0||t.indexOf('スマッピー投票')>=0||t.indexOf('同意')>=0||t.indexOf('はじめる')>=0||t.indexOf('進む')>=0)){{\\n" +
+                "        tap(btns[k]); clickedAdvance=true; break;\\n" +
+                "      }}\\n" +
+                "    }}\\n" +
+                "    retries++;if(retries>80){{completion(false);return;}}setTimeout(next, clickedAdvance ? 800 : 100);\\n" +
+                "  }}\\n" +
                 "}}\\n" +
                 "next();";
         }}
