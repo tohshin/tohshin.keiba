@@ -1861,7 +1861,16 @@ def generate_static_html():
                             "setTimeout(next,800);found=true;break;" +
                         "}}" +
                     "}}" +
-                    "if(!found){{retries++;if(retries>50){{alert('Not found: '+steps[idx]);return;}}setTimeout(next,100);}}" +
+                    "if(!found){{" +
+                        "var btns=document.querySelectorAll('a,button');" +
+                        "var clickedAdvance=false;" +
+                        "for(var k=0;k<btns.length;k++){{" +
+                            "var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();" +
+                            "if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{tap(btns[k]); clickedAdvance=true; break;}}" +
+                        "}}" +
+                        "if(clickedAdvance) retries=0;" +
+                        "retries++;if(retries>500){{alert('Not found: '+steps[idx]);return;}}setTimeout(next, clickedAdvance ? 800 : 100);" +
+                    "}}" +
                 "}}" +
                 "next();" +
             "}})())";
@@ -2021,25 +2030,26 @@ def generate_static_html():
                 "  }}\\n" +
                 "}}\\n" +
                 "function next(){{\\n" +
-                "  if(idx>=steps.length){{setTimeout(clickNext,500);setTimeout(function(){{completion(true)}},1500);return;}}\\n" +
-                "  var val=steps[idx];\\n" +
-                "  var els=document.querySelectorAll('a[data-value=\\\"'+val+'\\\"]');\\n" +
-                "  var found=false;\\n" +
-                "  for(var j=0;j<els.length;j++){{\\n" +
-                "    var b=els[j].getBoundingClientRect();\\n" +
-                "    if(b.width>0&&b.height>0){{tap(els[j]);idx++;retries=0;setTimeout(next,800);found=true;break;}}\\n" +
-                "  }}\\n" +
-                "  if(!found){{\\n" +
-                "    var btns=document.querySelectorAll('a,button');\\n" +
-                "    var clickedAdvance=false;\\n" +
-                "    for(var k=0;k<btns.length;k++){{\\n" +
-                "      var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();\\n" +
-                "      if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{\\n" +
-                "        tap(btns[k]); clickedAdvance=true; break;\\n" +
-                "      }}\\n" +
+                "  try {{\\n" +
+                "    if(idx>=steps.length){{setTimeout(clickNext,500);setTimeout(function(){{completion(true)}},1500);return;}}\\n" +
+                "    var val=steps[idx];\\n" +
+                "    var els=document.querySelectorAll('a[data-value=\\\"'+val+'\\\"]');\\n" +
+                "    var found=false;\\n" +
+                "    for(var j=0;j<els.length;j++){{\\n" +
+                "      var b=els[j].getBoundingClientRect();\\n" +
+                "      if(b.width>0&&b.height>0){{tap(els[j]);idx++;retries=0;setTimeout(next,800);found=true;break;}}\\n" +
                 "    }}\\n" +
-                "    retries++;if(retries>80){{completion(false);return;}}setTimeout(next, clickedAdvance ? 800 : 100);\\n" +
-                "  }}\\n" +
+                "    if(!found){{\\n" +
+                "      var btns=document.querySelectorAll('a,button');\\n" +
+                "      var clickedAdvance=false;\\n" +
+                "      for(var k=0;k<btns.length;k++){{\\n" +
+                "        var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();\\n" +
+                "        if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{tap(btns[k]); clickedAdvance=true; break;}}\\n" +
+                "      }}\\n" +
+                "      if(clickedAdvance) retries=0;\\n" +
+                "      retries++;if(retries>300){{completion(false);return;}}setTimeout(next, clickedAdvance ? 800 : 100);\\n" +
+                "    }}\\n" +
+                "  }} catch(e) {{ completion(false); }}\\n" +
                 "}}\\n" +
                 "next();";
         }}
