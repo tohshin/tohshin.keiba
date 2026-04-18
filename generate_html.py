@@ -545,7 +545,7 @@ def generate_static_html():
             top: 0; left: 0; width: 100%; height: 100%;
             background: radial-gradient(circle at top right, #1a2333, #0b0f19);
             z-index: 9999;
-            display: none;
+            display: flex;
             align-items: center;
             justify-content: center;
         }}
@@ -792,7 +792,7 @@ def generate_static_html():
     </style>
 </head>
 <body>
-    <div id="auth-overlay" style="display: none;">
+    <div id="auth-overlay">
         <div class="auth-box">
             <h2>Keiba AI Login</h2>
             <input type="password" id="auth-pw" placeholder="Password" onkeydown="if(event.key==='Enter') checkAuth()" />
@@ -894,9 +894,8 @@ def generate_static_html():
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
-                // 認証が必要な場合、ここで初めて表示する
-                const overlay = document.getElementById('auth-overlay');
-                if (overlay) overlay.style.display = 'flex';
+                // 認証が必要な場合
+                document.getElementById('auth-overlay').style.display = 'flex';
             }}
         }};
 
