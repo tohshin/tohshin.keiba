@@ -1979,7 +1979,7 @@ def generate_static_html():
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            if (confirm('コードをコピーしました！\\nこのままショートカット「スマッピー」を起動しますか？')) {{
+            if (confirm('コードをコピーしました！このままショートカット「スマッピー」を起動しますか？')) {{
                 window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
             }}
         }}
