@@ -2012,57 +2012,58 @@ def generate_static_html():
             if (!simple) steps += ",'" + hou + "'";
             axes.forEach(function(h) {{ steps += ",'" + h + "'"; }});
             partners.forEach(function(h) {{ steps += ",'" + h + "'"; }});
-            // IIFEラップなし・completion()なし
-            // MutationObserverで画面遷移を検知してから次ステップへ進む
-            return "var _steps=[" + steps + "];\\n" +
-                "var _idx=0;\\n" +
-                "function _tap(el){{\\n" +
+            // iOSショートカットのタイムアウト対策:
+            // completion()はステップ完了直後に呼び、その後の画面遷移はJS側で継続する
+            // retries上限を50回(=5秒)に短縮、各waitも短縮
+            return "var steps=[" + steps + "];\\n" +
+                "var idx=0;var retries=0;var done=false;\\n" +
+                "function tap(el){{\\n" +
                 "  var r=el.getBoundingClientRect();\\n" +
-                "  var cx=r.left+r.width/2,cy=r.top+r.height/2;\\n" +
-                "  var opt={{bubbles:true,cancelable:true,clientX:cx,clientY:cy,view:window}};\\n" +
-                "  ['mousedown','mouseup','click'].forEach(function(ev){{el.dispatchEvent(new MouseEvent(ev,opt));}});\\n" +
+                "  var x=r.left+r.width/2;var y=r.top+r.height/2;\\n" +
+                "  var opt={{bubbles:true,cancelable:true,clientX:x,clientY:y,view:window}};\\n" +
+                "  el.dispatchEvent(new MouseEvent('mousedown',opt));\\n" +
+                "  el.dispatchEvent(new MouseEvent('mouseup',opt));\\n" +
+                "  el.dispatchEvent(new MouseEvent('click',opt));\\n" +
                 "}}\\n" +
-                "function _findVisible(sel){{\\n" +
-                "  var els=document.querySelectorAll(sel);\\n" +
-                "  for(var i=0;i<els.length;i++){{var b=els[i].getBoundingClientRect();if(b.width>0&&b.height>0)return els[i];}}\\n" +
-                "  return null;\\n" +
+                "function clickNext(){{\\n" +
+                "  var btns=document.querySelectorAll('a,button');\\n" +
+                "  for(var i=0;i<btns.length;i++){{\\n" +
+                "    var t=btns[i].textContent;var b=btns[i].getBoundingClientRect();\\n" +
+                "    if(b.width>0&&b.height>0&&(t.indexOf('金額')>=0||t.indexOf('セット')>=0||t.indexOf('次へ')>=0)){{tap(btns[i]);return;}}\\n" +
+                "  }}\\n" +
                 "}}\\n" +
-                "function _tryStep(){{\\n" +
-                "  if(_idx>=_steps.length){{\\n" +
-                "    var keywords=['次へ','セット','金額'];\\n" +
-                "    var btns=document.querySelectorAll('a,button');\\n" +
-                "    for(var i=0;i<btns.length;i++){{\\n" +
-                "      var b=btns[i].getBoundingClientRect();\\n" +
+                "function next(){{\\n" +
+                "  try {{\\n" +
+                "    if(idx>=steps.length){{\\n" +
+                "      clickNext();\\n" +
+                "      if(!done){{done=true;completion(true);}}\\n" +
+                "      return;\\n" +
+                "    }}\\n" +
+                "    var val=steps[idx];\\n" +
+                "    var els=document.querySelectorAll('a[data-value=\\\"'+val+'\\\"]');\\n" +
+                "    var found=false;\\n" +
+                "    for(var j=0;j<els.length;j++){{\\n" +
+                "      var b=els[j].getBoundingClientRect();\\n" +
                 "      if(b.width>0&&b.height>0){{\\n" +
-                "        for(var k=0;k<keywords.length;k++){{\\n" +
-                "          if(btns[i].textContent.indexOf(keywords[k])>=0){{_tap(btns[i]);return;}}\\n" +
-                "        }}\\n" +
+                "        tap(els[j]);idx++;retries=0;\\n" +
+                "        if(idx>=steps.length){{clickNext();if(!done){{done=true;completion(true);}}return;}}\\n" +
+                "        setTimeout(next,500);found=true;break;\\n" +
                 "      }}\\n" +
                 "    }}\\n" +
-                "    return;\\n" +
-                "  }}\\n" +
-                "  var val=_steps[_idx];\\n" +
-                "  var el=_findVisible('a[data-value=\"'+val+'\"]');\\n" +
-                "  if(el){{_tap(el);_idx++;_waitForNext();return;}}\\n" +
-                "  var btns2=document.querySelectorAll('a,button');\\n" +
-                "  for(var j=0;j<btns2.length;j++){{\\n" +
-                "    var b2=btns2[j].getBoundingClientRect();\\n" +
-                "    if(b2.width>0&&b2.height>0&&btns2[j].textContent.indexOf('通常投票')>=0){{\\n" +
-                "      _tap(btns2[j]);_waitForNext();return;\\n" +
+                "    if(!found){{\\n" +
+                "      var btns=document.querySelectorAll('a,button');\\n" +
+                "      var clickedAdvance=false;\\n" +
+                "      for(var k=0;k<btns.length;k++){{\\n" +
+                "        var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();\\n" +
+                "        if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{tap(btns[k]); clickedAdvance=true; break;}}\\n" +
+                "      }}\\n" +
+                "      if(clickedAdvance) retries=0;\\n" +
+                "      retries++;if(retries>150){{if(!done){{done=true;completion(false);}}return;}}\\n" +
+                "      setTimeout(next, clickedAdvance ? 600 : 100);\\n" +
                 "    }}\\n" +
-                "  }}\\n" +
-                "  _waitForNext();\\n" +
+                "  }} catch(e) {{ if(!done){{done=true;completion(false);}} }}\\n" +
                 "}}\\n" +
-                "function _waitForNext(){{\\n" +
-                "  var timer=null;\\n" +
-                "  var obs=new MutationObserver(function(){{\\n" +
-                "    clearTimeout(timer);\\n" +
-                "    timer=setTimeout(function(){{obs.disconnect();_tryStep();}},400);\\n" +
-                "  }});\\n" +
-                "  obs.observe(document.body,{{childList:true,subtree:true,attributes:true}});\\n" +
-                "  setTimeout(function(){{obs.disconnect();_tryStep();}},1500);\\n" +
-                "}}\\n" +
-                "_tryStep();";
+                "next();";
         }}
 
 
