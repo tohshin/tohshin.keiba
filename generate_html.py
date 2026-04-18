@@ -851,7 +851,7 @@ def generate_static_html():
         function checkAuth() {{
             var input = document.getElementById('auth-pw');
             if (!input) {{ alert('Input not found!'); return; }}
-            var pw = input.value;
+            var pw = (input.value || "").trim();
             if (pw === '8888') {{
                 try {{
                     localStorage.setItem('keiba_auth_time', new Date().getTime());
@@ -1431,9 +1431,9 @@ def generate_static_html():
 
                 hasValidRec = true;
                 const displayType = s.type;
-                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}}${{s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? ` (EV > ${{s.axis2_EV_th}})` : ''}}` : '';
-                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? ` (EV > ${{s.EV_th}})` : '';
-                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? ` (EV > ${{s.partner_EV_th}})` : '';
+                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}}${{s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? (' (EV > ' + s.axis2_EV_th + ')') : ''}}` : '';
+                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? (' (EV > ' + s.EV_th + ')') : '';
+                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? (' (EV > ' + s.partner_EV_th + ')') : '';
 
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
