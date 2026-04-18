@@ -2012,8 +2012,11 @@ def generate_static_html():
             if (!simple) steps += ",'" + hou + "'";
             axes.forEach(function(h) {{ steps += ",'" + h + "'"; }});
             partners.forEach(function(h) {{ steps += ",'" + h + "'"; }});
+            // iOSショートカットのタイムアウト対策:
+            // completion()はステップ完了直後に呼び、その後の画面遷移はJS側で継続する
+            // retries上限を50回(=5秒)に短縮、各waitも短縮
             return "var steps=[" + steps + "];\\n" +
-                "var idx=0;var retries=0;\\n" +
+                "var idx=0;var retries=0;var done=false;\\n" +
                 "function tap(el){{\\n" +
                 "  var r=el.getBoundingClientRect();\\n" +
                 "  var x=r.left+r.width/2;var y=r.top+r.height/2;\\n" +
@@ -2031,13 +2034,21 @@ def generate_static_html():
                 "}}\\n" +
                 "function next(){{\\n" +
                 "  try {{\\n" +
-                "    if(idx>=steps.length){{setTimeout(clickNext,500);setTimeout(function(){{completion(true)}},1500);return;}}\\n" +
+                "    if(idx>=steps.length){{\\n" +
+                "      clickNext();\\n" +
+                "      if(!done){{done=true;completion(true);}}\\n" +
+                "      return;\\n" +
+                "    }}\\n" +
                 "    var val=steps[idx];\\n" +
                 "    var els=document.querySelectorAll('a[data-value=\\\"'+val+'\\\"]');\\n" +
                 "    var found=false;\\n" +
                 "    for(var j=0;j<els.length;j++){{\\n" +
                 "      var b=els[j].getBoundingClientRect();\\n" +
-                "      if(b.width>0&&b.height>0){{tap(els[j]);idx++;retries=0;setTimeout(next,800);found=true;break;}}\\n" +
+                "      if(b.width>0&&b.height>0){{\\n" +
+                "        tap(els[j]);idx++;retries=0;\\n" +
+                "        if(idx>=steps.length){{clickNext();if(!done){{done=true;completion(true);}}return;}}\\n" +
+                "        setTimeout(next,500);found=true;break;\\n" +
+                "      }}\\n" +
                 "    }}\\n" +
                 "    if(!found){{\\n" +
                 "      var btns=document.querySelectorAll('a,button');\\n" +
@@ -2047,9 +2058,10 @@ def generate_static_html():
                 "        if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{tap(btns[k]); clickedAdvance=true; break;}}\\n" +
                 "      }}\\n" +
                 "      if(clickedAdvance) retries=0;\\n" +
-                "      retries++;if(retries>300){{completion(false);return;}}setTimeout(next, clickedAdvance ? 800 : 100);\\n" +
+                "      retries++;if(retries>50){{if(!done){{done=true;completion(false);}}return;}}\\n" +
+                "      setTimeout(next, clickedAdvance ? 600 : 100);\\n" +
                 "    }}\\n" +
-                "  }} catch(e) {{ completion(false); }}\\n" +
+                "  }} catch(e) {{ if(!done){{done=true;completion(false);}} }}\\n" +
                 "}}\\n" +
                 "next();";
         }}
