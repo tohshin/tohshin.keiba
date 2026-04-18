@@ -523,56 +523,48 @@
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
 
-        async function checkAuth() {
-            console.log("[DEBUG] checkAuth called");
-            const pw = document.getElementById('auth-pw').value;
-            if (pw === 'tohshin20') {
-                console.log("[DEBUG] Password correct, initializing app...");
+        
+        
+        function checkAuth() {
+            var input = document.getElementById('auth-pw');
+            if (!input) { alert('Input not found!'); return; }
+            var pw = input.value;
+            if (pw === '8888') {
                 try {
                     localStorage.setItem('keiba_auth_time', new Date().getTime());
-                } catch (e) {
-                    console.warn("localStorage is not available:", e);
-                }
-                
-                // オーバーレイを完全に削除（Safariのdisplay:flex優先バグ等を回避）
-                const overlay = document.getElementById('auth-overlay');
+                } catch (e) {}
+                var overlay = document.getElementById('auth-overlay');
                 if (overlay) overlay.remove();
-                
                 document.getElementById('app-content').style.display = 'block';
-                loadData();
+                if (typeof loadData === 'function') loadData();
             } else {
+                alert('パスワードが違います');
                 document.getElementById('login-error').style.display = 'block';
             }
         }
 
-        // ページ読み込み時に認証チェック
         window.onload = function() {
-            let isAuthenticated = false;
+            var isAuthenticated = false;
             try {
-                const authTime = localStorage.getItem('keiba_auth_time');
+                var authTime = localStorage.getItem('keiba_auth_time');
                 if (authTime) {
-                    const now = new Date().getTime();
-                    const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
-                    if (diffHours < 24) {
-                        isAuthenticated = true;
-                    }
+                    var now = new Date().getTime();
+                    var diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                    if (diffHours < 24) isAuthenticated = true;
                 }
-            } catch (e) {
-                console.warn("localStorage is not available for auth check:", e);
-            }
+            } catch (e) {}
             
             if (isAuthenticated) {
-                const overlay = document.getElementById('auth-overlay');
+                var overlay = document.getElementById('auth-overlay');
                 if (overlay) overlay.remove();
                 document.getElementById('app-content').style.display = 'block';
-                loadData();
+                if (typeof loadData === 'function') loadData();
             } else {
-                // 認証が必要な場合
                 document.getElementById('auth-overlay').style.display = 'flex';
+                document.getElementById('app-content').style.display = 'none';
             }
         };
-
-        async function loadData() {
+    async function loadData() {
             const container = document.getElementById('races-container');
             container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading metadata...</p></div>';
 
@@ -1650,23 +1642,22 @@
             document.getElementById('panel-ios').style.display = (tab === 'ios' ? 'block' : 'none');
         }
 
+                
         function copySmappyShortcutJS() {
             var venueEl = document.getElementById('smappy-venue');
             if (!venueEl || !window._smappyParsed) return;
             var v = venueEl.value;
             var p = window._smappyParsed;
-            
-            // そのままJSとして実行できるコードをクリップボードにコピー
-            var rawJS = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
-            
+            var vName = venueEl.options[venueEl.selectedIndex].text.split(' ').pop();
+            var rawJS = genSmappyShortcutJS(v, vName, p.round, p.siki, p.hou, p.axes, p.partners);
             var t = document.createElement('textarea');
             t.value = rawJS;
             document.body.appendChild(t);
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            
-            if (confirm('コードをコピーしました！\nこのままショートカット「スマッピー」を起動しますか？')) {
+            if (confirm('コードをコピーしました！
+このままショートカット「スマッピー」を起動しますか？')) {
                 window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
             }
         }
@@ -1682,73 +1673,29 @@
             alert('コピーしました！JRA→通常投票→会場選択画面で実行');
         }
 
-        function genSmappyShortcutJS(venue, raceRound, siki, hou, axes, partners) {
-            var raceVal = String(parseInt(raceRound) - 1);
+        
+        
+        function genSmappyShortcutJS(venueCode, venueName, raceRound, siki, hou, axes, partners) {
+            var rawSteps = [venueCode, raceRound, siki];
             var simple = (siki === '1' || siki === '2' || siki === '9');
-            var steps = "'" + venue + "','" + raceVal + "','" + siki + "'";
-            if (!simple) steps += ",'" + hou + "'";
-            axes.forEach(function(h) { steps += ",'" + h + "'"; });
-            partners.forEach(function(h) { steps += ",'" + h + "'"; });
-            // iOSショートカットのタイムアウト対策:
-            // completion()はステップ完了直後に呼び、その後の画面遷移はJS側で継続する
-            // retries上限を50回(=5秒)に短縮、各waitも短縮
-            return "var steps=[" + steps + "];\n" +
-                "var idx=0;var retries=0;var done=false;\n" +
-                "function tap(el){\n" +
-                "  var r=el.getBoundingClientRect();\n" +
-                "  var x=r.left+r.width/2;var y=r.top+r.height/2;\n" +
-                "  var opt={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};\n" +
-                "  el.dispatchEvent(new MouseEvent('mousedown',opt));\n" +
-                "  el.dispatchEvent(new MouseEvent('mouseup',opt));\n" +
-                "  el.dispatchEvent(new MouseEvent('click',opt));\n" +
-                "}\n" +
-                "function clickNext(){\n" +
-                "  var btns=document.querySelectorAll('a,button');\n" +
-                "  for(var i=0;i<btns.length;i++){\n" +
-                "    var t=btns[i].textContent;var b=btns[i].getBoundingClientRect();\n" +
-                "    if(b.width>0&&b.height>0&&(t.indexOf('金額')>=0||t.indexOf('セット')>=0||t.indexOf('次へ')>=0)){tap(btns[i]);return;}\n" +
-                "  }\n" +
-                "}\n" +
-                "function next(){\n" +
-                "  try {\n" +
-                "    if(idx>=steps.length){\n" +
-                "      clickNext();\n" +
-                "      if(!done){done=true;completion(true);}\n" +
-                "      return;\n" +
-                "    }\n" +
-                "    var val=steps[idx];\n" +
-                "    var els=document.querySelectorAll('a[data-value=\"'+val+'\"]');\n" +
-                "    var found=false;\n" +
-                "    for(var j=0;j<els.length;j++){\n" +
-                "      var b=els[j].getBoundingClientRect();\n" +
-                "      if(b.width>0&&b.height>0){\n" +
-                "        tap(els[j]);idx++;retries=0;\n" +
-                "        if(idx>=steps.length){clickNext();if(!done){done=true;completion(true);}return;}\n" +
-                "        setTimeout(next,500);found=true;break;\n" +
-                "      }\n" +
-                "    }\n" +
-                "    if(!found){\n" +
-                "      var btns=document.querySelectorAll('a,button');\n" +
-                "      var clickedAdvance=false;\n" +
-                "      for(var k=0;k<btns.length;k++){\n" +
-                "        var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();\n" +
-                "        if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){tap(btns[k]); clickedAdvance=true; break;}\n" +
-                "      }\n" +
-                "      if(clickedAdvance) retries=0;\n" +
-                "      retries++;if(retries>150){if(!done){done=true;completion(false);}return;}\n" +
-                "      setTimeout(next, clickedAdvance ? 600 : 100);\n" +
-                "    }\n" +
-                "  } catch(e) { if(!done){done=true;completion(false);} }\n" +
-                "}\n" +
-                "next();";
-        }
+            if (!simple && hou) rawSteps.push(hou);
+            (axes || []).forEach(function(a) { rawSteps.push(a); });
+            (partners || []).forEach(function(p) { rawSteps.push(p); });
 
+            var stepsJSON = JSON.stringify(rawSteps);
+            var venueJSON = JSON.stringify(venueName);
+            
+            var part1 = "(function(){ var s=" + stepsJSON + "; var vn=" + venueJSON + "; ";
+            var part2 = "var sn={'1':'単勝','2':'複勝','3':'枠連','4':'馬連','5':'ワイド','6':'馬単','7':'3連複','8':'3連単'}; var i=0,r=0,d=false,T=Date.now(); function dg(m){ var x=document.getElementById('smappy-diag'); if(!x){ x=document.createElement('div'); x.id='smappy-diag'; x.style='position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;'; document.body.appendChild(x); } x.innerText=m; } function fi(ok){ if(d)return; d=true; dg('FINISH:'+ok); completion(ok); } function tp(e){ var r=e.getBoundingClientRect(); var x=r.left+r.width/2; var y=r.top+r.height/2; var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window}; try { var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2}); var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window}; e.dispatchEvent(new TouchEvent('touchstart',to)); e.dispatchEvent(new TouchEvent('touchend',to)); } catch(err){} e.dispatchEvent(new MouseEvent('mousedown',o)); e.dispatchEvent(new MouseEvent('mouseup',o)); e.dispatchEvent(new MouseEvent('click',o)); } function cf(){ var k=['金額','セット','次へ']; var a=document.querySelectorAll('a,button'); for(var j=0;j<a.length;j++){ var b=a[j].getBoundingClientRect(); if(b.width>0&&b.height>0){ for(var l=0;l<k.length;l++){ if(a[j].textContent.indexOf(k[l])>=0){ tp(a[j]); return; } } } } } function nx(){ try { if(Date.now()-T>22000){ fi(false); return; } var c=(document.body.innerText||'').split('\n').join(' ').trim(); var p=''; if(c.indexOf('会場')>=0||c.indexOf('開催')>=0||c.indexOf('場所')>=0) p='V'; if(c.indexOf('レース')>=0||c.indexOf('締切')>=0||c.indexOf('状況')>=0||c.indexOf('回次')>=0) p='R'; if(c.indexOf('式別')>=0) p='S'; if(c.indexOf('方式')>=0) p='M'; if(i>=s.length){ dg('Done'); cf(); fi(true); return; } var v=s[i]; var f=false; var vs=[v]; var n=parseInt(v); if(!isNaN(n)){ vs=[v,String(n),(n<10?'0'+n:String(n)),String(n-1),(n-1<10?'0'+(n-1):String(n-1))]; } dg('S'+i+':'+v+' r:'+r+' p:'+p+' txt:'+c.substring(0,10)); var okP=(i===0&&(p==='V'||p===''))||(i===1&&(p==='R'||p==='V'||p===''))||(i===2&&p==='S')||(i===3&&(p==='M'||p==='S'))||(i>3); if(okP){ for(var k=0;k<vs.length;k++){ var es=document.querySelectorAll('a[data-value="'+vs[k]+'"]'); for(var j=0;j<es.length;j++){ var b=es[j].getBoundingClientRect(); if(b.width>3&&b.height>3){ tp(es[j]); i++; r=0; setTimeout(nx,1500); f=true; break; } } if(f)break; } if(!f){ var bs=document.querySelectorAll('a,button'); for(var k2=0;k2<bs.length;k2++){ var b2=bs[k2].getBoundingClientRect(); if(b2.width<=4||b2.height<=4)continue; var t=(bs[k2].innerText||bs[k2].textContent||'').trim(); if(i===0&&vn&&t.indexOf(vn)>=0){ tp(bs[k2]); i++; r=0; setTimeout(nx,1500); f=true; break; } if(i===1&&(t===v+'R'||t===v+'レース')){ tp(bs[k2]); i++; r=0; setTimeout(nx,1500); f=true; break; } if(i===2&&sn[v]&&(t.indexOf(sn[v])>=0||t.indexOf(sn[v].replace('3','３'))>=0)){ tp(bs[k2]); i++; r=0; setTimeout(nx,1500); f=true; break; } } } } if(!f){ var bs3=document.querySelectorAll('a,button'); for(var k3=0;k3<bs3.length;k3++){ var b3=bs3[k3].getBoundingClientRect(); if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf('通常投票')>=0){ tp(bs3[k3]); r=0; break; } } r++; setTimeout(nx,200); } } catch(err){ dg('E:'+err.message); fi(false); } } nx(); })();";
+            return part1 + part2;
+        }
+    
+    
 
         function closeRecommendation() {
             document.getElementById('recommend-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
         }
-
-    </script>
+        </script>
 </body>
 </html>
