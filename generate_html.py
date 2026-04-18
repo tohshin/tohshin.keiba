@@ -324,6 +324,8 @@ def generate_static_html():
     #         logger.error(f"Failed to write full JSON to {out_json}: {e}")
 
     _smappy_part2_js = 'var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));}function cf(){var k=["金額","セット","次へ"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>22000){fi(false);return;}var c=(document.body.innerText||"");var p="";if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>2))||(i===1&&(p==="R"||p==="V"||p===""||r>2))||(i===2&&(p==="S"||r>2))||(i===3&&(p==="M"||p==="S"||r>2))||(i>3);if(okP){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,1200);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===0&&vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===1&&(t===v+"R"||t===v+"レース")){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}}if(!f){var bs3=document.querySelectorAll("a,button");for(var k3=0;k3<bs3.length;k3++){var b3=bs3[k3].getBoundingClientRect();if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf("通常投票")>=0){tp(bs3[k3]);r=0;break;}}r++;setTimeout(nx,300);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
+    _smappy_part2_js_json = json.dumps(_smappy_part2_js)
+
 
     html_template = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -852,7 +854,8 @@ def generate_static_html():
 
         async function checkAuth() {{
             console.log("[DEBUG] checkAuth called");
-            const pw = document.getElementById('auth-pw').value;
+            const input = document.getElementById('auth-pw');
+            const pw = (input ? input.value : "").trim();
             if (pw === 'tohshin20') {{
                 console.log("[DEBUG] Password correct, initializing app...");
                 try {{
@@ -2018,7 +2021,7 @@ def generate_static_html():
             var stepsJSON = JSON.stringify(rawSteps);
             var venueJSON = JSON.stringify(venueName || "");
             var part1 = "(function(){{ var s=" + stepsJSON + "; var vn=" + venueJSON + "; ";
-            var part2 = {_smappy_part2_js};
+            var part2 = {_smappy_part2_js_json};
             return part1 + part2;
         }}
 
