@@ -523,48 +523,56 @@
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
 
-        
-        
-        function checkAuth() {
-            var input = document.getElementById('auth-pw');
-            if (!input) { alert('Input not found!'); return; }
-            var pw = (input.value || "").trim();
-            if (pw === '8888') {
+        async function checkAuth() {
+            console.log("[DEBUG] checkAuth called");
+            const pw = document.getElementById('auth-pw').value;
+            if (pw === 'tohshin20') {
+                console.log("[DEBUG] Password correct, initializing app...");
                 try {
                     localStorage.setItem('keiba_auth_time', new Date().getTime());
-                } catch (e) {}
-                var overlay = document.getElementById('auth-overlay');
+                } catch (e) {
+                    console.warn("localStorage is not available:", e);
+                }
+                
+                // オーバーレイを完全に削除（Safariのdisplay:flex優先バグ等を回避）
+                const overlay = document.getElementById('auth-overlay');
                 if (overlay) overlay.remove();
+                
                 document.getElementById('app-content').style.display = 'block';
-                if (typeof loadData === 'function') loadData();
+                loadData();
             } else {
-                alert('パスワードが違います');
                 document.getElementById('login-error').style.display = 'block';
             }
         }
 
+        // ページ読み込み時に認証チェック
         window.onload = function() {
-            var isAuthenticated = false;
+            let isAuthenticated = false;
             try {
-                var authTime = localStorage.getItem('keiba_auth_time');
+                const authTime = localStorage.getItem('keiba_auth_time');
                 if (authTime) {
-                    var now = new Date().getTime();
-                    var diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
-                    if (diffHours < 24) isAuthenticated = true;
+                    const now = new Date().getTime();
+                    const diffHours = (now - parseInt(authTime)) / (1000 * 60 * 60);
+                    if (diffHours < 24) {
+                        isAuthenticated = true;
+                    }
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn("localStorage is not available for auth check:", e);
+            }
             
             if (isAuthenticated) {
-                var overlay = document.getElementById('auth-overlay');
+                const overlay = document.getElementById('auth-overlay');
                 if (overlay) overlay.remove();
                 document.getElementById('app-content').style.display = 'block';
-                if (typeof loadData === 'function') loadData();
+                loadData();
             } else {
+                // 認証が必要な場合
                 document.getElementById('auth-overlay').style.display = 'flex';
-                document.getElementById('app-content').style.display = 'none';
             }
         };
-    async function loadData() {
+
+        async function loadData() {
             const container = document.getElementById('races-container');
             container.innerHTML = '<div style="text-align:center; padding: 40px;"><p>Loading metadata...</p></div>';
 
@@ -1108,9 +1116,9 @@
 
                 hasValidRec = true;
                 const displayType = s.type;
-                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}${s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? (' (EV > ' + s.axis2_EV_th + ')') : ''}` : '';
-                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? (' (EV > ' + s.EV_th + ')') : '';
-                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? (' (EV > ' + s.partner_EV_th + ')') : '';
+                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}${s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? ` (EV > ${s.axis2_EV_th})` : ''}` : '';
+                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? ` (EV > ${s.EV_th})` : '';
+                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? ` (EV > ${s.partner_EV_th})` : '';
 
                 html += `
                     <div class="strategy-item-modal" data-strategy-type="${s.type}">
@@ -1642,21 +1650,23 @@
             document.getElementById('panel-ios').style.display = (tab === 'ios' ? 'block' : 'none');
         }
 
-                
         function copySmappyShortcutJS() {
             var venueEl = document.getElementById('smappy-venue');
             if (!venueEl || !window._smappyParsed) return;
             var v = venueEl.value;
             var p = window._smappyParsed;
-            var vName = venueEl.options[venueEl.selectedIndex].text.split(' ').pop();
-            var rawJS = genSmappyShortcutJS(v, vName, p.round, p.siki, p.hou, p.axes, p.partners);
+            
+            // そのままJSとして実行できるコードをクリップボードにコピー
+            var rawJS = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
+            
             var t = document.createElement('textarea');
             t.value = rawJS;
             document.body.appendChild(t);
             t.select();
             document.execCommand('copy');
             document.body.removeChild(t);
-            if (confirm('コードをコピーしました！このままショートカット「スマッピー」を起動しますか？')) {
+            
+            if (confirm('コードをコピーしました！\nこのままショートカット「スマッピー」を起動しますか？')) {
                 window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
             }
         }
@@ -1672,25 +1682,24 @@
             alert('コピーしました！JRA→通常投票→会場選択画面で実行');
         }
 
-        
-        
-        
         function genSmappyShortcutJS(venueCode, venueName, raceRound, siki, hou, axes, partners) {
             var rawSteps = [venueCode, raceRound, siki];
             var simple = (siki === '1' || siki === '2' || siki === '9');
             if (!simple && hou) rawSteps.push(hou);
-            (axes || []).forEach(function(a) { rawSteps.push(a); });
-            (partners || []).forEach(function(p) { rawSteps.push(p); });
+            (axes || []).forEach(function(a) { rawSteps.push(String(a)); });
+            (partners || []).forEach(function(p) { rawSteps.push(String(p)); });
             var stepsJSON = JSON.stringify(rawSteps);
-            var venueJSON = JSON.stringify(venueName);
+            var venueJSON = JSON.stringify(venueName || "");
             var part1 = "(function(){ var s=" + stepsJSON + "; var vn=" + venueJSON + "; ";
-            var part2 = 'var sn={"1":"\\u5358\\u52dd","2":"\\u8907\\u52dd","3":"\\u6846\\u9023","4":"\\u99ac\\u9023","5":"\\u30ef\\u30a4\\u30c9","6":"\\u99ac\\u5358","7":"3\\u9023\\u8907","8":"3\\u9023\\u5358"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));}function cf(){var k=["\\u91d1\\u984d","\\u30bb\\u30c3\\u30c8","\\u6b21\\u3078"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>22000){fi(false);return;}var c=(document.body.innerText||"");var p="";if(c.indexOf("\\u4f1a\\u5834")>=0||c.indexOf("\\u958b\\u50ac")>=0)p="V";if(c.indexOf("\\u30ec\\u30fc\\u30b9")>=0||c.indexOf("\\u56de\\u6b21")>=0)p="R";if(c.indexOf("\\u5f0f\\u5225")>=0)p="S";if(c.indexOf("\\u65b9\\u5f0f")>=0)p="M";if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>2))||(i===1&&(p==="R"||p==="V"||p===""||r>2))||(i===2&&(p==="S"||r>2))||(i===3&&(p==="M"||p==="S"||r>2))||(i>3);if(okP){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\\""+vs[k]+"\\"]");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,1200);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===0&&vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===1&&(t===v+"R"||t===v+"\\u30ec\\u30fc\\u30b9")){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}}if(!f){var bs3=document.querySelectorAll("a,button");for(var k3=0;k3<bs3.length;k3++){var b3=bs3[k3].getBoundingClientRect();if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf("\\u901a\\u5e38\\u6295\\u7968")>=0){tp(bs3[k3]);r=0;break;}}r++;setTimeout(nx,300);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();';
+            var part2 = var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));}function cf(){var k=["金額","セット","次へ"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>22000){fi(false);return;}var c=(document.body.innerText||"");var p="";if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>2))||(i===1&&(p==="R"||p==="V"||p===""||r>2))||(i===2&&(p==="S"||r>2))||(i===3&&(p==="M"||p==="S"||r>2))||(i>3);if(okP){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value='"+vs[k]+"']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,1200);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===0&&vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===1&&(t===v+"R"||t===v+"レース")){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}}if(!f){var bs3=document.querySelectorAll("a,button");for(var k3=0;k3<bs3.length;k3++){var b3=bs3[k3].getBoundingClientRect();if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf("通常投票")>=0){tp(bs3[k3]);r=0;break;}}r++;setTimeout(nx,300);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();;
             return part1 + part2;
         }
+
         function closeRecommendation() {
             document.getElementById('recommend-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
         }
+
     </script>
 </body>
 </html>
