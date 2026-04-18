@@ -123,6 +123,8 @@ def generate_static_html():
         
         if date_col:
             df[date_col] = pd.to_datetime(df[date_col])
+            # 2026以降のものだけにフィルタリング
+            df = df[df[date_col].dt.year >= 2026].copy()
             # 常に全データ（評価対象全て）を表示したい場合、フィルタリングは緩くするか最新日に合わせる
             # ここでは最新の日付から数日分を表示するようにフィルタを調整
             latest_date = df[date_col].max()
