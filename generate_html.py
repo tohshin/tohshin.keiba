@@ -1907,6 +1907,7 @@ def generate_static_html():
                 if (!todayPlaces.includes(p)) todayPlaces.push(p);
             }}
             todayPlaces.sort(function(a, b) {{ return (vCodes[a] || "99") - (vCodes[b] || "99"); }});
+            window._smappyPlaces = todayPlaces;
             var vIdx = todayPlaces.indexOf(currentPlace);
             if (vIdx < 0) vIdx = 0;
 
@@ -1985,9 +1986,10 @@ def generate_static_html():
             if (!venueEl || !window._smappyParsed) return;
             var v = venueEl.value;
             var p = window._smappyParsed;
+            var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
             
             // そのままJSとして実行できるコードをクリップボードにコピー
-            var rawJS = genSmappyShortcutJS(v, p.round, p.siki, p.hou, p.axes, p.partners);
+            var rawJS = genSmappyShortcutJS(v, placeName, p.round, p.siki, p.hou, p.axes, p.partners);
             
             var t = document.createElement('textarea');
             t.value = rawJS;
