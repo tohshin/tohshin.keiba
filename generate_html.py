@@ -256,6 +256,16 @@ def generate_static_html():
         except ValueError:
             round_int = round_no
             
+        weekday_ja = ""
+        if date_val:
+            try:
+                from datetime import datetime
+                dt = datetime.strptime(date_val, "%Y-%m-%d")
+                weekdays_ja = ["月", "火", "水", "木", "金", "土", "日"]
+                weekday_ja = weekdays_ja[dt.weekday()]
+            except Exception as e:
+                logger.error(f"Error parsing weekday: {e}")
+
         if date_val and place_name and round_int:
             race_title = f"{date_val} {place_name} {round_int}R"
         elif place_name and round_int:
@@ -271,6 +281,7 @@ def generate_static_html():
             "title": race_title,
             "date": date_val,
             "place": place_name,
+            "weekday": weekday_ja,
             "round": str(round_int),
             "horses": records,
             "strategies": race_strategies
@@ -308,22 +319,7 @@ def generate_static_html():
     except Exception as e:
         logger.error(f"Failed to write meta.json: {e}")
 
-    # (互換性維持) 全データをJSON文字列化して保存
-    # 注意: ファイルサイズが巨大化(100MB超)するため、本番運用では生成・Gitプッシュを停止しました。
-    # json_data = json.dumps(races, ensure_ascii=False)
-    # output_json_paths = [
-    #     r"C:\Users\kyoui\tohshin_keiba\jsons\data.json"
-    # ]
-    # for out_json in output_json_paths:
-    #     try:
-    #         os.makedirs(os.path.dirname(out_json), exist_ok=True)
-    #         with open(out_json, "w", encoding="utf-8") as f:
-    #             f.write(json_data)
-    #         logger.info(f"Successfully generated full JSON data at {out_json}")
-    #     except Exception as e:
-    #         logger.error(f"Failed to write full JSON to {out_json}: {e}")
-
-    _smappy_part2_js = 'var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));}function cf(){var k=["金額","セット","次へ"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>22000){fi(false);return;}var c=(document.body.innerText||"");var p="";if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>2))||(i===1&&(p==="R"||p==="V"||p===""||r>2))||(i===2&&(p==="S"||r>2))||(i===3&&(p==="M"||p==="S"||r>2))||(i>3);if(okP){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,1200);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===0&&vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===1&&(t===v+"R"||t===v+"レース")){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}}if(!f){var bs3=document.querySelectorAll("a,button");for(var k3=0;k3<bs3.length;k3++){var b3=bs3[k3].getBoundingClientRect();if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf("通常投票")>=0){tp(bs3[k3]);r=0;break;}}r++;setTimeout(nx,300);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
+    _smappy_part2_js = 'var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));}function cf(){var k=["金額","セット","次へ"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>22000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>2))||(i===1&&(p==="R"||p==="V"||p===""||r>2))||(i===2&&(p==="S"||r>2))||(i===3&&(p==="M"||p==="S"||r>2))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(t.indexOf(vn)>=0&&(!wd||t.indexOf(wd)>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,1200);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース")){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,1200);f=true;break;}}}}}if(!f){var bs3=document.querySelectorAll("a,button");for(var k3=0;k3<bs3.length;k3++){var b3=bs3[k3].getBoundingClientRect();if(b3.width>4&&b3.height>4&&bs3[k3].innerText.indexOf("通常投票")>=0){tp(bs3[k3]);r=0;break;}}r++;setTimeout(nx,300);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
     _smappy_part2_js_json = json.dumps(_smappy_part2_js)
 
 
@@ -1464,7 +1460,7 @@ def generate_static_html():
                         </div>
                         <div class="bet-result-details"></div>
                         <div style="margin-top: 8px; text-align: right;">
-                            <button class="smappy-btn" data-eyes="${{bettingEyes}}" data-type="${{s.type}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                            <button class="smappy-btn" data-eyes="${{bettingEyes}}" data-type="${{s.type}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                         </div>
                     </div>
                 `;
@@ -1899,6 +1895,7 @@ def generate_static_html():
             
             // 会場情報をボタンから直接取得する（確実な判定）
             var currentPlace = btn.getAttribute('data-place') || "";
+            var weekday = btn.getAttribute('data-weekday') || "";
             
             var vCodes = {{ "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" }};
             var todayPlaces = [];
@@ -1962,7 +1959,7 @@ def generate_static_html():
             `;
             btn.parentElement.appendChild(popup);
 
-            window._smappyParsed = {{round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners}};
+            window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners}};
             
             function updateBml() {{
                 var v = document.getElementById('smappy-venue').value;
@@ -1989,7 +1986,7 @@ def generate_static_html():
             var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
             
             // そのままJSとして実行できるコードをクリップボードにコピー
-            var rawJS = genSmappyShortcutJS(v, placeName, p.round, p.siki, p.hou, p.axes, p.partners);
+            var rawJS = genSmappyShortcutJS(v, placeName, p.weekday, p.round, p.siki, p.hou, p.axes, p.partners);
             
             var t = document.createElement('textarea');
             t.value = rawJS;
@@ -2014,7 +2011,7 @@ def generate_static_html():
             alert('コピーしました！JRA→通常投票→会場選択画面で実行');
         }}
 
-        function genSmappyShortcutJS(venueCode, venueName, raceRound, siki, hou, axes, partners) {{
+        function genSmappyShortcutJS(venueCode, venueName, weekday, raceRound, siki, hou, axes, partners) {{
             var rawSteps = [venueCode, raceRound, siki];
             var simple = (siki === '1' || siki === '2' || siki === '9');
             if (!simple && hou) rawSteps.push(hou);
@@ -2022,7 +2019,8 @@ def generate_static_html():
             (partners || []).forEach(function(p) {{ rawSteps.push(String(p)); }});
             var stepsJSON = JSON.stringify(rawSteps);
             var venueJSON = JSON.stringify(venueName || "");
-            var part1 = "(function(){{ var s=" + stepsJSON + "; var vn=" + venueJSON + "; ";
+            var weekdayJSON = JSON.stringify(weekday || "");
+            var part1 = "(function(){{ var s=" + stepsJSON + "; var vn=" + venueJSON + "; var wd=" + weekdayJSON + "; ";
             var part2 = {_smappy_part2_js_json};
             return part1 + part2;
         }}
