@@ -1819,64 +1819,18 @@ def generate_static_html():
             return {{axes: axes, partners: partners}};
         }}
 
-        function genSmappyBml(venue, raceRound, siki, hou, axes, partners) {{
-            var raceVal = String(parseInt(raceRound) - 1);
+        function genSmappyBml(venueCode, venueName, weekday, raceRound, siki, hou, axes, partners) {{
+            var rawSteps = [venueCode, raceRound, siki];
             var simple = (siki === '1' || siki === '2' || siki === '9');
-            var steps = "'" + venue + "','" + raceVal + "','" + siki + "'";
-            if (!simple) steps += ",'" + hou + "'";
-            axes.forEach(function(h) {{ steps += ",'" + h + "'"; }});
-            partners.forEach(function(h) {{ steps += ",'" + h + "'"; }});
-            return "javascript:void((function(){{" +
-                "var steps=[" + steps + "];" +
-                "var idx=0;var retries=0;" +
-                "function tap(el){{" +
-                    "var r=el.getBoundingClientRect();" +
-                    "var x=r.left+r.width/2;" +
-                    "var y=r.top+r.height/2;" +
-                    "var opt={{bubbles:true,cancelable:true,clientX:x,clientY:y,view:window}};" +
-                    "el.dispatchEvent(new MouseEvent('mousedown',opt));" +
-                    "el.dispatchEvent(new MouseEvent('mouseup',opt));" +
-                    "el.dispatchEvent(new MouseEvent('click',opt));" +
-                "}}" +
-                "function clickNext(){{" +
-                    "var btns=document.querySelectorAll('a,button');" +
-                    "for(var i=0;i<btns.length;i++){{" +
-                        "var t=btns[i].textContent;" +
-                        "var b=btns[i].getBoundingClientRect();" +
-                        "if(b.width>0&&b.height>0&&(t.indexOf('金額')>=0||t.indexOf('セット')>=0||t.indexOf('次へ')>=0)){{" +
-                            "tap(btns[i]);return;" +
-                        "}}" +
-                    "}}" +
-                "}}" +
-                "function next(){{" +
-                    "if(idx>=steps.length){{" +
-                        "setTimeout(clickNext,500);" +
-                        "setTimeout(function(){{alert('Complete!')}},1500);" +
-                        "return;" +
-                    "}}" +
-                    "var val=steps[idx];" +
-                    "var els=document.querySelectorAll('a[data-value=\\\"'+val+'\\\"]');" +
-                    "var found=false;" +
-                    "for(var j=0;j<els.length;j++){{" +
-                        "var b=els[j].getBoundingClientRect();" +
-                        "if(b.width>0&&b.height>0){{" +
-                            "tap(els[j]);idx++;retries=0;" +
-                            "setTimeout(next,800);found=true;break;" +
-                        "}}" +
-                    "}}" +
-                    "if(!found){{" +
-                        "var btns=document.querySelectorAll('a,button');" +
-                        "var clickedAdvance=false;" +
-                        "for(var k=0;k<btns.length;k++){{" +
-                            "var t=btns[k].textContent; var b=btns[k].getBoundingClientRect();" +
-                            "if(b.width>0&&b.height>0&&(t.indexOf('通常投票')>=0)){{tap(btns[k]); clickedAdvance=true; break;}}" +
-                        "}}" +
-                        "if(clickedAdvance) retries=0;" +
-                        "retries++;if(retries>500){{alert('Not found: '+steps[idx]);return;}}setTimeout(next, clickedAdvance ? 800 : 100);" +
-                    "}}" +
-                "}}" +
-                "next();" +
-            "}})())";
+            if (!simple && hou) rawSteps.push(hou);
+            (axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+            (partners || []).forEach(function(p) {{ rawSteps.push(String(p)); }});
+            var stepsJSON = JSON.stringify(rawSteps);
+            var venueJSON = JSON.stringify(venueName || "");
+            var weekdayJSON = JSON.stringify(weekday || "");
+            var part1 = "javascript:void((function(){{ var s=" + stepsJSON + "; var vn=" + venueJSON + "; var wd=" + weekdayJSON + "; ";
+            var part2 = {_smappy_part2_js_json};
+            return part1 + part2 + ")";
         }}
 
         function showSmappy(btn) {{
@@ -1963,7 +1917,8 @@ def generate_static_html():
             
             function updateBml() {{
                 var v = document.getElementById('smappy-venue').value;
-                var bml = genSmappyBml(v, round, siki, hou, parsed.axes, parsed.partners);
+                var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
+                var bml = genSmappyBml(v, placeName, weekday, round, siki, hou, parsed.axes, parsed.partners);
                 document.getElementById('smappy-bml-link').href = bml;
                 window._smappyBml = bml;
             }}
