@@ -1515,7 +1515,7 @@ def generate_static_html():
                 if (!response.ok) throw new Error('Proxy response not OK');
                 
                 const buffer = await response.arrayBuffer();
-                const decoder = new TextDecoder('euc-jp');
+                const decoder = new TextDecoder('utf-8');
                 const html = decoder.decode(buffer);
                 
                 const parser = new DOMParser();
