@@ -787,9 +787,28 @@ def generate_static_html():
             color: #cbd5e1;
             line-height: 1.4;
         }}
+
+        /* Offline Status Banner */
+        #offline-banner {{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #ffffff;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            z-index: 100000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            letter-spacing: 0.03em;
+        }}
     </style>
 </head>
 <body>
+    <div id="offline-banner">⚡ オフライン表示中 (1日以内の保存データから自動読み込み中)</div>
     <div id="auth-overlay">
         <div class="auth-box">
             <h2>Keiba AI Login</h2>
@@ -848,6 +867,28 @@ def generate_static_html():
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {{}};
 
+        // Service Worker の登録とオフライン状態の監視
+        if ('serviceWorker' in navigator) {{
+            window.addEventListener('load', () => {{
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('[SW] ServiceWorker registered with scope:', reg.scope))
+                    .catch(err => console.warn('[SW] ServiceWorker registration failed:', err));
+            }});
+        }}
+
+        function updateOnlineStatus() {{
+            const banner = document.getElementById('offline-banner');
+            if (!banner) return;
+            if (!navigator.onLine) {{
+                banner.style.display = 'block';
+            }} else {{
+                banner.style.display = 'none';
+            }}
+        }}
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
         async function checkAuth() {{
             console.log("[DEBUG] checkAuth called");
             const input = document.getElementById('auth-pw');
@@ -873,6 +914,7 @@ def generate_static_html():
 
         // ページ読み込み時に認証チェック
         window.onload = function() {{
+            updateOnlineStatus();
             let isAuthenticated = false;
             try {{
                 const authTime = localStorage.getItem('keiba_auth_time');
@@ -2006,6 +2048,18 @@ def generate_static_html():
         except Exception as e:
             logger.error(f"Failed to write HTML to {out_html}: {e}")
     
+    # sw.js の deploy_tmp 同期処理
+    sw_src = r"C:\Users\kyoui\tohshin_keiba\sw.js"
+    sw_dst = r"C:\Users\kyoui\tohshin_keiba\deploy_tmp\sw.js"
+    if os.path.exists(sw_src):
+        try:
+            import shutil
+            os.makedirs(os.path.dirname(sw_dst), exist_ok=True)
+            shutil.copy2(sw_src, sw_dst)
+            logger.info(f"Successfully copied sw.js to {sw_dst}")
+        except Exception as e:
+            logger.error(f"Failed to copy sw.js to {sw_dst}: {e}")
+
     # Git 更新処理 (tohshin_keiba のみ)
     try:
         repo_dir = r"C:\Users\kyoui\tohshin_keiba"
@@ -2014,7 +2068,7 @@ def generate_static_html():
         # 1. git add
         # インデックス作成に時間がかかる場合があるため、明示的に指定
         # data.json は巨大なため Git 管理から除外（既存ファイルも後ほど削除）
-        subprocess.run(["git", "add", "index.html", "generate_html.py", "jsons/meta.json", "jsons/tansho_data.json"], cwd=repo_dir, check=True)
+        subprocess.run(["git", "add", "index.html", "generate_html.py", "sw.js", "jsons/meta.json", "jsons/tansho_data.json"], cwd=repo_dir, check=True)
         # 日次JSONも追加
         subprocess.run(["git", "add", "jsons/data_*.json"], cwd=repo_dir, check=True)
         

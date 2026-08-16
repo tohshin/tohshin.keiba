@@ -462,9 +462,28 @@
             color: #cbd5e1;
             line-height: 1.4;
         }
+
+        /* Offline Status Banner */
+        #offline-banner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #ffffff;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            z-index: 100000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            letter-spacing: 0.03em;
+        }
     </style>
 </head>
 <body>
+    <div id="offline-banner">⚡ オフライン表示中 (1日以内の保存データから自動読み込み中)</div>
     <div id="auth-overlay">
         <div class="auth-box">
             <h2>Keiba AI Login</h2>
@@ -523,6 +542,28 @@
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
 
+        // Service Worker の登録とオフライン状態の監視
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('[SW] ServiceWorker registered with scope:', reg.scope))
+                    .catch(err => console.warn('[SW] ServiceWorker registration failed:', err));
+            });
+        }
+
+        function updateOnlineStatus() {
+            const banner = document.getElementById('offline-banner');
+            if (!banner) return;
+            if (!navigator.onLine) {
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
         async function checkAuth() {
             console.log("[DEBUG] checkAuth called");
             const input = document.getElementById('auth-pw');
@@ -548,6 +589,7 @@
 
         // ページ読み込み時に認証チェック
         window.onload = function() {
+            updateOnlineStatus();
             let isAuthenticated = false;
             try {
                 const authTime = localStorage.getItem('keiba_auth_time');
