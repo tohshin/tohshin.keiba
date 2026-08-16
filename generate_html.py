@@ -26,6 +26,20 @@ def generate_static_html():
     eval_dir = r"C:\Users\kyoui\keiba\data\eval"
     output_html_path = r"C:\Users\kyoui\tohshin_keiba\index.html"
     strategies_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies.csv"
+    race_id_list_path = r"C:\Users\kyoui\keiba\data\raceid\raceIdList.csv"
+    
+    # 発走時刻データの読み込み (raceIdList.csv)
+    race_time_dict = {}
+    if os.path.exists(race_id_list_path):
+        try:
+            rid_df = pd.read_csv(race_id_list_path, dtype={'race_id': str, 'time': str})
+            rid_df['race_id_str'] = rid_df['race_id'].astype(str).str.zfill(12)
+            race_time_dict = dict(zip(rid_df['race_id_str'], rid_df['time'].astype(str)))
+            logger.info(f"Loaded {len(race_time_dict)} race post times from {race_id_list_path}")
+        except Exception as e:
+            logger.error(f"Error loading raceIdList.csv: {e}")
+    else:
+        logger.warning(f"raceIdList.csv not found: {race_id_list_path}")
     
     # 戦略データの読み込み
     strategies_dict = {}
@@ -324,7 +338,9 @@ def generate_static_html():
             except:
                 r_num = 1
                 
-            if num_places >= 3:
+            if r_id in race_time_dict and race_time_dict[r_id] and str(race_time_dict[r_id]).strip():
+                s_time = str(race_time_dict[r_id]).strip()
+            elif num_places >= 3:
                 s_time = POST_TIMES_3.get(p_idx, POST_TIMES_3[0]).get(r_num, "10:00")
             elif num_places == 2:
                 s_time = POST_TIMES_2.get(p_idx, POST_TIMES_2[0]).get(r_num, "10:00")
