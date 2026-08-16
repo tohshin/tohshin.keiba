@@ -94,7 +94,9 @@ def generate_static_html():
                         df_part['race_id'] = match.group(1)
                         logger.info(f"    Restored race_id from filename for {os.path.basename(pf)}")
             
-            all_dfs.append(df_part)
+            # コンカット高速化のため必要なカラム関連のみ残す
+            keep_cols = [c for c in df_part.columns if any(k in str(c).lower() for k in ['id', 'date', 'race', 'horse', '番', '名', 'raw', 'lightgbm', 'xgboost', 'catboost', 'lstm', 'randomforest', 'decisiontree', 'transformer', 'tabnet', 'ensemble', 'python', 'lgbm', 'レース', '馬'])]
+            all_dfs.append(df_part[keep_cols] if keep_cols else df_part)
         
         df = pd.concat(all_dfs, ignore_index=True)
         logger.info(f"Total records before deduplication: {len(df)}")
@@ -295,6 +297,46 @@ def generate_static_html():
             dates_data[d] = {}
         dates_data[d][r_id] = r_info
 
+    # JRA 標準発走時刻テーブル
+    POST_TIMES_3 = {
+        0: {1: "09:50", 2: "10:20", 3: "10:50", 4: "11:20", 5: "12:10", 6: "12:40", 7: "13:10", 8: "13:40", 9: "14:15", 10: "14:50", 11: "15:25", 12: "16:05"},
+        1: {1: "10:05", 2: "10:35", 3: "11:05", 4: "11:35", 5: "12:25", 6: "12:55", 7: "13:25", 8: "13:55", 9: "14:25", 10: "15:00", 11: "15:35", 12: "16:15"},
+        2: {1: "10:15", 2: "10:45", 3: "11:15", 4: "11:45", 5: "12:35", 6: "13:05", 7: "13:35", 8: "14:05", 9: "14:35", 10: "15:10", 11: "15:45", 12: "16:30"}
+    }
+    POST_TIMES_2 = {
+        0: {1: "10:00", 2: "10:30", 3: "11:00", 4: "11:30", 5: "12:20", 6: "12:50", 7: "13:20", 8: "13:50", 9: "14:25", 10: "15:00", 11: "15:35", 12: "16:10"},
+        1: {1: "10:15", 2: "10:45", 3: "11:15", 4: "11:45", 5: "12:35", 6: "13:05", 7: "13:35", 8: "14:05", 9: "14:40", 10: "15:15", 11: "15:45", 12: "16:25"}
+    }
+    POST_TIMES_1 = {
+        0: {1: "10:00", 2: "10:35", 3: "11:05", 4: "11:35", 5: "12:25", 6: "12:55", 7: "13:25", 8: "13:55", 9: "14:30", 10: "15:05", 11: "15:40", 12: "16:20"}
+    }
+
+    # 各日付ごとに発走時刻を付与・タイトル更新
+    for d, d_races in dates_data.items():
+        place_codes = sorted(list(set(r_id[4:6] for r_id in d_races.keys() if len(r_id) >= 6)))
+        num_places = len(place_codes)
+        
+        for r_id, r_info in d_races.items():
+            p_code = r_id[4:6] if len(r_id) >= 6 else ""
+            p_idx = place_codes.index(p_code) if p_code in place_codes else 0
+            try:
+                r_num = int(r_info.get('round', '1'))
+            except:
+                r_num = 1
+                
+            if num_places >= 3:
+                s_time = POST_TIMES_3.get(p_idx, POST_TIMES_3[0]).get(r_num, "10:00")
+            elif num_places == 2:
+                s_time = POST_TIMES_2.get(p_idx, POST_TIMES_2[0]).get(r_num, "10:00")
+            else:
+                s_time = POST_TIMES_1[0].get(r_num, "10:00")
+                
+            r_info['start_time'] = s_time
+            d_str = r_info.get('date', '')
+            p_str = r_info.get('place', '')
+            rd_str = r_info.get('round', '')
+            r_info['title'] = f"{d_str} {p_str} {rd_str}R {s_time}発走".strip()
+
     # 1. 各日付のデータを保存
     for d, d_races in dates_data.items():
         out_json = os.path.join(r"C:\Users\kyoui\tohshin_keiba\jsons", f"data_{d}.json")
@@ -406,6 +448,43 @@ def generate_static_html():
         select option {{
             background-color: #0b0f19;
             color: #f8fafc;
+        }}
+
+        /* Next Race Button & Card Highlight */
+        .next-race-btn {{
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            letter-spacing: 0.03em;
+        }}
+
+        .next-race-btn:hover {{
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+            background: linear-gradient(135deg, #34d399, #10b981);
+        }}
+
+        .race-card.highlight-target {{
+            animation: pulseGlow 1.5s ease-in-out 2 !important;
+            border-color: #4ade80 !important;
+        }}
+
+        @keyframes pulseGlow {{
+            0% {{ box-shadow: 0 0 0 rgba(74, 222, 128, 0); }}
+            50% {{ box-shadow: 0 0 30px rgba(74, 222, 128, 0.8); }}
+            100% {{ box-shadow: 0 0 0 rgba(74, 222, 128, 0); }}
         }}
 
         .race-list {{
@@ -839,6 +918,9 @@ def generate_static_html():
                 <option value="odds">Sort by Odds</option>
                 <option value="horse_number">Sort by Horse Number</option>
             </select>
+            <button id="btn-next-race" onclick="scrollToNextRace()" class="next-race-btn">
+                🏇 次の発走
+            </button>
             <select id="model-select" onchange="renderRaces()" style="display: none;">
                 <option value="Ensemble">Ensemble</option>
                 <option value="LightGBM">LightGBM</option>
@@ -888,6 +970,36 @@ def generate_static_html():
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
+
+        function scrollToNextRace() {{
+            const cards = Array.from(document.querySelectorAll('.race-card'));
+            if (cards.length === 0) return;
+
+            const now = new Date();
+            const currentHHMM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+            let targetCard = null;
+            for (const card of cards) {{
+                const startTime = card.dataset.startTime;
+                if (startTime && startTime >= currentHHMM) {{
+                    targetCard = card;
+                    break;
+                }}
+            }}
+
+            // 全てのレースが現在時刻より前の場合は最後のレースへ
+            if (!targetCard && cards.length > 0) {{
+                targetCard = cards[cards.length - 1];
+            }}
+
+            if (targetCard) {{
+                targetCard.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                targetCard.classList.add('highlight-target');
+                setTimeout(() => {{
+                    targetCard.classList.remove('highlight-target');
+                }}, 3000);
+            }}
+        }}
 
         async function checkAuth() {{
             console.log("[DEBUG] checkAuth called");
@@ -1086,7 +1198,19 @@ def generate_static_html():
 
             let delay = 0;
 
-            for (const [raceId, raceData] of Object.entries(currentData)) {{
+            // Sort races by start_time (発走時刻), then round, then place
+            const sortedRaces = Object.values(currentData).sort((a, b) => {{
+                const timeA = a.start_time || "00:00";
+                const timeB = b.start_time || "00:00";
+                if (timeA !== timeB) return timeA.localeCompare(timeB);
+                const roundA = parseInt(a.round) || 0;
+                const roundB = parseInt(b.round) || 0;
+                if (roundA !== roundB) return roundA - roundB;
+                return (a.place || "").localeCompare(b.place || "");
+            }});
+
+            for (const raceData of sortedRaces) {{
+                const raceId = raceData.race_id;
                 
                 // Filtering
                 if (fDate !== 'ALL' && raceData.date !== fDate) continue;
@@ -1236,6 +1360,9 @@ def generate_static_html():
 
                 const card = document.createElement('div');
                 card.className = 'race-card';
+                card.id = 'race-card-' + raceId;
+                card.dataset.startTime = raceData.start_time || '';
+                card.dataset.raceId = raceId;
                 card.style.animationDelay = `${{delay}}ms`;
                 delay += 50;
 

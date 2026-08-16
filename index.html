@@ -83,6 +83,43 @@
             color: #f8fafc;
         }
 
+        /* Next Race Button & Card Highlight */
+        .next-race-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            letter-spacing: 0.03em;
+        }
+
+        .next-race-btn:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+            background: linear-gradient(135deg, #34d399, #10b981);
+        }
+
+        .race-card.highlight-target {
+            animation: pulseGlow 1.5s ease-in-out 2 !important;
+            border-color: #4ade80 !important;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 rgba(74, 222, 128, 0); }
+            50% { box-shadow: 0 0 30px rgba(74, 222, 128, 0.8); }
+            100% { box-shadow: 0 0 0 rgba(74, 222, 128, 0); }
+        }
+
         .race-list {
             display: flex;
             flex-direction: column;
@@ -514,6 +551,9 @@
                 <option value="odds">Sort by Odds</option>
                 <option value="horse_number">Sort by Horse Number</option>
             </select>
+            <button id="btn-next-race" onclick="scrollToNextRace()" class="next-race-btn">
+                🏇 次の発走
+            </button>
             <select id="model-select" onchange="renderRaces()" style="display: none;">
                 <option value="Ensemble">Ensemble</option>
                 <option value="LightGBM">LightGBM</option>
@@ -563,6 +603,36 @@
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
+
+        function scrollToNextRace() {
+            const cards = Array.from(document.querySelectorAll('.race-card'));
+            if (cards.length === 0) return;
+
+            const now = new Date();
+            const currentHHMM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+            let targetCard = null;
+            for (const card of cards) {
+                const startTime = card.dataset.startTime;
+                if (startTime && startTime >= currentHHMM) {
+                    targetCard = card;
+                    break;
+                }
+            }
+
+            // 全てのレースが現在時刻より前の場合は最後のレースへ
+            if (!targetCard && cards.length > 0) {
+                targetCard = cards[cards.length - 1];
+            }
+
+            if (targetCard) {
+                targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetCard.classList.add('highlight-target');
+                setTimeout(() => {
+                    targetCard.classList.remove('highlight-target');
+                }, 3000);
+            }
+        }
 
         async function checkAuth() {
             console.log("[DEBUG] checkAuth called");
@@ -761,7 +831,19 @@
 
             let delay = 0;
 
-            for (const [raceId, raceData] of Object.entries(currentData)) {
+            // Sort races by start_time (発走時刻), then round, then place
+            const sortedRaces = Object.values(currentData).sort((a, b) => {
+                const timeA = a.start_time || "00:00";
+                const timeB = b.start_time || "00:00";
+                if (timeA !== timeB) return timeA.localeCompare(timeB);
+                const roundA = parseInt(a.round) || 0;
+                const roundB = parseInt(b.round) || 0;
+                if (roundA !== roundB) return roundA - roundB;
+                return (a.place || "").localeCompare(b.place || "");
+            });
+
+            for (const raceData of sortedRaces) {
+                const raceId = raceData.race_id;
                 
                 // Filtering
                 if (fDate !== 'ALL' && raceData.date !== fDate) continue;
@@ -911,6 +993,9 @@
 
                 const card = document.createElement('div');
                 card.className = 'race-card';
+                card.id = 'race-card-' + raceId;
+                card.dataset.startTime = raceData.start_time || '';
+                card.dataset.raceId = raceId;
                 card.style.animationDelay = `${delay}ms`;
                 delay += 50;
 
