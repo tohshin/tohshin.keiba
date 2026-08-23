@@ -351,7 +351,7 @@ def generate_static_html():
             d_str = r_info.get('date', '')
             p_str = r_info.get('place', '')
             rd_str = r_info.get('round', '')
-            r_info['title'] = f"{d_str} {p_str} {rd_str}R {s_time}発走".strip()
+            r_info['title'] = f"{p_str}{rd_str}R {s_time}".strip()
 
     # 1. 各日付のデータを保存
     for d, d_races in dates_data.items():
@@ -1556,11 +1556,13 @@ def generate_static_html():
                     `;
                 }});
 
+                const raceTitle = `${{raceData.place || ''}}${{raceData.round || ''}}R ${{raceData.start_time || ''}}`.trim() || raceData.title;
+
                 card.innerHTML = `
                     <div class="race-info-header" onclick="toggleRaceCard('${{raceId}}')">
                         <div class="race-header-left">
                             <div class="race-id">
-                                <span style="color:var(--primary);">${{raceData.title}}</span>
+                                <span style="color:var(--primary);">${{raceTitle}}</span>
                                 <div style="display: inline-flex; gap: 8px; margin-left: 10px; font-size: 0.8rem; align-items: center;">
                                     <a href="https://race.netkeiba.com/race/shutuba.html?race_id=${{raceData.race_id}}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted); text-decoration:none; background:rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 6px;">🌐 Web</a>
                                     <a href="https://netkeiba.onelink.me/Wmzg?af_xp=custom&af_dp=jp.co.netdreamers.netkeiba%3A%2F%2F&deep_link_value=https%3A%2F%2Frace.netkeiba.com%2Frace%2Fshutuba.html%3Frace_id%3D${{raceData.race_id}}&rf=race_toggle_menu" onclick="event.stopPropagation()" style="color:var(--primary); text-decoration:none; background:rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--primary);">🏇 App</a>
