@@ -527,9 +527,6 @@ def generate_static_html():
             -webkit-backdrop-filter: blur(16px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease, padding 0.25s ease;
-            animation: slideUp 0.6s ease forwards;
-            opacity: 0;
-            transform: translateY(20px);
             scroll-margin-top: 20px;
             position: relative;
         }}
@@ -1300,8 +1297,6 @@ def generate_static_html():
                 mSelect.style.display = 'none';
             }}
 
-            let delay = 0;
-
             // Sort races by start_time (発走時刻), then round, then place
             const sortedRaces = Object.values(currentData).sort((a, b) => {{
                 const timeA = a.start_time || "00:00";
@@ -1467,8 +1462,6 @@ def generate_static_html():
                 card.id = 'race-card-' + raceId;
                 card.dataset.startTime = raceData.start_time || '';
                 card.dataset.raceId = raceId;
-                card.style.animationDelay = `${{delay}}ms`;
-                delay += 50;
 
                 let horsesHtml = '';
                 sortedHorses.forEach((horse, index) => {{
