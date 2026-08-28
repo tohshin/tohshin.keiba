@@ -392,15 +392,22 @@ def generate_static_html():
             r_info['title'] = f"{p_str}{rd_str}R {s_time}".strip()
 
     # 1. 各日付のデータを保存
+    import time
     for d, d_races in dates_data.items():
         out_json = os.path.join(r"C:\Users\kyoui\tohshin_keiba\jsons", f"data_{d}.json")
-        try:
-            os.makedirs(os.path.dirname(out_json), exist_ok=True)
-            with open(out_json, "w", encoding="utf-8") as f:
-                json.dump(d_races, f, ensure_ascii=False)
-            logger.info(f"Generated daily JSON: {out_json}")
-        except Exception as e:
-            logger.error(f"Failed to write daily JSON {out_json}: {e}")
+        saved = False
+        for attempt in range(3):
+            try:
+                os.makedirs(os.path.dirname(out_json), exist_ok=True)
+                with open(out_json, "w", encoding="utf-8") as f:
+                    json.dump(d_races, f, ensure_ascii=False)
+                logger.info(f"Generated daily JSON: {out_json}")
+                saved = True
+                break
+            except Exception as e:
+                time.sleep(0.3)
+                if attempt == 2:
+                    logger.error(f"Failed to write daily JSON {out_json}: {e}")
 
     # 2. メタデータ（日付リスト）を保存
     meta_data = {
