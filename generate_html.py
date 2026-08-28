@@ -900,7 +900,7 @@ def generate_static_html():
         }}
 
         /* Modal Overlay */
-        #recommend-modal {{
+        #recommend-modal, #reasons-modal {{
             display: none;
             position: fixed;
             top: 0;
@@ -2395,11 +2395,18 @@ def generate_static_html():
         }}
 
         function showReasons(raceId) {{
-            const raceData = currentData[raceId];
-            if (!raceData || !raceData.reasons) return;
+            const raceData = currentData[raceId] || currentData[String(raceId)];
+            if (!raceData) {{
+                console.warn("Race data not found for ID:", raceId);
+                return;
+            }}
 
             const modal = document.getElementById('reasons-modal');
             const body = document.getElementById('reasons-modal-body');
+            if (!modal || !body) {{
+                console.error("Reasons modal DOM elements not found!");
+                return;
+            }}
             
             let html = `
                 <div style="text-align: center; margin-bottom: 25px;">
