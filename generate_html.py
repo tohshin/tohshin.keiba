@@ -1107,7 +1107,7 @@ def generate_static_html():
     <div id="app-content" style="display: none;">
         <header>
             <h1>Keiba AI</h1>
-            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.0)</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.1)</div>
         </header>
 
         <div class="controls-grid">

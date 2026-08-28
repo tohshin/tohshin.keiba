@@ -1,4 +1,4 @@
-const CACHE_NAME = 'keiba-ai-v1';
+const CACHE_NAME = 'keiba-ai-v2';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1日 (24時間)
 
 // インストール時にコアアセットをプリキャッシュ
