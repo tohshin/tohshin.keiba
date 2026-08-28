@@ -63,35 +63,6 @@ def generate_static_html():
     else:
         logger.warning(f"Strategies CSV not found: {strategies_csv_path}")
 
-    # 評価理由データの読み込み (eval_reasons.json)
-    eval_reasons_dict = {}
-    eval_reasons_candidates = [
-        r"C:\Users\kyoui\keiba\data\eval\eval_reasons.json",
-        r"C:\Users\kyoui\keiba\eval_reasons.json",
-        r"C:\Users\kyoui\tohshin_keiba\eval_reasons.json",
-        r"C:\Users\kyoui\tohshin_keiba\jsons\eval_reasons.json"
-    ]
-    for er_path in eval_reasons_candidates:
-        if os.path.exists(er_path):
-            try:
-                with open(er_path, "r", encoding="utf-8") as f:
-                    loaded_reasons = json.load(f)
-                    eval_reasons_dict.update(loaded_reasons)
-                logger.info(f"Loaded {len(loaded_reasons)} eval reasons from {er_path}")
-            except Exception as e:
-                logger.error(f"Error loading {er_path}: {e}")
-
-    # jsons/eval_reasons.json にも保存
-    if eval_reasons_dict:
-        try:
-            eval_reasons_out = r"C:\Users\kyoui\tohshin_keiba\jsons\eval_reasons.json"
-            os.makedirs(os.path.dirname(eval_reasons_out), exist_ok=True)
-            with open(eval_reasons_out, "w", encoding="utf-8") as f:
-                json.dump(eval_reasons_dict, f, ensure_ascii=False)
-            logger.info(f"Saved merged eval_reasons to {eval_reasons_out}")
-        except Exception as e:
-            logger.error(f"Failed to write eval_reasons.json: {e}")
-
     logger.info(f"Loading all picke files from {eval_dir}...")
     
     if not os.path.exists(eval_dir):
@@ -320,14 +291,6 @@ def generate_static_html():
             
         # この会場に対応する推奨戦略を取得
         race_strategies = strategies_dict.get(place_name, []) + strategies_dict.get('全場', [])
-        
-        # 評価理由データの取得
-        race_reasons = eval_reasons_dict.get(race_id_str, {})
-        if not race_reasons:
-            for k in [race_id_str.zfill(12), race_id_str[:12] if len(race_id_str) >= 12 else race_id_str]:
-                if k in eval_reasons_dict:
-                    race_reasons = eval_reasons_dict[k]
-                    break
             
         races[race_id_str] = {
             "race_id": race_id_str,
@@ -337,8 +300,7 @@ def generate_static_html():
             "weekday": weekday_ja,
             "round": str(round_int),
             "horses": records,
-            "strategies": race_strategies,
-            "reasons": race_reasons
+            "strategies": race_strategies
         }
 
     # データを日付ごとにグループ化
@@ -392,22 +354,15 @@ def generate_static_html():
             r_info['title'] = f"{p_str}{rd_str}R {s_time}".strip()
 
     # 1. 各日付のデータを保存
-    import time
     for d, d_races in dates_data.items():
         out_json = os.path.join(r"C:\Users\kyoui\tohshin_keiba\jsons", f"data_{d}.json")
-        saved = False
-        for attempt in range(3):
-            try:
-                os.makedirs(os.path.dirname(out_json), exist_ok=True)
-                with open(out_json, "w", encoding="utf-8") as f:
-                    json.dump(d_races, f, ensure_ascii=False)
-                logger.info(f"Generated daily JSON: {out_json}")
-                saved = True
-                break
-            except Exception as e:
-                time.sleep(0.3)
-                if attempt == 2:
-                    logger.error(f"Failed to write daily JSON {out_json}: {e}")
+        try:
+            os.makedirs(os.path.dirname(out_json), exist_ok=True)
+            with open(out_json, "w", encoding="utf-8") as f:
+                json.dump(d_races, f, ensure_ascii=False)
+            logger.info(f"Generated daily JSON: {out_json}")
+        except Exception as e:
+            logger.error(f"Failed to write daily JSON {out_json}: {e}")
 
     # 2. メタデータ（日付リスト）を保存
     meta_data = {
@@ -833,81 +788,8 @@ def generate_static_html():
             transform: translateY(-2px) scale(1.06);
         }}
 
-        /* Evaluation Reasons Badge Styles */
-        .reason-badge {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(59, 130, 246, 0.25));
-            border: 1px solid rgba(168, 85, 247, 0.5);
-            color: #c084fc;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 0.82rem;
-            font-weight: 900;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            backdrop-filter: blur(12px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.2);
-            letter-spacing: 0.05em;
-            flex-shrink: 0;
-        }}
-
-        .reason-badge:hover {{
-            background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(59, 130, 246, 0.4));
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(168, 85, 247, 0.5);
-            transform: translateY(-2px) scale(1.06);
-        }}
-
-        .reason-card {{
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 14px;
-            transition: all 0.2s ease;
-        }}
-        .reason-card:hover {{
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(168, 85, 247, 0.3);
-        }}
-        .reason-horse-title {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: #f8fafc;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        }}
-        .reason-item {{
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            font-size: 0.85rem;
-            margin-bottom: 8px;
-            color: #cbd5e1;
-            line-height: 1.5;
-        }}
-        .reason-item:last-child {{
-            margin-bottom: 0;
-        }}
-        .reason-tag {{
-            background: rgba(168, 85, 247, 0.2);
-            color: #c084fc;
-            border: 1px solid rgba(168, 85, 247, 0.4);
-            border-radius: 6px;
-            padding: 1px 7px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }}
-
         /* Modal Overlay */
-        #recommend-modal, #reasons-modal {{
+        #recommend-modal {{
             display: none;
             position: fixed;
             top: 0;
@@ -1107,7 +989,7 @@ def generate_static_html():
     <div id="app-content" style="display: none;">
         <header>
             <h1>Keiba AI</h1>
-            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.1)</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATIC HOSTED (v4.0)</div>
         </header>
 
         <div class="controls-grid">
@@ -1151,14 +1033,6 @@ def generate_static_html():
         <div class="modal-content">
             <span class="modal-close" onclick="closeRecommendation()">&times;</span>
             <div id="modal-body"></div>
-        </div>
-    </div>
-
-    <!-- Evaluation Reasons Modal -->
-    <div id="reasons-modal" onclick="if(event.target===this) closeReasons()">
-        <div class="modal-content" style="border-color: rgba(168, 85, 247, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(168, 85, 247, 0.15);">
-            <span class="modal-close" onclick="closeReasons()">&times;</span>
-            <div id="reasons-modal-body"></div>
         </div>
     </div>
 
@@ -1696,26 +1570,15 @@ def generate_static_html():
                             </div>
                         </div>
                         <div class="race-header-right">
-                            <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
-                                ${{ ( () => {{
-                                    if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                                    return `
-                                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
-                                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
-                                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
-                                        </div>
-                                    `;
-                                }})()}}
-                                ${{ ( () => {{
-                                    if (!raceData.reasons || Object.keys(raceData.reasons).length === 0) return '';
-                                    return `
-                                        <div class="reason-badge" onclick="event.stopPropagation(); showReasons('${{raceId}}')">
-                                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">AI</span>
-                                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">評価理由</div>
-                                        </div>
-                                    `;
-                                }})()}}
-                            </div>
+                            ${{ ( () => {{
+                                if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                                return `
+                                    <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
+                                        <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
+                                        <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                                    </div>
+                                `;
+                            }})()}}
                             <button class="accordion-toggle-btn" aria-label="Toggle race" onclick="event.stopPropagation(); toggleRaceCard('${{raceId}}')">
                                 <svg class="chevron-svg" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -2401,88 +2264,6 @@ def generate_static_html():
             document.body.style.overflow = 'auto';
         }}
 
-        function showReasons(raceId) {{
-            const raceData = currentData[raceId] || currentData[String(raceId)];
-            if (!raceData) {{
-                console.warn("Race data not found for ID:", raceId);
-                return;
-            }}
-
-            const modal = document.getElementById('reasons-modal');
-            const body = document.getElementById('reasons-modal-body');
-            if (!modal || !body) {{
-                console.error("Reasons modal DOM elements not found!");
-                return;
-            }}
-            
-            let html = `
-                <div style="text-align: center; margin-bottom: 25px;">
-                    <div style="font-size: 0.8rem; color: #c084fc; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Evaluation Reasons</div>
-                    <h2 style="margin: 0; font-size: 1.6rem; color: #fff;">${{raceData.title || ''}} 評価理由</h2>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">LightGBMモデルの特徴量寄与度 (SHAP値) 分析</div>
-                </div>
-            `;
-
-            const reasons = raceData.reasons;
-            const horseNames = Object.keys(reasons);
-
-            if (horseNames.length === 0) {{
-                html += `
-                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
-                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📊</div>
-                        <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">このレースの評価理由データはありません</div>
-                    </div>
-                `;
-            }} else {{
-                horseNames.forEach(hName => {{
-                    const horseData = raceData.horses ? raceData.horses.find(h => h.horse_name === hName) : null;
-                    const hNum = horseData ? horseData.horse_number : '';
-                    const hNumHtml = hNum ? `<span class="horse-num" style="width: 28px; height: 28px; font-size: 0.9rem; margin-right: 0; background: rgba(168, 85, 247, 0.2); color: #c084fc;">${{hNum}}</span>` : '';
-                    const horseReasons = reasons[hName] || {{}};
-
-                    html += `
-                        <div class="reason-card">
-                            <div class="reason-horse-title">
-                                ${{hNumHtml}}
-                                <span>${{hName}}</span>
-                            </div>
-                            <div>
-                    `;
-
-                    for (const [rKey, rText] of Object.entries(horseReasons)) {{
-                        let formattedText = rText;
-                        const kiyodoMatch = rText.match(/寄与度:\s*([+\-]?\d+(?:\.\d+)?)/);
-                        if (kiyodoMatch) {{
-                            const kVal = parseFloat(kiyodoMatch[1]);
-                            const kColor = kVal >= 0 ? '#4ade80' : '#ef4444';
-                            formattedText = rText.replace(kiyodoMatch[0], `<span style="color:${{kColor}}; font-weight:700;">${{kiyodoMatch[0]}}</span>`);
-                        }}
-
-                        html += `
-                            <div class="reason-item">
-                                <span class="reason-tag">${{rKey}}</span>
-                                <div style="flex: 1;">${{formattedText}}</div>
-                            </div>
-                        `;
-                    }}
-
-                    html += `
-                            </div>
-                        </div>
-                    `;
-                }});
-            }}
-
-            body.innerHTML = html;
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }}
-
-        function closeReasons() {{
-            document.getElementById('reasons-modal').style.display = 'none';
-            document.body.style.overflow = 'auto';
-        }}
-
     </script>
 </body>
 </html>
@@ -2522,7 +2303,7 @@ def generate_static_html():
         # 1. git add
         # インデックス作成に時間がかかる場合があるため、明示的に指定
         # data.json は巨大なため Git 管理から除外（既存ファイルも後ほど削除）
-        subprocess.run(["git", "add", "index.html", "generate_html.py", "sw.js", "jsons/meta.json", "jsons/tansho_data.json", "jsons/eval_reasons.json"], cwd=repo_dir, check=True)
+        subprocess.run(["git", "add", "index.html", "generate_html.py", "sw.js", "jsons/meta.json", "jsons/tansho_data.json"], cwd=repo_dir, check=True)
         # 日次JSONも追加
         subprocess.run(["git", "add", "jsons/data_*.json"], cwd=repo_dir, check=True)
         
