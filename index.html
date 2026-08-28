@@ -405,6 +405,79 @@
             transform: translateY(-2px) scale(1.06);
         }
 
+        /* Evaluation Reasons Badge Styles */
+        .reason-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(59, 130, 246, 0.25));
+            border: 1px solid rgba(168, 85, 247, 0.5);
+            color: #c084fc;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.2);
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+        }
+
+        .reason-badge:hover {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(59, 130, 246, 0.4));
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(168, 85, 247, 0.5);
+            transform: translateY(-2px) scale(1.06);
+        }
+
+        .reason-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 14px;
+            transition: all 0.2s ease;
+        }
+        .reason-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+        .reason-horse-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #f8fafc;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .reason-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .reason-item:last-child {
+            margin-bottom: 0;
+        }
+        .reason-tag {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            border-radius: 6px;
+            padding: 1px 7px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
         /* Modal Overlay */
         #recommend-modal {
             display: none;
@@ -650,6 +723,14 @@
         <div class="modal-content">
             <span class="modal-close" onclick="closeRecommendation()">&times;</span>
             <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Evaluation Reasons Modal -->
+    <div id="reasons-modal" onclick="if(event.target===this) closeReasons()">
+        <div class="modal-content" style="border-color: rgba(168, 85, 247, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(168, 85, 247, 0.15);">
+            <span class="modal-close" onclick="closeReasons()">&times;</span>
+            <div id="reasons-modal-body"></div>
         </div>
     </div>
 
@@ -1187,15 +1268,26 @@
                             </div>
                         </div>
                         <div class="race-header-right">
-                            ${ ( () => {
-                                if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                                return `
-                                    <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
-                                        <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
-                                        <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
-                                    </div>
-                                `;
-                            })()}
+                            <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
+                                ${ ( () => {
+                                    if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                                    return `
+                                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
+                                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
+                                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                                        </div>
+                                    `;
+                                })()}
+                                ${ ( () => {
+                                    if (!raceData.reasons || Object.keys(raceData.reasons).length === 0) return '';
+                                    return `
+                                        <div class="reason-badge" onclick="event.stopPropagation(); showReasons('${raceId}')">
+                                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">AI</span>
+                                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">評価理由</div>
+                                        </div>
+                                    `;
+                                })()}
+                            </div>
                             <button class="accordion-toggle-btn" aria-label="Toggle race" onclick="event.stopPropagation(); toggleRaceCard('${raceId}')">
                                 <svg class="chevron-svg" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -1878,6 +1970,81 @@
 
         function closeRecommendation() {
             document.getElementById('recommend-modal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        function showReasons(raceId) {
+            const raceData = currentData[raceId];
+            if (!raceData || !raceData.reasons) return;
+
+            const modal = document.getElementById('reasons-modal');
+            const body = document.getElementById('reasons-modal-body');
+            
+            let html = `
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="font-size: 0.8rem; color: #c084fc; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Evaluation Reasons</div>
+                    <h2 style="margin: 0; font-size: 1.6rem; color: #fff;">${raceData.title || ''} 評価理由</h2>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">LightGBMモデルの特徴量寄与度 (SHAP値) 分析</div>
+                </div>
+            `;
+
+            const reasons = raceData.reasons;
+            const horseNames = Object.keys(reasons);
+
+            if (horseNames.length === 0) {
+                html += `
+                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📊</div>
+                        <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">このレースの評価理由データはありません</div>
+                    </div>
+                `;
+            } else {
+                horseNames.forEach(hName => {
+                    const horseData = raceData.horses ? raceData.horses.find(h => h.horse_name === hName) : null;
+                    const hNum = horseData ? horseData.horse_number : '';
+                    const hNumHtml = hNum ? `<span class="horse-num" style="width: 28px; height: 28px; font-size: 0.9rem; margin-right: 0; background: rgba(168, 85, 247, 0.2); color: #c084fc;">${hNum}</span>` : '';
+                    const horseReasons = reasons[hName] || {};
+
+                    html += `
+                        <div class="reason-card">
+                            <div class="reason-horse-title">
+                                ${hNumHtml}
+                                <span>${hName}</span>
+                            </div>
+                            <div>
+                    `;
+
+                    for (const [rKey, rText] of Object.entries(horseReasons)) {
+                        let formattedText = rText;
+                        const kiyodoMatch = rText.match(/寄与度:\s*([+\-]?\d+(?:\.\d+)?)/);
+                        if (kiyodoMatch) {
+                            const kVal = parseFloat(kiyodoMatch[1]);
+                            const kColor = kVal >= 0 ? '#4ade80' : '#ef4444';
+                            formattedText = rText.replace(kiyodoMatch[0], `<span style="color:${kColor}; font-weight:700;">${kiyodoMatch[0]}</span>`);
+                        }
+
+                        html += `
+                            <div class="reason-item">
+                                <span class="reason-tag">${rKey}</span>
+                                <div style="flex: 1;">${formattedText}</div>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            body.innerHTML = html;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeReasons() {
+            document.getElementById('reasons-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
         }
 
