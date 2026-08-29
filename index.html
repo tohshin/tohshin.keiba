@@ -184,20 +184,71 @@
             border-bottom: none;
         }
 
-        .race-header-left {
+        .race-header-row-top {
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            flex: 1;
-            min-width: 0;
+            gap: 12px;
+            flex-shrink: 0;
         }
 
-        .race-header-right {
+        .race-title-text {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .race-ext-links {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .race-link-btn {
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .race-link-btn.web-link {
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .race-link-btn.web-link:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .race-link-btn.app-link {
+            color: var(--primary);
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid var(--primary);
+        }
+
+        .race-link-btn.app-link:hover {
+            background: rgba(74, 222, 128, 0.2);
+        }
+
+        .race-header-row-bottom {
             display: flex;
             align-items: center;
             gap: 10px;
             flex-shrink: 0;
+        }
+
+        .race-badges-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .accordion-toggle-btn {
@@ -228,6 +279,81 @@
 
         .race-card.collapsed .chevron-svg {
             transform: rotate(0deg);
+        }
+
+        @media (max-width: 768px) {
+            .race-card {
+                padding: 14px 14px;
+                border-radius: 16px;
+            }
+
+            .race-card.collapsed {
+                padding: 12px 14px;
+            }
+
+            .race-info-header {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .race-card:not(.collapsed) .race-info-header {
+                margin-bottom: 12px;
+                padding-bottom: 10px;
+            }
+
+            .race-header-row-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                gap: 8px;
+            }
+
+            .race-title-text {
+                font-size: 1.15rem;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            .race-ext-links {
+                display: flex;
+                gap: 6px;
+            }
+
+            .race-link-btn {
+                font-size: 0.75rem;
+                padding: 3px 7px;
+            }
+
+            .race-header-row-bottom {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                gap: 8px;
+            }
+
+            .race-badges-group {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .pickup-badge, .reason-badge {
+                padding: 4px 10px;
+                font-size: 0.75rem;
+                gap: 4px;
+            }
+
+            .accordion-toggle-btn {
+                margin-left: auto;
+                width: 30px;
+                height: 30px;
+                flex-shrink: 0;
+            }
         }
 
         .race-id {
@@ -1256,36 +1382,40 @@
 
                 const raceTitle = `${raceData.place || ''}${raceData.round || ''}R ${raceData.start_time || ''}`.trim() || raceData.title;
 
+                const pickupBadgeHtml = ( () => {
+                    if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                    return `
+                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
+                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                        </div>
+                    `;
+                })();
+
+                const reasonBadgeHtml = ( () => {
+                    if (!raceData.reasons || Object.keys(raceData.reasons).length === 0) return '';
+                    return `
+                        <div class="reason-badge" onclick="event.stopPropagation(); showReasons('${raceId}')">
+                            <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">AI</span>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">評価理由</div>
+                        </div>
+                    `;
+                })();
+
                 card.innerHTML = `
                     <div class="race-info-header" onclick="toggleRaceCard('${raceId}')">
-                        <div class="race-header-left">
-                            <div class="race-id">
-                                <span style="color:var(--primary);">${raceTitle}</span>
-                                <div style="display: inline-flex; gap: 8px; margin-left: 10px; font-size: 0.8rem; align-items: center;">
-                                    <a href="https://race.netkeiba.com/race/shutuba.html?race_id=${raceData.race_id}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-muted); text-decoration:none; background:rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 6px;">🌐 Web</a>
-                                    <a href="https://netkeiba.onelink.me/Wmzg?af_xp=custom&af_dp=jp.co.netdreamers.netkeiba%3A%2F%2F&deep_link_value=https%3A%2F%2Frace.netkeiba.com%2Frace%2Fshutuba.html%3Frace_id%3D${raceData.race_id}&rf=race_toggle_menu" onclick="event.stopPropagation()" style="color:var(--primary); text-decoration:none; background:rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--primary);">🏇 App</a>
-                                </div>
+                        <div class="race-header-row-top">
+                            <span class="race-title-text">${raceTitle}</span>
+                            <div class="race-ext-links">
+                                <a href="https://race.netkeiba.com/race/shutuba.html?race_id=${raceData.race_id}" target="_blank" onclick="event.stopPropagation()" class="race-link-btn web-link">🌐 Web</a>
+                                <a href="https://netkeiba.onelink.me/Wmzg?af_xp=custom&af_dp=jp.co.netdreamers.netkeiba%3A%2F%2F&deep_link_value=https%3A%2F%2Frace.netkeiba.com%2Frace%2Fshutuba.html%3Frace_id%3D${raceData.race_id}&rf=race_toggle_menu" onclick="event.stopPropagation()" class="race-link-btn app-link">🏇 App</a>
                             </div>
                         </div>
-                        <div class="race-header-right">
-                            ${ ( () => {
-                                if (!raceData.strategies || raceData.strategies.length === 0) return '';
-                                return `
-                                    <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
-                                        <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
-                                        <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
-                                    </div>
-                                `;
-                            })()}
-                            ${ ( () => {
-                                if (!raceData.reasons || Object.keys(raceData.reasons).length === 0) return '';
-                                return `
-                                    <div class="reason-badge" onclick="event.stopPropagation(); showReasons('${raceId}')">
-                                        <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">AI</span>
-                                        <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">評価理由</div>
-                                    </div>
-                                `;
-                            })()}
+                        <div class="race-header-row-bottom">
+                            <div class="race-badges-group">
+                                ${pickupBadgeHtml}
+                                ${reasonBadgeHtml}
+                            </div>
                             <button class="accordion-toggle-btn" aria-label="Toggle race" onclick="event.stopPropagation(); toggleRaceCard('${raceId}')">
                                 <svg class="chevron-svg" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
