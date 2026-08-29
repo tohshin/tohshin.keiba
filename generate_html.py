@@ -43,20 +43,37 @@ def generate_static_html():
     
     # 戦略データの読み込み
     strategies_dict = {}
+    shubetsu_order = {'3連単': 1, '3連複': 2, '馬単': 3, '馬連': 4, 'ワイド': 5, '単勝': 6}
+    type_order = {
+        '2頭軸ながし': 1,
+        '1頭軸ながし': 2,
+        'ながし': 3,
+        '2頭軸マルチ': 4,
+        '1頭軸マルチ': 5,
+        'マルチ': 6,
+        'BOX': 7
+    }
     if os.path.exists(strategies_csv_path):
         try:
-            sdf = pd.read_csv(strategies_csv_path)
+            sdf = pd.read_csv(strategies_csv_path, encoding='utf-8-sig')
             # NaNをNoneに置き換える (JSONでnullとして出力される)
-            # 数値型のままだとNoneがnp.nanに戻ってしまうため、一度物オブジェクト型に変換する
             sdf = sdf.astype(object).where(pd.notnull(sdf), None)
             
-            # 会場名または venue_code でマッピングできるように準備
-            # venue_name をキーにしたリストを作成
             for _, row in sdf.iterrows():
+                row_dict = row.to_dict()
+                raw_type = str(row_dict.get('type') or '')
+                parts = raw_type.split('-')
+                shubetsu = parts[0].strip() if len(parts) > 0 else ''
+                type_sub = parts[1].strip() if len(parts) > 1 else ''
+                row_dict['shubetsu'] = shubetsu
+                row_dict['type_sub'] = type_sub
+                row_dict['s_rank'] = shubetsu_order.get(shubetsu, 99)
+                row_dict['t_rank'] = type_order.get(type_sub, 99)
+
                 v_name = str(row['venue_name'])
                 if v_name not in strategies_dict:
                     strategies_dict[v_name] = []
-                strategies_dict[v_name].append(row.to_dict())
+                strategies_dict[v_name].append(row_dict)
             logger.info(f"Loaded {len(sdf)} strategies from {strategies_csv_path}")
         except Exception as e:
             logger.error(f"Error loading strategies CSV: {e}")
@@ -1626,65 +1643,10 @@ def generate_static_html():
                     return 0;
                 }};
 
-                // --- 2. Strategy Highlighting Calculation (Z-Score + EV Based Thresholding) ---
-                const jikuSet = new Set();
-                const partnerSet = new Set();
-
-                (raceData.strategies || []).forEach(s => {{
-                    const scoreKey = s.model === 'Ensemble' ? 'Ensemble' : s.model + "_raw";
-                    const allSorted = [...raceData.horses].sort((a,b) => getZ(b, scoreKey) - getZ(a, scoreKey));
-                    if (allSorted.length === 0) return;
-
-                    const sTh = s.score_th === null ? -9.9 : parseFloat(s.score_th);
-                    const a2Th = (s.axis2_score_th === null && s.partner_score_th === null) ? -9.9 : parseFloat(s.axis2_score_th || s.partner_score_th);
-                    const pTh = s.partner_score_th === null ? -9.9 : parseFloat(s.partner_score_th);
-                    
-                    const evTh = s.EV_th === null ? -1 : parseFloat(s.EV_th);
-                    const a2EvTh = (s.axis2_EV_th === null && s.partner_EV_th === null) ? -1 : parseFloat(s.axis2_EV_th || s.partner_EV_th);
-                    const pEvTh = s.partner_EV_th === null ? -1 : parseFloat(s.partner_EV_th);
-
-                    if (s.type === "単勝") {{
-                        const h = allSorted[0];
-                        if (getZ(h, scoreKey) >= sTh && getEV(h, scoreKey) >= evTh) {{
-                            jikuSet.add(String(h.horse_number));
-                        }}
-                    }} else if (s.type.includes("BOX")) {{
-                        const count = parseInt(s.partners) || 5;
-                        const valid = allSorted.filter(h => getZ(h, scoreKey) >= sTh && getEV(h, scoreKey) >= evTh).slice(0, count);
-                        if (valid.length >= (s.type.includes("3連") ? 3 : 2)) {{
-                            valid.forEach(h => partnerSet.add(String(h.horse_number)));
-                        }}
-                    }} else {{
-                        const axisCount = parseInt(s.axis_count) || 1;
-                        const partnerCount = parseInt(s.partners) || 5;
-                        
-                        // 1軸目の判定
-                        const axes1 = allSorted.filter(h => getZ(h, scoreKey) >= sTh && getEV(h, scoreKey) >= evTh).slice(0, 1);
-                        if (axes1.length > 0) {{
-                            let finalAxes = [...axes1];
-                            let others = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
-                            
-                            // 2軸目がある場合
-                            if (axisCount >= 2) {{
-                                const axis2Candidate = others.filter(h => getZ(h, scoreKey) >= a2Th && getEV(h, scoreKey) >= a2EvTh).slice(0, axisCount - 1);
-                                if (axis2Candidate.length < axisCount - 1) {{
-                                    return; // 2軸目が条件を満たさない場合はこの戦略はスキップ
-                                }}
-                                finalAxes = finalAxes.concat(axis2Candidate);
-                                const axis2Numbers = new Set(axis2Candidate.map(ax => ax.horse_number));
-                                others = others.filter(h => !axis2Numbers.has(h.horse_number));
-                            }}
-
-                            const partners = others.filter(h => getZ(h, scoreKey) >= pTh && getEV(h, scoreKey) >= pEvTh).slice(0, partnerCount);
-                            const minTotal = s.type.includes("3連") ? 3 : 2;
-                            if (finalAxes.length + partners.length >= minTotal) {{
-                                finalAxes.forEach(h => jikuSet.add(String(h.horse_number)));
-                                partners.forEach(h => partnerSet.add(String(h.horse_number)));
-                            }}
-                        }}
-                    }}
-                }});
-
+                // --- 2. Strategy Highlighting & PICKUP Calculation (Kelly2 High-Confidence Logic) ---
+                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
+                const jikuSet = kellyResult.jikuSet;
+                const partnerSet = kellyResult.partnerSet;
 
                 // --- Calculate Softmax Probabilities (KV_z_peak using selected model) ---
                 const allResultsForKV = [...raceData.horses];
@@ -1804,7 +1766,7 @@ def generate_static_html():
                 const raceTitle = `${{raceData.place || ''}}${{raceData.round || ''}}R ${{raceData.start_time || ''}}`.trim() || raceData.title;
 
                 const pickupBadgeHtml = ( () => {{
-                    if (!raceData.strategies || raceData.strategies.length === 0) return '';
+                    if (!kellyResult.validStrategies || kellyResult.validStrategies.length === 0) return '';
                     return `
                         <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
                             <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
@@ -1858,109 +1820,251 @@ def generate_static_html():
             }}, 50);
         }}
 
-        function generateBettingEyes(horses, strategy, stats, raceId) {{
-            const scoreKey = strategy.model === 'Ensemble' ? 'Ensemble' : strategy.model + "_raw";
-            
-            const getZ = (h) => {{
-                const s = stats[scoreKey];
-                return ((parseFloat(h[scoreKey]) || 0) - s.mean) / s.std;
-            }};
-
-            const getPWin = (h) => {{
-                const s = stats[scoreKey];
-                const zAdj = horses.map(horse => (parseFloat(horse[scoreKey]) - s.mean) / s.std * 2.0);
-                const maxZ = Math.max(...zAdj);
-                const expZ = zAdj.map(z => Math.exp(z - maxZ));
-                const sumExpZ = expZ.reduce((a, b) => a + b, 0);
-                const hZAdj = (parseFloat(h[scoreKey]) - s.mean) / s.std * 2.0;
-                return Math.exp(hZAdj - maxZ) / sumExpZ;
-            }};
-
-            const getEV = (h) => {{
-                const pw = getPWin(h);
-                const rIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
-                const rOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[rIdShort]) : null;
-                if (rOdds) {{
-                    const hO = rOdds.find(o => o[0] == h.horse_number);
-                    if (hO) return pw * Math.log1p(parseFloat(hO[1]) || 0);
-                }}
-                return 0;
-            }};
-            
-            const allSorted = [...horses].sort((a,b) => getZ(b) - getZ(a));
-            const pad = (n) => String(n).padStart(2, '0');
-            if (allSorted.length === 0) return "--";
-
-            const sTh = strategy.score_th === null ? -9.9 : parseFloat(strategy.score_th);
-            const a2Th = (strategy.axis2_score_th === null && strategy.partner_score_th === null) ? -9.9 : parseFloat(strategy.axis2_score_th || strategy.partner_score_th);
-            const pTh = strategy.partner_score_th === null ? -9.9 : parseFloat(strategy.partner_score_th);
-            
-            const evTh = strategy.EV_th === null ? -1 : parseFloat(strategy.EV_th);
-            const a2EvTh = (strategy.axis2_EV_th === null && strategy.partner_EV_th === null) ? -1 : parseFloat(strategy.axis2_EV_th || strategy.partner_EV_th);
-            const pEvTh = strategy.partner_EV_th === null ? -1 : parseFloat(strategy.partner_EV_th);
-
-            // 単勝
-            if (strategy.type === "単勝") {{
-                const h = allSorted[0];
-                if (getZ(h) < sTh || getEV(h) < evTh) return "--";
-                return pad(h.horse_number);
+        function evaluateKelly2Strategies(raceData, raceId) {{
+            if (!raceData || !raceData.horses || raceData.horses.length < 5 || !raceData.strategies) {{
+                return {{ validStrategies: [], jikuSet: new Set(), partnerSet: new Set(), horseConf: {{}}, popRanks: {{}} }};
             }}
-            
-            // BOX
-            if (strategy.type.includes("BOX")) {{
-                const count = parseInt(strategy.partners) || 5;
-                const valid = allSorted.filter(h => getZ(h) >= sTh && getEV(h) >= evTh);
-                if (valid.length < count) return "--";
-                return valid.slice(0, count).map(h => pad(h.horse_number)).join(', ');
-            }}
-            
-            // 流し / マルチ
-            const axisCount = parseInt(strategy.axis_count) || 1;
-            const partnerCount = parseInt(strategy.partners) || 5;
-            
-            const axes1 = allSorted.filter(h => getZ(h) >= sTh && getEV(h) >= evTh).slice(0, 1);
-            if (axes1.length === 0) return "--";
-            
-            let finalAxes = [...axes1];
-            let others = allSorted.filter(h => h.horse_number !== axes1[0].horse_number);
-            
-            if (axisCount >= 2) {{
-                const axes2 = others.filter(h => getZ(h) >= a2Th && getEV(h) >= a2EvTh).slice(0, axisCount - 1);
-                if (axes2.length < axisCount - 1) return "--";
-                finalAxes = finalAxes.concat(axes2);
-                const axes2Nums = new Set(axes2.map(h => h.horse_number));
-                others = others.filter(h => !axes2Nums.has(h.horse_number));
-            }}
-            
-            const partners = others.filter(h => getZ(h) >= pTh && getEV(h) >= pEvTh).slice(0, partnerCount);
-            const minTotal = strategy.type.includes("3連") ? 3 : 2;
-            if (finalAxes.length + partners.length < minTotal) return "--";
-            
-            const separator = (strategy.type.includes("BOX") || strategy.type.includes("複") || strategy.type.includes("連複") || strategy.type.includes("連連") || strategy.type.includes("ワイド")) ? ' - ' : ' → ';
-            return finalAxes.map(h => pad(h.horse_number)).join(' → ') + separator + partners.map(h => pad(h.horse_number)).join(', ');
-        }}
 
-        function showRecommendation(raceId) {{
-            const raceData = currentData[raceId];
-            if (!raceData || !raceData.strategies) return;
+            const horses = raceData.horses;
+            const rIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
+            const rOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[rIdShort]) : null;
 
-            const modal = document.getElementById('recommend-modal');
-            const body = document.getElementById('modal-body');
-            
-            // Need to pass stats to generateBettingEyes
-            const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
+            // 1. レース内の単勝人気順位 (popRanks) の計算
+            const popRanks = {{}};
+            if (rOdds && rOdds.length > 0) {{
+                const sortedOdds = [...rOdds]
+                    .filter(o => o && o[0] !== undefined)
+                    .sort((a, b) => {{
+                        const valA = parseFloat(a[1]) > 0 ? parseFloat(a[1]) : 9999;
+                        const valB = parseFloat(b[1]) > 0 ? parseFloat(b[1]) : 9999;
+                        return valA - valB;
+                    }});
+                sortedOdds.forEach((item, idx) => {{
+                    popRanks[parseInt(item[0])] = idx + 1;
+                }});
+            }}
+
+            // 2. モデルごとの平均/標準偏差 (raceStats) と 順位マップ の作成
+            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
             const raceStats = {{}};
-            scoreModels.forEach(m => {{
-                const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
+            allScoreKeys.forEach(m => {{
+                const vals = horses.map(h => parseFloat(h[m]) || 0);
                 const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-                const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, raceData.horses.length - 1);
+                const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - 1);
                 const std = Math.sqrt(variance) || 1.0;
                 raceStats[m] = {{ mean, std }};
             }});
 
+            const getZ = (h, m) => {{
+                const s = raceStats[m] || {{ mean: 0, std: 1.0 }};
+                return ((parseFloat(h[m]) || 0) - s.mean) / s.std;
+            }};
+
+            // 高信頼度判定用 主要4モデル（DecisionTree除外）
+            const CONF_MODELS = ['LightGBM_raw', 'CatBoost_raw', 'RandomForest_raw', 'TabNet_raw'];
+            const availableConfModels = CONF_MODELS.filter(m => horses.some(h => h[m] !== undefined && h[m] !== null));
+
+            const modelRanks = {{}};
+            availableConfModels.forEach(m => {{
+                const sorted = [...horses].sort((a, b) => (parseFloat(b[m]) || 0) - (parseFloat(a[m]) || 0));
+                modelRanks[m] = {{}};
+                sorted.forEach((h, idx) => {{
+                    modelRanks[m][h.horse_number] = idx + 1;
+                }});
+            }});
+
+            const horseConf = {{}};
+            horses.forEach(h => {{
+                const hNum = h.horse_number;
+                const ranks = availableConfModels.map(m => modelRanks[m][hNum]).filter(r => r !== undefined);
+                if (ranks.length > 0) {{
+                    const avgRank = ranks.reduce((a, b) => a + b, 0) / ranks.length;
+                    const top3Count = ranks.filter(r => r <= 3).length;
+                    const top4Count = ranks.filter(r => r <= 4).length;
+                    horseConf[hNum] = {{ avgRank, top3Count, top4Count }};
+                }} else {{
+                    horseConf[hNum] = {{ avgRank: 99.0, top3Count: 0, top4Count: 0 }};
+                }}
+            }});
+
+            const pad = (n) => String(n).padStart(2, '0');
+
+            // 3. 各戦略の判定
+            const candidates = [];
+            const seenKey = new Set();
+
+            (raceData.strategies || []).forEach(strat => {{
+                const mName = strat.model;
+                const scoreKey = mName === 'Ensemble' ? 'Ensemble' : (mName + '_raw');
+                if (!horses[0] || horses[0][scoreKey] === undefined) return;
+
+                const allSorted = [...horses].sort((a, b) => getZ(b, scoreKey) - getZ(a, scoreKey));
+                if (allSorted.length < 5) return;
+
+                const axis1 = allSorted[0];
+                const h1Num = axis1.horse_number;
+                const scoreTh = (strat.score_th !== null && strat.score_th !== undefined) ? parseFloat(strat.score_th) : -99;
+                
+                // スコア閾値
+                if (getZ(axis1, scoreKey) < scoreTh) return;
+
+                // 主要4モデル合意度フィルター: 軸馬1 (平均順位 <= 2.2 かつ 3モデル以上Top3支持)
+                const h1Info = horseConf[h1Num] || {{ avgRank: 99, top3Count: 0, top4Count: 0 }};
+                if (availableConfModels.length >= 3) {{
+                    if (!(h1Info.avgRank <= 2.2 && h1Info.top3Count >= 3)) return;
+                }}
+
+                // 単勝5番人気以内フィルター
+                if (Object.keys(popRanks).length > 0) {{
+                    const popRank = popRanks[parseInt(h1Num)] || 99;
+                    if (popRank > 5) return;
+                }}
+
+                const rawType = String(strat.type || '');
+                const parts = rawType.split('-');
+                const shubetsu = strat.shubetsu || (parts[0] || '').trim();
+                const typeSub = strat.type_sub || (parts[1] || '').trim();
+                const sRank = strat.s_rank !== undefined ? strat.s_rank : 99;
+                const tRank = strat.t_rank !== undefined ? strat.t_rank : 99;
+
+                const is2Axis = typeSub.includes('2頭') || (strat.axis_count && parseInt(strat.axis_count) >= 2);
+                let axis2 = null;
+                let h2Num = null;
+
+                if (is2Axis) {{
+                    axis2 = allSorted[1];
+                    h2Num = axis2.horse_number;
+                    const a2ScoreTh = (strat.axis2_score_th !== null && strat.axis2_score_th !== undefined)
+                        ? parseFloat(strat.axis2_score_th)
+                        : ((strat.partner_score_th !== null && strat.partner_score_th !== undefined) ? parseFloat(strat.partner_score_th) : -99);
+                    
+                    if (getZ(axis2, scoreKey) < a2ScoreTh) return;
+
+                    // 2頭軸の場合の軸馬2チェック: 平均順位 <= 3.7 かつ 2モデル以上Top4支持
+                    if (availableConfModels.length >= 3) {{
+                        const h2Info = horseConf[h2Num] || {{ avgRank: 99, top3Count: 0, top4Count: 0 }};
+                        if (!(h2Info.avgRank <= 3.7 && h2Info.top4Count >= 2)) return;
+                    }}
+                }}
+
+                // 相手馬
+                const pScoreTh = (strat.partner_score_th !== null && strat.partner_score_th !== undefined) ? parseFloat(strat.partner_score_th) : -99;
+                const nPartners = parseInt(strat.partners) || 5;
+
+                const others = is2Axis ? allSorted.slice(2) : allSorted.slice(1);
+                const validPartners = others.filter(h => getZ(h, scoreKey) >= pScoreTh).slice(0, nPartners);
+
+                const reqMinPartners = (shubetsu.includes('3連') || rawType.includes('3連')) ? 2 : ((shubetsu.includes('馬') || rawType.includes('馬')) ? 1 : 0);
+                if (validPartners.length < reqMinPartners) return;
+
+                // 買い目テキストと点数(combs)
+                const pNums = validPartners.map(h => pad(h.horse_number));
+                let bettingEyesText = '';
+                let combs = 0;
+                const P = validPartners.length;
+
+                if (typeSub === '1頭軸マルチ') {{
+                    if (P < 2) return;
+                    bettingEyesText = `${{pad(h1Num)}} ↔ ${{pNums.join(', ')}}`;
+                    combs = (shubetsu.includes('3連単') || rawType.includes('3連単')) ? 3 * P * (P - 1) : 2 * P;
+                }} else if (typeSub === '2頭軸マルチ') {{
+                    if (!h2Num || P < 1) return;
+                    bettingEyesText = `${{pad(h1Num)}}, ${{pad(h2Num)}} ↔ ${{pNums.join(', ')}}`;
+                    combs = 6 * P;
+                }} else if (typeSub === '1頭軸ながし') {{
+                    if (P < (shubetsu.includes('3連') ? 2 : 1)) return;
+                    bettingEyesText = `${{pad(h1Num)}} → ${{pNums.join(', ')}}`;
+                    combs = (shubetsu.includes('3連単') || rawType.includes('3連単')) ? P * (P - 1) : ((shubetsu.includes('3連複') || rawType.includes('3連複')) ? Math.floor((P * (P - 1)) / 2) : P);
+                }} else if (typeSub === '2頭軸ながし') {{
+                    if (!h2Num || P < 1) return;
+                    bettingEyesText = `${{pad(h1Num)}} → ${{pad(h2Num)}} → ${{pNums.join(', ')}}`;
+                    combs = P;
+                }} else if (typeSub === 'マルチ') {{
+                    if (P < 1) return;
+                    bettingEyesText = `${{pad(h1Num)}} ↔ ${{pNums.join(', ')}}`;
+                    combs = 2 * P;
+                }} else if (typeSub === 'ながし') {{
+                    if (P < 1) return;
+                    bettingEyesText = `${{pad(h1Num)}} → ${{pNums.join(', ')}}`;
+                    combs = P;
+                }} else if (shubetsu === '単勝' || rawType === '単勝') {{
+                    bettingEyesText = `${{pad(h1Num)}}`;
+                    combs = 1;
+                }} else if (typeSub.includes('BOX') || rawType.includes('BOX')) {{
+                    const allBox = [pad(h1Num), ...pNums];
+                    bettingEyesText = allBox.join(', ');
+                    combs = (shubetsu.includes('3連') ? (allBox.length * (allBox.length - 1) * (allBox.length - 2)) / 6 : (allBox.length * (allBox.length - 1)) / 2) || 1;
+                }} else {{
+                    bettingEyesText = `${{pad(h1Num)}}` + (pNums.length > 0 ? ` → ${{pNums.join(', ')}}` : '');
+                    combs = Math.max(1, pNums.length);
+                }}
+
+                const dupKey = `${{mName}}_${{rawType}}`;
+                if (!seenKey.has(dupKey)) {{
+                    seenKey.add(dupKey);
+                    candidates.push({{
+                        strat,
+                        model: mName,
+                        rawType,
+                        shubetsu,
+                        typeSub,
+                        sRank,
+                        tRank,
+                        roi: parseFloat(strat.roi) || 0,
+                        hitRate: parseFloat(strat.hit_rate) || 0,
+                        axis1Num: h1Num,
+                        axis2Num: h2Num,
+                        partnerNums: validPartners.map(h => h.horse_number),
+                        bettingEyesText,
+                        combs,
+                        h1Info,
+                        h1PopRank: popRanks[parseInt(h1Num)] || null
+                    }});
+                }}
+            }});
+
+            // 4. 重複排除・ソート & レース内最大5点選定
+            candidates.sort((a, b) => (a.sRank - b.sRank) || (a.tRank - b.tRank) || (b.roi - a.roi));
+
+            const validStrategies = [];
+            let currentCombs = 0;
+            for (const cand of candidates) {{
+                validStrategies.push(cand);
+                currentCombs += cand.combs;
+                if (currentCombs >= 5) break;
+            }}
+
+            const jikuSet = new Set();
+            const partnerSet = new Set();
+            validStrategies.forEach(cand => {{
+                jikuSet.add(String(cand.axis1Num));
+                if (cand.axis2Num) jikuSet.add(String(cand.axis2Num));
+                cand.partnerNums.forEach(pNum => partnerSet.add(String(pNum)));
+            }});
+
+            return {{
+                validStrategies,
+                jikuSet,
+                partnerSet,
+                horseConf,
+                popRanks,
+                raceStats
+            }};
+        }}
+
+        function showRecommendation(raceId) {{
+            const raceData = currentData[raceId];
+            if (!raceData) return;
+
+            const modal = document.getElementById('recommend-modal');
+            const body = document.getElementById('modal-body');
+            
+            const kellyResult = evaluateKelly2Strategies(raceData, raceId);
+            const validStrategies = kellyResult.validStrategies || [];
+
             let html = `
                 <div style="text-align: center; margin-bottom: 25px; position: relative;">
-                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">AI Prediction</div>
+                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">Kelly2 AI Strategy</div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
                             style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
@@ -1970,43 +2074,47 @@ def generate_static_html():
                 </div>
             `;
 
-            let hasValidRec = false;
-            raceData.strategies.forEach(s => {{
-                const bettingEyes = generateBettingEyes(raceData.horses, s, raceStats, raceId);
-                if (bettingEyes === '--') return;
+            if (validStrategies.length > 0) {{
+                validStrategies.forEach(item => {{
+                    const s = item.strat;
+                    const displayType = item.rawType;
+                    const popDisp = item.h1PopRank ? `単勝 ${{item.h1PopRank}}番人気` : '';
+                    const confDisp = `4モデル平均 ${{item.h1Info.avgRank.toFixed(1)}}位 (Top3支持: ${{item.h1Info.top3Count}}モデル)`;
 
-                hasValidRec = true;
-                const displayType = s.type;
-                const axis2Disp = s.axis_count >= 2 ? ` / Jiku2 > ${{s.axis2_score_th === null ? 'なし' : s.axis2_score_th || s.partner_score_th}}${{s.axis2_EV_th !== null && parseFloat(s.axis2_EV_th) > 0 ? ` (EV > ${{s.axis2_EV_th}})` : ''}}` : '';
-                const evDisp = s.EV_th !== null && parseFloat(s.EV_th) > 0 ? ` (EV > ${{s.EV_th}})` : '';
-                const pEvDisp = s.partner_EV_th !== null && parseFloat(s.partner_EV_th) > 0 ? ` (EV > ${{s.partner_EV_th}})` : '';
-
-                html += `
-                    <div class="strategy-item-modal" data-strategy-type="${{s.type}}">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">${{displayType}} <span style="font-size: 0.7rem; color: var(--text-muted); margin-left:8px; font-weight:400;">by ${{s.model}}</span></div>
+                    html += `
+                        <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
+                                    ${{displayType}} 
+                                    <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{item.model}}</span>
+                                    <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点</span>
+                                </div>
+                            </div>
+                            <div class="bet-eyes-box">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                                <div class="bet-eyes-text">${{item.bettingEyesText}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                <div style="color: #94a3b8;">
+                                    軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong> (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
+                                </div>
+                                <div>
+                                    ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>
+                                </div>
+                            </div>
+                            <div class="bet-result-details"></div>
+                            <div style="margin-top: 10px; text-align: right;">
+                                <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                            </div>
                         </div>
-                        <div class="bet-eyes-box">
-                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                            <div class="bet-eyes-text">${{bettingEyes}}</div>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 8px;">
-                            Z-Score: Jiku1 > ${{s.score_th}}${{evDisp}}${{axis2Disp}} / Partner > ${{s.partner_score_th}}${{pEvDisp}} 　ROI ${{s.roi}}% | Hit ${{s.hit_rate}}%
-                        </div>
-                        <div class="bet-result-details"></div>
-                        <div style="margin-top: 8px; text-align: right;">
-                            <button class="smappy-btn" data-eyes="${{bettingEyes}}" data-type="${{s.type}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
-                        </div>
-                    </div>
-                `;
-            }});
-
-            if (!hasValidRec) {{
+                    `;
+                }});
+            }} else {{
                 html += `
                     <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                         <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Recommendations Available</div>
-                        <div style="font-weight: 700; font-size: 0.8rem;">オススメの買い目はありません</div>
+                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No High-Confidence Recommendations</div>
+                        <div style="font-weight: 700; font-size: 0.8rem;">Kelly2 高信頼度条件を満たす買い目はありません</div>
                     </div>
                 `;
             }}
