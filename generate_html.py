@@ -2535,23 +2535,24 @@ def generate_static_html():
 
                 <div id="panel-ios" style="display: block;">
                     <div class="step-box">
-                        <span class="step-title">1. 初回設定 (1分)</span>
+                        <span class="step-title">1. 初回設定 (1分・名前: スマッピー)</span>
                         <div class="step-desc">
-                            1. iOSショートカットアプリで新規作成<br>
-                            2. <b>「クリップボードを取得」</b>アクションを追加<br>
-                            3. <b>「WebページでJavaScriptを実行」</b>を追加<br>
-                            4. JavaScriptの中身をすべて消して、変数 <b>[クリップボード]</b> のみを配置して完了（※evalなどは不要です）
+                            ショートカットアプリで新規作成（名前: <b>スマッピー</b>）<br>
+                            ① <b>「クリップボードを取得」</b> を追加<br>
+                            ② <b>「URLを開く」</b> を追加（URL: <code>https://qrcode.jra.go.jp/</code>）<br>
+                            ③ <b>「待機」</b>（1秒）を追加<br>
+                            ④ <b>「WebページでJavaScriptを実行」</b> を追加（中身を変数 <b>[クリップボード]</b> だけにする）
                         </div>
                     </div>
                     <div class="step-box">
                         <span class="step-title">2. 使い方</span>
-                        <div class="step-desc">下のボタンで「コード」をコピー。JRA画面で共有ボタン(⬆️)からそのショートカットを押すだけ！</div>
+                        <div class="step-desc">下のボタンを押すだけ！自動でJRAスマッピーが開いて買い目が入力されます。</div>
                     </div>
-                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用のコードをコピー</button>
+                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用のコードをコピー＆起動</button>
                 </div>
                 
                 <div style="font-size: 0.55rem; color: var(--text-muted); margin-top: 10px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
-                    JRA通常投票の「会場選択」画面で実行してください
+                    JRAスマッピー（qrcode.jra.go.jp）対応
                 </div>
             `;
             btn.parentElement.appendChild(popup);
@@ -2593,7 +2594,7 @@ def generate_static_html():
             document.execCommand('copy');
             document.body.removeChild(t);
             
-            if (confirm('コードをコピーしました！\\nこのままショートカット「スマッピー」を起動しますか？')) {{
+            if (confirm('コードをコピーしました！\nこのままショートカット「スマッピー」を起動してJRA画面を開きますか？')) {{
                 window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
             }}
         }}
