@@ -2101,16 +2101,15 @@
                         <div class="step-desc">
                             ショートカットアプリで新規作成（名前: <b>スマッピー</b>）<br>
                             ① <b>「クリップボードを取得」</b> を追加<br>
-                            ② <b>「URLを開く」</b> を追加（URL: <code>https://qrcode.jra.go.jp/</code>）<br>
-                            ③ <b>「待機」</b>（1秒）を追加<br>
-                            ④ <b>「WebページでJavaScriptを実行」</b> を追加（中身を変数 <b>[クリップボード]</b> だけにする）
+                            ② <b>「WebページでJavaScriptを実行」</b> を追加<br>
+                            ③ JavaScript入力欄の中身を消して、変数 <b>[クリップボード]</b> のみを配置して保存
                         </div>
                     </div>
                     <div class="step-box">
                         <span class="step-title">2. 使い方</span>
-                        <div class="step-desc">下のボタンを押すだけ！自動でJRAスマッピーが開いて買い目が入力されます。</div>
+                        <div class="step-desc">下のボタンを押すと自動でJRAスマッピーが開きます。開いた画面でショートカット（または背面タップ等）を押すだけ！</div>
                     </div>
-                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用のコードをコピー＆起動</button>
+                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 コードをコピーしてJRAを開く</button>
                 </div>
                 
                 <div style="font-size: 0.55rem; color: var(--text-muted); margin-top: 10px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
@@ -2156,10 +2155,8 @@
             document.execCommand('copy');
             document.body.removeChild(t);
             
-            if (confirm('コードをコピーしました！
-このままショートカット「スマッピー」を起動してJRA画面を開きますか？')) {
-                window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent("スマッピー");
-            }
+            alert('買い目コードをコピーしました！\nJRAスマッピー画面を開きます。');
+            window.open('https://qrcode.jra.go.jp/', '_blank');
         }
 
         function copySmappyBml() {
