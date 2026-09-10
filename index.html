@@ -342,7 +342,7 @@
                 flex-wrap: wrap;
             }
 
-            .pickup-badge, .reason-badge {
+            .pickup-badge, .pickup2-badge, .reason-badge {
                 padding: 4px 10px;
                 font-size: 0.75rem;
                 gap: 4px;
@@ -529,6 +529,73 @@
             background: linear-gradient(135deg, rgba(74, 222, 128, 0.4), rgba(59, 130, 246, 0.4));
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(74, 222, 128, 0.5);
             transform: translateY(-2px) scale(1.06);
+        }
+
+        /* AI Recommendation Modal Styles (Strategy 2 / PICKUP 2) */
+        .pickup2-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(99, 102, 241, 0.35));
+            border: 1px solid rgba(168, 85, 247, 0.6);
+            color: #c084fc;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.25);
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+        }
+
+        .pickup2-badge:hover {
+            background: linear-gradient(135deg, rgba(192, 132, 252, 0.45), rgba(129, 140, 248, 0.55));
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(168, 85, 247, 0.5);
+            transform: translateY(-2px) scale(1.06);
+        }
+
+        /* Recommendation Modal Tabs */
+        .rec-tab-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+        }
+
+        .rec-tab-btn {
+            padding: 8px 18px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            letter-spacing: 0.03em;
+        }
+
+        .rec-tab-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+
+        .rec-tab-btn.active {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.25), rgba(59, 130, 246, 0.25));
+            border-color: #4ade80;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(74, 222, 128, 0.35);
+        }
+
+        .rec-tab-btn.strat2.active {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(99, 102, 241, 0.4));
+            border-color: #c084fc;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(168, 85, 247, 0.4);
         }
 
         /* Evaluation Reasons Badge Styles */
@@ -818,6 +885,12 @@
             <select id="filter-round" onchange="renderRaces()">
                 <option value="ALL">All Races</option>
             </select>
+            <select id="filter-pickup" onchange="renderRaces()">
+                <option value="ALL">All Status</option>
+                <option value="PICKUP1">🎯 PICKUP 1</option>
+                <option value="PICKUP2">🚀 PICKUP 2</option>
+                <option value="ANY_PICKUP">✨ PICKUP (いずれか)</option>
+            </select>
             <select id="sort-select" onchange="renderRaces()">
                 <option value="score">Sort by AI Score</option>
                 <option value="odds">Sort by Odds</option>
@@ -825,6 +898,7 @@
             </select>
             <select id="model-select" onchange="renderRaces()" style="display: none;">
                 <option value="Ensemble">Ensemble</option>
+                <option value="AutoGluon">AutoGluon</option>
                 <option value="LightGBM">LightGBM</option>
                 <option value="XGBoost">XGBoost</option>
                 <option value="CatBoost">CatBoost</option>
@@ -863,6 +937,7 @@
     <script>
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
+        window.strategies2 = [{"strategy_id": "POS_S3_multi_kyoto_shiba_tabnet", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "京都_芝", "model": "TabNet", "target_rule": "京都_芝の3連単-1頭軸3頭マルチ (TabNet)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 126.2, "roi_2026": 845.5, "roi_total": 304.2, "monthly_win_rate": 62.5, "hit_rate": 16.2, "n_races": 291}, {"strategy_id": "POS_S3_multi_mishori_sapporo_dirt_lgb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_札幌_ダート", "model": "LightGBM", "target_rule": "未勝利_札幌_ダートの3連単-1頭軸3頭マルチ (LightGBM)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 199.5, "roi_2026": 244.2, "roi_total": 221.8, "monthly_win_rate": 83.3, "hit_rate": 18.8, "n_races": 64}, {"strategy_id": "POS_S3_2jiku_nakayama_2class_shiba_tabnet", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "2勝クラス_中山_芝", "model": "TabNet", "target_rule": "2勝クラス_中山_芝の3連単-2頭軸3頭マルチ (TabNet)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 242.0, "roi_2026": 183.5, "roi_total": 225.6, "monthly_win_rate": 44.4, "hit_rate": 14.0, "n_races": 50}, {"strategy_id": "POS_S3_2jiku_kyoto_tabnet", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2頭軸3頭マルチ", "category": "venue_name", "cat_col": "venue_name", "val": "京都", "model": "TabNet", "target_rule": "京都の3連単-2頭軸3頭マルチ (TabNet)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 104.3, "roi_2026": 718.6, "roi_total": 248.9, "monthly_win_rate": 50.0, "hit_rate": 13.6, "n_races": 612}, {"strategy_id": "POS_S3_2jiku_mishori_hakodate_dirt_ag", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_函館_ダート", "model": "AutoGluon", "target_rule": "未勝利_函館_ダートの3連単-2頭軸3頭マルチ (AutoGluon)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 111.5, "roi_2026": 258.3, "roi_total": 184.9, "monthly_win_rate": 75.0, "hit_rate": 24.1, "n_races": 58}, {"strategy_id": "POS_S3_2jiku_mishori_kokura_shiba_xgb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_小倉_芝", "model": "XGBoost", "target_rule": "未勝利_小倉_芝の3連単-2頭軸3頭マルチ (XGBoost)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 153.9, "roi_2026": 110.0, "roi_total": 139.8, "monthly_win_rate": 37.5, "hit_rate": 16.0, "n_races": 75}, {"strategy_id": "POS_S3_multi_nakayama_2class_ens", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "class_venue", "cat_col": "class_venue", "val": "2勝クラス_中山", "model": "Ensemble", "target_rule": "2勝クラス_中山の3連単-1頭軸3頭マルチ (Ensemble)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 399.4, "roi_2026": 157.3, "roi_total": 332.3, "monthly_win_rate": 55.6, "hit_rate": 17.8, "n_races": 101}, {"strategy_id": "POS_S3_multi_hanshin_1class_dirt_xgb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_阪神_ダート", "model": "XGBoost", "target_rule": "1勝クラス_阪神_ダートの3連単-1頭軸3頭マルチ (XGBoost)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 139.8, "roi_2026": 274.4, "roi_total": 193.1, "monthly_win_rate": 50.0, "hit_rate": 12.9, "n_races": 101}, {"strategy_id": "POS_S3_multi_mishori_sapporo_lgb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "class_venue", "cat_col": "class_venue", "val": "未勝利_札幌", "model": "LightGBM", "target_rule": "未勝利_札幌の3連単-1頭軸3頭マルチ (LightGBM)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 145.1, "roi_2026": 134.0, "roi_total": 139.6, "monthly_win_rate": 66.7, "hit_rate": 17.6, "n_races": 131}, {"strategy_id": "POS_S3_nagashi_mishori_sapporo_dirt_lgb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭流し", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_札幌_ダート", "model": "LightGBM", "target_rule": "未勝利_札幌_ダートの3連単-1頭軸3頭流し (LightGBM)", "bets": 6, "unit_price": 200, "cost": 1200, "roi_2025": 92.9, "roi_2026": 236.8, "roi_total": 164.8, "monthly_win_rate": 33.3, "hit_rate": 10.9, "n_races": 64}, {"strategy_id": "POS_EXP_東京_3連単-2通り_AutoGluon", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2通り", "category": "class_venue", "cat_col": "class_venue", "val": "1勝クラス_東京", "model": "AutoGluon", "target_rule": "1勝クラス_東京の3連単-2通り (AutoGluon)", "bets": 2, "unit_price": 100, "cost": 200, "roi_2025": 165.7, "roi_2026": 94.7, "roi_total": 145.1, "monthly_win_rate": 55.6, "hit_rate": 6.5, "n_races": 169}, {"strategy_id": "POS_EXP_東京_3連単-2通り_AutoGluon", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2通り", "category": "class_venue", "cat_col": "class_venue", "val": "1勝クラス_東京_ダート", "model": "AutoGluon", "target_rule": "1勝クラス_東京_ダートの3連単-2通り (AutoGluon)", "bets": 2, "unit_price": 100, "cost": 200, "roi_2025": 167.8, "roi_2026": 160.0, "roi_total": 165.6, "monthly_win_rate": 44.4, "hit_rate": 5.0, "n_races": 100}, {"strategy_id": "POS_EXP_中京_単勝_AutoGluon", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "venue_track", "cat_col": "venue_track", "val": "中京_ダート", "model": "AutoGluon", "target_rule": "中京_ダートの単勝 (AutoGluon)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 99.8, "roi_2026": 123.4, "roi_total": 107.1, "monthly_win_rate": 75.0, "hit_rate": 32.1, "n_races": 305}, {"strategy_id": "POS_EXP_中京_3連単-2頭軸3頭マルチ_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2頭軸3頭マルチ", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "新馬_中京_芝", "model": "Ensemble", "target_rule": "新馬_中京_芝の3連単-2頭軸3頭マルチ (Ensemble)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 164.4, "roi_2026": 205.9, "roi_total": 182.0, "monthly_win_rate": 66.7, "hit_rate": 21.2, "n_races": 33}, {"strategy_id": "POS_EXP_福島_単勝_XGBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_福島_芝", "model": "XGBoost", "target_rule": "1勝クラス_福島_芝の単勝 (XGBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 156.7, "roi_2026": 120.7, "roi_total": 143.1, "monthly_win_rate": 85.7, "hit_rate": 25.7, "n_races": 74}, {"strategy_id": "POS_EXP_福島_3連単-3頭BOX_CatBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-3頭BOX", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_福島_ダート", "model": "CatBoost", "target_rule": "1勝クラス_福島_ダートの3連単-3頭BOX (CatBoost)", "bets": 6, "unit_price": 100, "cost": 600, "roi_2025": 185.5, "roi_2026": 350.8, "roi_total": 247.9, "monthly_win_rate": 57.1, "hit_rate": 9.4, "n_races": 53}, {"strategy_id": "POS_EXP_福島_単勝_TabNet", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue", "cat_col": "class_venue", "val": "1勝クラス_福島", "model": "TabNet", "target_rule": "1勝クラス_福島の単勝 (TabNet)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 138.4, "roi_2026": 116.7, "roi_total": 130.2, "monthly_win_rate": 71.4, "hit_rate": 23.6, "n_races": 127}, {"strategy_id": "POS_EXP_函館_複勝_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "複勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_函館_ダート", "model": "Ensemble", "target_rule": "1勝クラス_函館_ダートの複勝 (Ensemble)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 100.5, "roi_2026": 99.5, "roi_total": 100.0, "monthly_win_rate": 50.0, "hit_rate": 60.0, "n_races": 40}, {"strategy_id": "POS_EXP_函館_3連単-2通り_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-2通り", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_函館_芝", "model": "Ensemble", "target_rule": "未勝利_函館_芝の3連単-2通り (Ensemble)", "bets": 2, "unit_price": 100, "cost": 200, "roi_2025": 105.8, "roi_2026": 2113.3, "roi_total": 1109.5, "monthly_win_rate": 50.0, "hit_rate": 4.7, "n_races": 64}, {"strategy_id": "POS_EXP_小倉_単勝_XGBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_小倉_芝", "model": "XGBoost", "target_rule": "未勝利_小倉_芝の単勝 (XGBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 124.3, "roi_2026": 188.3, "roi_total": 144.8, "monthly_win_rate": 62.5, "hit_rate": 29.3, "n_races": 75}, {"strategy_id": "POS_EXP_新潟_単勝_LightGBM", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "venue_track", "cat_col": "venue_track", "val": "新潟_芝", "model": "LightGBM", "target_rule": "新潟_芝の単勝 (LightGBM)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 99.3, "roi_2026": 119.5, "roi_total": 108.4, "monthly_win_rate": 85.7, "hit_rate": 26.7, "n_races": 277}, {"strategy_id": "POS_EXP_新潟_単勝_XGBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_新潟_芝", "model": "XGBoost", "target_rule": "1勝クラス_新潟_芝の単勝 (XGBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 119.1, "roi_2026": 189.7, "roi_total": 149.1, "monthly_win_rate": 71.4, "hit_rate": 25.0, "n_races": 80}, {"strategy_id": "POS_EXP_京都_3連単-3頭BOX_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-3頭BOX", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "未勝利_京都_ダート", "model": "Ensemble", "target_rule": "未勝利_京都_ダートの3連単-3頭BOX (Ensemble)", "bets": 6, "unit_price": 100, "cost": 600, "roi_2025": 97.3, "roi_2026": 381.5, "roi_total": 169.0, "monthly_win_rate": 62.5, "hit_rate": 13.5, "n_races": 111}, {"strategy_id": "POS_EXP_京都_単勝_CatBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_京都_ダート", "model": "CatBoost", "target_rule": "1勝クラス_京都_ダートの単勝 (CatBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 139.3, "roi_2026": 96.1, "roi_total": 129.5, "monthly_win_rate": 62.5, "hit_rate": 29.1, "n_races": 79}, {"strategy_id": "POS_EXP_阪神_複勝_CatBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "複勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_阪神_ダート", "model": "CatBoost", "target_rule": "1勝クラス_阪神_ダートの複勝 (CatBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 127.0, "roi_2026": 120.0, "roi_total": 124.3, "monthly_win_rate": 80.0, "hit_rate": 65.3, "n_races": 101}, {"strategy_id": "POS_EXP_阪神_単勝_CatBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "class_venue", "cat_col": "class_venue", "val": "1勝クラス_阪神", "model": "CatBoost", "target_rule": "1勝クラス_阪神の単勝 (CatBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 118.1, "roi_2026": 144.8, "roi_total": 128.7, "monthly_win_rate": 70.0, "hit_rate": 31.6, "n_races": 174}, {"strategy_id": "POS_EXP_阪神_複勝_CatBoost", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "複勝", "category": "class_venue_track", "cat_col": "class_venue_track", "val": "1勝クラス_阪神", "model": "CatBoost", "target_rule": "1勝クラス_阪神の複勝 (CatBoost)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 107.8, "roi_2026": 130.9, "roi_total": 117.0, "monthly_win_rate": 70.0, "hit_rate": 63.2, "n_races": 174}, {"strategy_id": "POS_S3_multi_nakayama_shiba_cb", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-1頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "中山_芝", "model": "CatBoost", "target_rule": "中山_芝の3連単-1頭軸3頭マルチ (CatBoost)", "bets": 18, "unit_price": 100, "cost": 1800, "roi_2025": 167.7, "roi_2026": 174.5, "roi_total": 169.6, "monthly_win_rate": 55.6, "hit_rate": 14.5, "n_races": 290}, {"strategy_id": "POS_S3_box_nakayama_shiba_ag", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "3連単-3頭BOX", "category": "venue_track", "cat_col": "venue_track", "val": "中山_芝", "model": "AutoGluon", "target_rule": "中山_芝の3連単-3頭BOX (AutoGluon)", "bets": 6, "unit_price": 200, "cost": 1200, "roi_2025": 87.6, "roi_2026": 253.8, "roi_total": 134.0, "monthly_win_rate": 22.2, "hit_rate": 8.3, "n_races": 290}, {"strategy_id": "POS_EXP_東京_単勝_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "venue_name", "cat_col": "venue_name", "val": "東京", "model": "Ensemble", "target_rule": "東京の単勝 (Ensemble)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 102.5, "roi_2026": 108.4, "roi_total": 104.8, "monthly_win_rate": 62.5, "hit_rate": 28.5, "n_races": 832}, {"strategy_id": "POS_EXP_中山_単勝_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "単勝", "category": "venue_name", "cat_col": "venue_name", "val": "中山", "model": "Ensemble", "target_rule": "中山の単勝 (Ensemble)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 105.1, "roi_2026": 101.2, "roi_total": 103.6, "monthly_win_rate": 58.3, "hit_rate": 26.8, "n_races": 778}, {"strategy_id": "POS_EXP_京都_複勝_Ensemble", "correlation_type": "正の相関 (購入)", "action": "BUY", "bet_type": "複勝", "category": "venue_name", "cat_col": "venue_name", "val": "京都", "model": "Ensemble", "target_rule": "京都の複勝 (Ensemble)", "bets": 1, "unit_price": 100, "cost": 100, "roi_2025": 104.8, "roi_2026": 106.2, "roi_total": 105.4, "monthly_win_rate": 75.0, "hit_rate": 61.2, "n_races": 773}, {"strategy_id": "NEG_S2_open_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス", "cat_col": "class_cat", "val": "オープン", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 205}, {"strategy_id": "NEG_S2_hakodate_dirt_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "競馬場×芝/ダ", "cat_col": "venue_track", "val": "函館_ダート", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 118}, {"strategy_id": "NEG_S2_3class_dirt_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス×芝/ダ", "cat_col": "class_track", "val": "3勝クラス_ダート", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 138}, {"strategy_id": "NEG_S2_sapporo_shiba_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "競馬場×芝/ダ", "cat_col": "venue_track", "val": "札幌_芝", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 198}, {"strategy_id": "NEG_S3_nagashi_sapporo_shiba_xgb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭流し", "category": "競馬場×芝/ダ", "cat_col": "venue_track", "val": "札幌_芝", "model": "XGBoost", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 6, "unit_price": 0, "cost": 600, "roi_2025": 1.1, "roi_2026": 3.0, "roi_total": 2.0, "monthly_win_rate": 0.0, "hit_rate": 1.0, "n_races": 198}, {"strategy_id": "NEG_S2_kokura_dirt_lgb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "競馬場×芝/ダ", "cat_col": "venue_track", "val": "小倉_ダート", "model": "LightGBM", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 116}, {"strategy_id": "NEG_S2_dirt_furyo_lgb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "芝/ダ×馬場", "cat_col": "track_ground", "val": "ダート_不良", "model": "LightGBM", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 110}, {"strategy_id": "NEG_S3_multi_sapporo_1class_tabnet", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "1勝クラス_札幌", "model": "TabNet", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 18, "unit_price": 0, "cost": 1800, "roi_2025": 16.0, "roi_2026": 2.3, "roi_total": 9.6, "monthly_win_rate": 0.0, "hit_rate": 5.3, "n_races": 75}, {"strategy_id": "NEG_S3_2jiku_tokyo_jusho_lgb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2頭軸3頭マルチ", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "重賞_東京", "model": "LightGBM", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 18, "unit_price": 0, "cost": 1800, "roi_2025": 0.0, "roi_2026": 14.2, "roi_total": 9.5, "monthly_win_rate": 0.0, "hit_rate": 4.8, "n_races": 42}, {"strategy_id": "NEG_S3_multi_tokyo_1class_dirt_cat", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "クラス×競馬場×芝/ダ", "cat_col": "class_venue_track", "val": "1勝クラス_東京_ダート", "model": "CatBoost", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 18, "unit_price": 0, "cost": 1800, "roi_2025": 14.5, "roi_2026": 0.0, "roi_total": 10.9, "monthly_win_rate": 0.0, "hit_rate": 3.2, "n_races": 94}, {"strategy_id": "NEG_S3_2jiku_3class_shiba_xgb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2頭軸3頭マルチ", "category": "クラス×芝/ダ", "cat_col": "class_track", "val": "3勝クラス_芝", "model": "XGBoost", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 18, "unit_price": 0, "cost": 1800, "roi_2025": 17.7, "roi_2026": 0.0, "roi_total": 12.3, "monthly_win_rate": 0.0, "hit_rate": 3.0, "n_races": 169}, {"strategy_id": "NEG_ALL_shogai", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "全券種", "category": "トラック種別", "cat_col": "track_type", "val": "障害", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 0, "unit_price": 0, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 123}, {"strategy_id": "NEG_S3_nagashi_long_shiba_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭流し", "category": "距離×芝/ダ", "cat_col": "dist_track", "val": "長距離 (>2400m)_芝", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 6, "unit_price": 0, "cost": 600, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 100}, {"strategy_id": "NEG_U_open_dirt_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "馬単", "category": "クラス×芝/ダ", "cat_col": "class_track", "val": "オープン_ダート", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 1, "unit_price": 0, "cost": 100, "roi_2025": 6.0, "roi_2026": 0.0, "roi_total": 4.0, "monthly_win_rate": 0.0, "hit_rate": 1.0, "n_races": 97}, {"strategy_id": "NEG_S2_nakayama_3class_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "3勝クラス_中山", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 51}, {"strategy_id": "NEG_U_nakayama_jusho_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "馬単", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "重賞_中山", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 1, "unit_price": 0, "cost": 100, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 37}, {"strategy_id": "NEG_S2_nakayama_jusho_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "重賞_中山", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 37}, {"strategy_id": "NEG_S2_sapporo_dirt_all", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "競馬場×芝/ダ", "cat_col": "venue_track", "val": "札幌_ダート", "model": "全モデル (AutoGluon/LGBM/Cat/XGB/Tab/Ens)", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 8.4, "roi_2026": 3.7, "roi_total": 6.1, "monthly_win_rate": 0.0, "hit_rate": 0.5, "n_races": 138}, {"strategy_id": "NEG_S2_nakayama_1class_dirt_cb_tab", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス×競馬場×芝/ダ", "cat_col": "class_venue_track", "val": "1勝クラス_中山_ダート", "model": "CatBoost/TabNet", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 100}, {"strategy_id": "NEG_S2_sapporo_1class_xgb_cb", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2通り", "category": "クラス×競馬場", "cat_col": "class_venue", "val": "1勝クラス_札幌", "model": "XGBoost/CatBoost", "target_rule": "完全見送り (BUY_BLOCK)", "bets": 2, "unit_price": 0, "cost": 200, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 94}, {"strategy_id": "NEG_EXP_マイル (1400-1600m)_芝_3連単-1頭軸3頭マルチ_AutoGluon", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "dist_track", "cat_col": "dist_track", "val": "マイル (1400-1600m)_芝", "model": "AutoGluon", "target_rule": "除外: マイル芝のAG3連単マルチはROI42%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_短距離 (<1400m)_ダート_3連単-1頭軸3頭マルチ_TabNet", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "dist_track", "cat_col": "dist_track", "val": "短距離 (<1400m)_ダート", "model": "TabNet", "target_rule": "除外: 短距離ダートのTN3連単マルチはROI38%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_重賞_芝_3連単-1頭軸3頭マルチ_CatBoost", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "class_track", "cat_col": "class_track", "val": "重賞_芝", "model": "CatBoost", "target_rule": "除外: 重賞芝のCB3連単マルチはROI27%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_重賞_芝_3連単-2頭軸3頭マルチ_Ensemble", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2頭軸3頭マルチ", "category": "class_track", "cat_col": "class_track", "val": "重賞_芝", "model": "Ensemble", "target_rule": "除外: 重賞芝のEns3連単2頭軸マルチはROI28%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_東京_ダート_3連単-2頭軸3頭マルチ_LightGBM", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-2頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "東京_ダート", "model": "LightGBM", "target_rule": "除外: 東京ダートのLGB3連単2頭軸マルチはROI38%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_福島_芝_3連単-1頭軸3頭マルチ_XGBoost", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "福島_芝", "model": "XGBoost", "target_rule": "除外: 福島芝のXGB3連単マルチはROI31%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_新潟_ダート_3連単-1頭軸3頭マルチ_TabNet", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "新潟_ダート", "model": "TabNet", "target_rule": "除外: 新潟ダートのTN3連単マルチはROI33%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}, {"strategy_id": "NEG_EXP_札幌_芝_3連単-1頭軸3頭マルチ_LightGBM", "correlation_type": "負の相関 (除外)", "action": "EXCLUDE", "bet_type": "3連単-1頭軸3頭マルチ", "category": "venue_track", "cat_col": "venue_track", "val": "札幌_芝", "model": "LightGBM", "target_rule": "除外: 札幌芝のLGB3連単マルチはROI28%の大赤字", "bets": 0, "unit_price": 100, "cost": 0, "roi_2025": 0.0, "roi_2026": 0.0, "roi_total": 0.0, "monthly_win_rate": 0.0, "hit_rate": 0.0, "n_races": 0}];
 
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {
@@ -1113,6 +1188,7 @@
             const fDate = document.getElementById('filter-date').value;
             const fPlace = document.getElementById('filter-place').value;
             const fRound = document.getElementById('filter-round').value;
+            const fPickup = document.getElementById('filter-pickup') ? document.getElementById('filter-pickup').value : 'ALL';
 
             // Show model selector only when sorting by score
             if (sortBy === 'score') {
@@ -1140,6 +1216,21 @@
                 if (fPlace !== 'ALL' && raceData.place !== fPlace) continue;
                 if (fRound !== 'ALL' && String(raceData.round) !== String(fRound)) continue;
 
+                // --- 2. Strategy Highlighting & PICKUP Calculation (Kelly2 High-Confidence Logic) ---
+                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
+                const jikuSet = kellyResult.jikuSet;
+                const partnerSet = kellyResult.partnerSet;
+                const hasPickup1 = kellyResult.validStrategies && kellyResult.validStrategies.length > 0;
+
+                // --- Strategy 2 (Common Purchase Strategy / PICKUP 2 Logic) ---
+                const strat2Result = evaluateStrategy2(raceData, raceId);
+                const hasPickup2 = strat2Result.validStrategies && strat2Result.validStrategies.length > 0;
+
+                // Filter by PICKUP status
+                if (fPickup === 'PICKUP1' && !hasPickup1) continue;
+                if (fPickup === 'PICKUP2' && !hasPickup2) continue;
+                if (fPickup === 'ANY_PICKUP' && !hasPickup1 && !hasPickup2) continue;
+
                 // Sort horses
                 let sortedHorses = [...raceData.horses];
                 
@@ -1166,7 +1257,7 @@
                 const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
 
                 // --- 1. Calculate Z-Scores for Each Model Per Race ---
-                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw'];
                 const raceStats = {};
                 scoreModels.forEach(m => {
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
@@ -1205,11 +1296,6 @@
                     return 0;
                 };
 
-                // --- 2. Strategy Highlighting & PICKUP Calculation (Kelly2 High-Confidence Logic) ---
-                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
-                const jikuSet = kellyResult.jikuSet;
-                const partnerSet = kellyResult.partnerSet;
-
                 // --- Calculate Softmax Probabilities (KV_z_peak using selected model) ---
                 const allResultsForKV = [...raceData.horses];
                 const zAdjScores = allResultsForKV.map(h => getZ(h, mainModelKey) * 2.0);
@@ -1231,12 +1317,13 @@
                 card.id = 'race-card-' + raceId;
                 card.dataset.startTime = raceData.start_time || '';
                 card.dataset.raceId = raceId;
+                card.dataset.hasPickup1 = hasPickup1 ? '1' : '0';
+                card.dataset.hasPickup2 = hasPickup2 ? '1' : '0';
 
                 let horsesHtml = '';
                 sortedHorses.forEach((horse, index) => {
                     const hNum = horse.horse_number;
                     const hName = horse.horse_name;
-                    const ensScore = parseFloat(horse.Ensemble) || 0;
                     const pWin = horse.pWin || 0;
                     
                     // Normalize width for bar
@@ -1267,13 +1354,15 @@
                         else if(index === 2) rankClass = 'rank-3';
                     }
 
-                    // Strategy highlighting class
-                    const isJiku = jikuSet.has(String(hNum));
-                    const isPartner = partnerSet.has(String(hNum)) && !isJiku;
-                    const highlightClass = isJiku ? 'is-jiku' : (isPartner ? 'is-partner' : '');
+                    // Highlighting
+                    let highlightClass = '';
+                    if (jikuSet && jikuSet.has(String(hNum))) {
+                        highlightClass = 'is-jiku';
+                    } else if (partnerSet && partnerSet.has(String(hNum))) {
+                        highlightClass = 'is-partner';
+                    }
 
                     // Decide main score vs sub scores display
-                    // mainModelKey decided above
                     const subModels = scoreModels.filter(m => m !== mainModelKey);
                     const modelShortNames = {
                         'Ensemble': 'Ens',
@@ -1284,12 +1373,13 @@
                         'RandomForest_raw': 'RF',
                         'DecisionTree_raw': 'DT',
                         'Transformer_raw': 'TF',
-                        'TabNet_raw': 'TN'
+                        'TabNet_raw': 'TN',
+                        'AutoGluon_raw': 'AG'
                     };
 
                     let subScoresHtml = '';
                     subModels.forEach(m => {
-                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${modelShortNames[m]}: ${getZ(horse, m).toFixed(4)}</span> `;
+                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${modelShortNames[m] || m}: ${getZ(horse, m).toFixed(4)}</span> `;
                     });
 
                     const winOddsNum = parseFloat(winOdds) || 999;
@@ -1328,11 +1418,21 @@
                 const raceTitle = `${raceData.place || ''}${raceData.round || ''}R ${raceData.start_time || ''}`.trim() || raceData.title;
 
                 const pickupBadgeHtml = ( () => {
-                    if (!kellyResult.validStrategies || kellyResult.validStrategies.length === 0) return '';
+                    if (!hasPickup1) return '';
                     return `
-                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}')">
+                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}', 'strat1')">
                             <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
                             <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                        </div>
+                    `;
+                })();
+
+                const pickup2BadgeHtml = ( () => {
+                    if (!hasPickup2) return '';
+                    return `
+                        <div class="pickup2-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}', 'strat2')">
+                            <span style="font-size: 0.6rem; opacity: 0.85; font-weight: 700; color: #e9d5ff;">STRAT</span>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP 2</div>
                         </div>
                     `;
                 })();
@@ -1359,6 +1459,7 @@
                         <div class="race-header-row-bottom">
                             <div class="race-badges-group">
                                 ${pickupBadgeHtml}
+                                ${pickup2BadgeHtml}
                                 ${reasonBadgeHtml}
                             </div>
                             <button class="accordion-toggle-btn" aria-label="Toggle race" onclick="event.stopPropagation(); toggleRaceCard('${raceId}')">
@@ -1407,7 +1508,7 @@
             }
 
             // 2. モデルごとの平均/標準偏差 (raceStats) と 順位マップ の作成
-            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
+            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw'];
             const raceStats = {};
             allScoreKeys.forEach(m => {
                 const vals = horses.map(h => parseFloat(h[m]) || 0);
@@ -1614,19 +1715,197 @@
             };
         }
 
-        function showRecommendation(raceId) {
+        function evaluateStrategy2(raceData, raceId) {
+            if (!raceData || !raceData.horses || raceData.horses.length < 5 || !window.strategies2) {
+                return { validStrategies: [], isExcluded: false };
+            }
+
+            const horses = raceData.horses;
+            const meta = raceData.meta || {};
+
+            // 1. 各モデルの馬番順位リスト (Top 5)
+            const models = ['AutoGluon', 'LightGBM', 'CatBoost', 'XGBoost', 'TabNet', 'Ensemble'];
+            const modelRanks = {};
+            models.forEach(m => {
+                const scoreKey = m === 'Ensemble' ? 'Ensemble' : (m + '_raw');
+                if (horses.some(h => h[scoreKey] !== undefined && h[scoreKey] !== null)) {
+                    const sorted = [...horses].sort((a, b) => (parseFloat(b[scoreKey]) || 0) - (parseFloat(a[scoreKey]) || 0));
+                    modelRanks[m] = sorted.map(h => parseInt(h.horse_number));
+                }
+            });
+
+            // 2. EXCLUDE 除外ルール判定
+            const excludeRules = window.strategies2.filter(s => s.action === 'EXCLUDE');
+            const isExcluded = (strat, catCol, val, model, betType) => {
+                for (const ex of excludeRules) {
+                    const exCol = ex.cat_col;
+                    const exVal = String(ex.val);
+                    const raceVal = String(meta[exCol] || '');
+                    if (raceVal === exVal) {
+                        const exModel = String(ex.model);
+                        const modelMatch = exModel.includes('全モデル') || exModel.includes(model);
+                        const exBet = String(ex.bet_type);
+                        const betMatch = exBet.includes('全券種') || exBet === betType || exBet.includes(betType) || betType.includes(exBet);
+                        if (modelMatch && betMatch) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+
+            // 3. BUY ルール判定
+            const buyRules = window.strategies2.filter(s => s.action === 'BUY');
+            const candidates = [];
+            const pad = (n) => String(n).padStart(2, '0');
+
+            const dampedPriority = [
+                'POS_EXP_福島_3連単-3頭BOX_CatBoost',
+                'POS_EXP_函館_3連単-2通り_Ensemble',
+                'POS_S3_multi_nakayama_2class_ens',
+                'POS_S3_multi_mishori_sapporo_dirt_lgb',
+                'POS_S3_2jiku_nakayama_2class_shiba_tabnet',
+                'POS_S3_multi_hanshin_1class_dirt_xgb',
+                'POS_EXP_東京_3連単-2通り_AutoGluon',
+                'POS_EXP_京都_3連単-3頭BOX_Ensemble',
+                'POS_S3_nagashi_mishori_sapporo_dirt_lgb',
+                'POS_S3_multi_kyoto_shiba_tabnet',
+                'POS_S3_2jiku_mishori_hakodate_dirt_ag',
+                'POS_S3_box_nakayama_shiba_ag',
+                'POS_S3_multi_nakayama_shiba_cb',
+                'POS_EXP_福島_単勝_XGBoost',
+                'POS_EXP_中京_単勝_AutoGluon',
+                'POS_EXP_新潟_単勝_XGBoost',
+                'POS_EXP_小倉_単勝_XGBoost',
+                'POS_EXP_福島_単勝_TabNet',
+                'POS_EXP_京都_単勝_CatBoost',
+                'POS_EXP_阪神_単勝_CatBoost',
+                'POS_EXP_新潟_単勝_LightGBM',
+                'POS_EXP_阪神_複勝_CatBoost',
+                'POS_EXP_京都_複勝_Ensemble',
+                'POS_EXP_東京_単勝_Ensemble',
+                'POS_EXP_中山_単勝_Ensemble',
+                'POS_EXP_函館_複勝_Ensemble'
+            ];
+
+            buyRules.forEach(sRow => {
+                const catCol = sRow.cat_col;
+                const ruleVal = String(sRow.val);
+                const raceVal = String(meta[catCol] || '');
+                if (raceVal !== ruleVal) return;
+
+                const m = sRow.model;
+                if (!modelRanks[m] || modelRanks[m].length < 5) return;
+
+                const btype = sRow.bet_type;
+                if (isExcluded(sRow, catCol, ruleVal, m, btype)) return;
+
+                const pList = modelRanks[m];
+                const [p1, p2, p3, p4, p5] = pList;
+
+                let bettingEyesText = '';
+                let combs = parseInt(sRow.bets) || 1;
+                let axis1 = p1;
+                let axis2 = null;
+                let partners = [];
+
+                if (btype === '単勝' || btype === '複勝') {
+                    bettingEyesText = `${pad(p1)}`;
+                    combs = 1;
+                } else if (btype === '3連単-2通り') {
+                    bettingEyesText = `${pad(p1)} → ${pad(p2)}, ${pad(p3)} → ${pad(p2)}, ${pad(p3)}`;
+                    axis1 = p1;
+                    partners = [p2, p3];
+                    combs = 2;
+                } else if (btype === '3連単-3頭BOX') {
+                    const sortedBox = [p1, p2, p3].sort((a, b) => a - b);
+                    bettingEyesText = `${pad(sortedBox[0])}, ${pad(sortedBox[1])}, ${pad(sortedBox[2])} BOX`;
+                    axis1 = p1;
+                    partners = [p2, p3];
+                    combs = 6;
+                } else if (btype === '3連単-1頭軸3頭流し') {
+                    const sortedPartners = [p2, p3, p4].sort((a, b) => a - b);
+                    bettingEyesText = `${pad(p1)} → ${sortedPartners.map(pad).join(', ')}`;
+                    axis1 = p1;
+                    partners = sortedPartners;
+                    combs = 6;
+                } else if (btype === '3連単-1頭軸3頭マルチ') {
+                    const sortedPartners = [p2, p3, p4].sort((a, b) => a - b);
+                    bettingEyesText = `${pad(p1)} ↔ ${sortedPartners.map(pad).join(', ')}`;
+                    axis1 = p1;
+                    partners = sortedPartners;
+                    combs = 18;
+                } else if (btype === '3連単-2頭軸3頭マルチ') {
+                    const sortedPartners = [p3, p4, p5].sort((a, b) => a - b);
+                    bettingEyesText = `${pad(p1)}, ${pad(p2)} ↔ ${sortedPartners.map(pad).join(', ')}`;
+                    axis1 = p1;
+                    axis2 = p2;
+                    partners = sortedPartners;
+                    combs = 18;
+                } else {
+                    bettingEyesText = `${pad(p1)}`;
+                }
+
+                const prioIdx = dampedPriority.indexOf(sRow.strategy_id);
+                const prio = prioIdx >= 0 ? prioIdx : 999;
+
+                candidates.push({
+                    strat: sRow,
+                    strategy_id: sRow.strategy_id,
+                    model: m,
+                    rawType: btype,
+                    bettingEyesText,
+                    combs,
+                    axis1Num: axis1,
+                    axis2Num: axis2,
+                    partnerNums: partners,
+                    roi: parseFloat(sRow.roi_total) || 0,
+                    hitRate: parseFloat(sRow.hit_rate) || 0,
+                    monthlyWinRate: parseFloat(sRow.monthly_win_rate) || 0,
+                    prio
+                });
+            });
+
+            candidates.sort((a, b) => a.prio - b.prio || b.roi - a.roi);
+
+            return {
+                validStrategies: candidates
+            };
+        }
+
+        let currentActiveRecTab = 'strat1';
+
+        function showRecommendation(raceId, initialTab) {
             const raceData = currentData[raceId];
             if (!raceData) return;
+
+            if (initialTab) {
+                currentActiveRecTab = initialTab;
+            }
 
             const modal = document.getElementById('recommend-modal');
             const body = document.getElementById('modal-body');
             
             const kellyResult = evaluateKelly2Strategies(raceData, raceId);
-            const validStrategies = kellyResult.validStrategies || [];
+            const strat1List = kellyResult.validStrategies || [];
+
+            const strat2Result = evaluateStrategy2(raceData, raceId);
+            const strat2List = strat2Result.validStrategies || [];
+
+            // もし初期タブが指定されておらず、片方しか該当しない場合は該当するタブを優先
+            if (!initialTab) {
+                if (strat1List.length === 0 && strat2List.length > 0) {
+                    currentActiveRecTab = 'strat2';
+                } else {
+                    currentActiveRecTab = 'strat1';
+                }
+            }
 
             let html = `
-                <div style="text-align: center; margin-bottom: 25px; position: relative;">
-                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">Kelly2 AI Strategy</div>
+                <div style="text-align: center; margin-bottom: 20px; position: relative;">
+                    <div style="font-size: 0.8rem; color: ${currentActiveRecTab === 'strat2' ? '#c084fc' : '#4ade80'}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
+                        ${currentActiveRecTab === 'strat2' ? 'Strategy 2 / Common Rules' : 'Kelly2 AI Strategy'}
+                    </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${raceId}', true)" 
                             style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
@@ -1634,51 +1913,110 @@
                         🔄
                     </button>
                 </div>
+
+                <div class="rec-tab-group">
+                    <button class="rec-tab-btn ${currentActiveRecTab === 'strat1' ? 'active' : ''}" onclick="switchRecTab('${raceId}', 'strat1')">
+                        🎯 戦略1 (Kelly2)${strat1List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${strat1List.length})</span>` : ''}
+                    </button>
+                    <button class="rec-tab-btn strat2 ${currentActiveRecTab === 'strat2' ? 'active' : ''}" onclick="switchRecTab('${raceId}', 'strat2')">
+                        🚀 戦略2 (共通購入戦略)${strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${strat2List.length})</span>` : ''}
+                    </button>
+                </div>
             `;
 
-            if (validStrategies.length > 0) {
-                validStrategies.forEach(item => {
-                    const s = item.strat;
-                    const displayType = item.rawType;
-                    const popDisp = item.h1PopRank ? `単勝 ${item.h1PopRank}番人気` : '';
-                    const confDisp = `4モデル平均 ${item.h1Info.avgRank.toFixed(1)}位 (Top3支持: ${item.h1Info.top3Count}モデル)`;
+            if (currentActiveRecTab === 'strat1') {
+                if (strat1List.length > 0) {
+                    strat1List.forEach(item => {
+                        const s = item.strat;
+                        const displayType = item.rawType;
+                        const popDisp = item.h1PopRank ? `単勝 ${item.h1PopRank}番人気` : '';
+                        const confDisp = `4モデル平均 ${item.h1Info.avgRank.toFixed(1)}位 (Top3支持: ${item.h1Info.top3Count}モデル)`;
 
+                        html += `
+                            <div class="strategy-item-modal" data-strategy-type="${item.rawType}">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
+                                        ${displayType} 
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${item.model}</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${item.combs}点</span>
+                                    </div>
+                                </div>
+                                <div class="bet-eyes-box">
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                                    <div class="bet-eyes-text">${item.bettingEyesText}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    <div style="color: #94a3b8;">
+                                        軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番</strong> (${confDisp}${popDisp ? ' / ' + popDisp : ''})
+                                    </div>
+                                    <div>
+                                        ROI: <strong style="color: #4ade80;">${item.roi}%</strong> | 的中率: <strong style="color: #60a5fa;">${item.hitRate}%</strong>
+                                    </div>
+                                </div>
+                                <div class="bet-result-details"></div>
+                                <div style="margin-top: 10px; text-align: right;">
+                                    <button class="smappy-btn" data-eyes="${item.bettingEyesText}" data-type="${item.rawType}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
                     html += `
-                        <div class="strategy-item-modal" data-strategy-type="${item.rawType}">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
-                                    ${displayType} 
-                                    <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${item.model}</span>
-                                    <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${item.combs}点</span>
-                                </div>
-                            </div>
-                            <div class="bet-eyes-box">
-                                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                                <div class="bet-eyes-text">${item.bettingEyesText}</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-                                <div style="color: #94a3b8;">
-                                    軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番</strong> (${confDisp}${popDisp ? ' / ' + popDisp : ''})
-                                </div>
-                                <div>
-                                    ROI: <strong style="color: #4ade80;">${item.roi}%</strong> | 的中率: <strong style="color: #60a5fa;">${item.hitRate}%</strong>
-                                </div>
-                            </div>
-                            <div class="bet-result-details"></div>
-                            <div style="margin-top: 10px; text-align: right;">
-                                <button class="smappy-btn" data-eyes="${item.bettingEyesText}" data-type="${item.rawType}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
-                            </div>
+                        <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                            <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No High-Confidence Recommendations</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly2 高信頼度条件を満たす買い目はありません</div>
                         </div>
                     `;
-                });
+                }
             } else {
-                html += `
-                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
-                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No High-Confidence Recommendations</div>
-                        <div style="font-weight: 700; font-size: 0.8rem;">Kelly2 高信頼度条件を満たす買い目はありません</div>
-                    </div>
-                `;
+                // 戦略2 (共通購入戦略)
+                if (strat2List.length > 0) {
+                    strat2List.forEach(item => {
+                        const s = item.strat;
+                        const displayType = item.rawType;
+                        const condStr = `${item.strat.cat_col || ''} = ${item.strat.val || ''}`;
+
+                        html += `
+                            <div class="strategy-item-modal" data-strategy-type="${item.rawType}" style="border-left: 4px solid #c084fc;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <div style="font-weight: 900; color: #c084fc; font-size: 1.1rem;">
+                                        ${displayType} 
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${item.model}</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${item.combs}点</span>
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: #a855f7; font-weight: 700; background: rgba(168, 85, 247, 0.1); padding: 2px 8px; border-radius: 4px;">
+                                        PICKUP 2
+                                    </div>
+                                </div>
+                                <div class="bet-eyes-box" style="border-color: rgba(168, 85, 247, 0.3); background: rgba(168, 85, 247, 0.04);">
+                                    <div style="font-size: 0.7rem; color: #c084fc; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">Recommended Combination (戦略2)</div>
+                                    <div class="bet-eyes-text" style="color: #fff;">${item.bettingEyesText}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    <div style="color: #94a3b8;">
+                                        適合条件: <strong>${condStr}</strong>
+                                    </div>
+                                    <div>
+                                        通算ROI: <strong style="color: #4ade80;">${item.roi}%</strong> | 的中率: <strong style="color: #60a5fa;">${item.hitRate}%</strong> | 月勝率: <strong style="color: #fbbf24;">${item.monthlyWinRate}%</strong>
+                                    </div>
+                                </div>
+                                <div class="bet-result-details"></div>
+                                <div style="margin-top: 10px; text-align: right;">
+                                    <button class="smappy-btn" data-eyes="${item.bettingEyesText}" data-type="${item.rawType}" data-round="${raceData.round}" data-axis="${item.axis2Num ? 2 : 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += `
+                        <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                            <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Strategy 2 Recommendations</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">戦略2 (共通購入戦略) の購入条件を満たす買い目はありません</div>
+                        </div>
+                    `;
+                }
             }
 
             body.innerHTML = html;
@@ -1686,6 +2024,11 @@
             document.body.style.overflow = 'hidden';
 
             fetchRaceResults(raceId);
+        }
+
+        function switchRecTab(raceId, tabName) {
+            currentActiveRecTab = tabName;
+            showRecommendation(raceId, tabName);
         }
 
         async function fetchRaceResults(raceId) {

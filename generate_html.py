@@ -26,7 +26,9 @@ def generate_static_html():
     eval_dir = r"C:\Users\kyoui\keiba\data\eval"
     output_html_path = r"C:\Users\kyoui\tohshin_keiba\index.html"
     strategies_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies.csv"
+    strategies2_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies2.csv"
     race_id_list_path = r"C:\Users\kyoui\keiba\data\raceid\raceIdList.csv"
+    race_meta_cache = {}
     
     # 発走時刻データの読み込み (raceIdList.csv)
     race_time_dict = {}
@@ -41,7 +43,7 @@ def generate_static_html():
     else:
         logger.warning(f"raceIdList.csv not found: {race_id_list_path}")
     
-    # 戦略データの読み込み
+    # 戦略データの読み込み (戦略1: winning_strategies.csv)
     strategies_dict = {}
     shubetsu_order = {'3連単': 1, '3連複': 2, '馬単': 3, '馬連': 4, 'ワイド': 5, '単勝': 6}
     type_order = {
@@ -79,6 +81,19 @@ def generate_static_html():
             logger.error(f"Error loading strategies CSV: {e}")
     else:
         logger.warning(f"Strategies CSV not found: {strategies_csv_path}")
+
+    # 戦略2データの読み込み (戦略2: winning_strategies2.csv)
+    strategies2_list = []
+    if os.path.exists(strategies2_csv_path):
+        try:
+            s2df = pd.read_csv(strategies2_csv_path, encoding='utf-8-sig')
+            s2df = s2df.astype(object).where(pd.notnull(s2df), None)
+            strategies2_list = s2df.to_dict('records')
+            logger.info(f"Loaded {len(strategies2_list)} strategies2 from {strategies2_csv_path}")
+        except Exception as e:
+            logger.error(f"Error loading strategies2 CSV: {e}")
+    else:
+        logger.warning(f"Strategies2 CSV not found: {strategies2_csv_path}")
 
     # 評価理由データの読み込み (eval_reasons.json)
     eval_reasons_dict = {}
@@ -241,6 +256,45 @@ def generate_static_html():
         df['馬名_temp'] = "No Name"
         horse_name_col = '馬名_temp'
 
+    # AutoGluon スコアの読み込み (C:\keibasoftcom\KSCAutoBetPlus\TCSV)
+    tcsv_dir = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV"
+    if os.path.exists(tcsv_dir):
+        unique_dates = df['date_str'].unique()
+        ag_dfs = []
+        for d_str in unique_dates:
+            if not d_str: continue
+            r_day = d_str.replace('-', '')
+            fp_ag = os.path.join(tcsv_dir, f"AutoGluon_raw_{r_day}.csv")
+            if os.path.exists(fp_ag):
+                try:
+                    df_ag = pd.read_csv(fp_ag)
+                    s_id = df_ag['race_horse_id'].astype(str)
+                    df_ag['ag_race_id'] = s_id.apply(lambda s: s[:4] + s[8:16] if len(s) >= 16 else "")
+                    df_ag['ag_horse_num'] = s_id.apply(lambda s: int(s[16:18]) if len(s) >= 18 else None)
+                    df_ag['AutoGluon_raw'] = pd.to_numeric(df_ag['score'], errors='coerce')
+                    valid_ag = df_ag[['ag_race_id', 'ag_horse_num', 'AutoGluon_raw']].dropna(subset=['ag_race_id', 'ag_horse_num'])
+                    ag_dfs.append(valid_ag)
+                except Exception as e:
+                    logger.error(f"Error reading {fp_ag}: {e}")
+        if ag_dfs:
+            all_ag = pd.concat(ag_dfs, ignore_index=True).drop_duplicates(subset=['ag_race_id', 'ag_horse_num'])
+            df['temp_rid'] = df[race_id_col].astype(str)
+            df['temp_hnum'] = pd.to_numeric(df[horse_num_col], errors='coerce')
+            df = df.reset_index(drop=True)
+            if 'AutoGluon_raw' in df.columns:
+                df.drop(columns=['AutoGluon_raw'], inplace=True)
+            df = pd.merge(df, all_ag, left_on=['temp_rid', 'temp_hnum'], right_on=['ag_race_id', 'ag_horse_num'], how='left')
+            if 'AutoGluon_raw' not in df.columns:
+                df['AutoGluon_raw'] = 0.0
+            else:
+                df['AutoGluon_raw'] = df['AutoGluon_raw'].fillna(0.0)
+            df.drop(columns=['temp_rid', 'temp_hnum', 'ag_race_id', 'ag_horse_num'], errors='ignore', inplace=True)
+            logger.info(f"Merged AutoGluon scores: {(df['AutoGluon_raw'] > 0).sum()} valid entries")
+        else:
+            df['AutoGluon_raw'] = 0.0
+    else:
+        df['AutoGluon_raw'] = 0.0
+
     # Get scores and map column names
     score_mapping = {
         'LightGBM': 'LightGBM_raw',
@@ -251,7 +305,8 @@ def generate_static_html():
         'DecisionTree': 'DecisionTree_raw',
         'Transformer': 'Transformer_raw',
         'TabNet': 'TabNet_raw',
-        'Ensemble': 'Python'
+        'Ensemble': 'Python',
+        'AutoGluon': 'AutoGluon_raw'
     }
     
     # Mapping logic to capture scores from various possible column names
@@ -276,7 +331,7 @@ def generate_static_html():
         elif raw_name in df.columns:
             logger.info(f"  {raw_name} already contains data or {base_name} is missing")
 
-    req_scores = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble']
+    req_scores = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw']
     for s in req_scores:
         if s not in df.columns:
             df[s] = 0.0
@@ -346,6 +401,84 @@ def generate_static_html():
                     race_reasons = eval_reasons_dict[k]
                     break
             
+        # レースメタデータ（戦略2用）の取得
+        race_meta_item = {}
+        if date_val:
+            r_day = date_val.replace('-', '')
+            if r_day not in race_meta_cache:
+                shutuba_p = os.path.join(r"C:\Users\kyoui\keiba\data\tmp", f"shutuba_{r_day}.pickle")
+                day_meta = {}
+                if os.path.exists(shutuba_p):
+                    try:
+                        s_df = pd.read_pickle(shutuba_p)
+                        for s_rid_idx, s_grp in s_df.groupby(s_df.index):
+                            f_row = s_grp.iloc[0]
+                            s_rid_str = str(s_rid_idx)
+                            v_code = s_rid_str[4:6] if len(s_rid_str) >= 6 else ""
+                            v_name = REVERSE_PLACE_DICT.get(v_code, 'その他')
+                            
+                            r_cls = str(f_row.get('race_class', ''))
+                            if '新馬' in r_cls: c_cat = '新馬'
+                            elif '未勝利' in r_cls: c_cat = '未勝利'
+                            elif '1勝' in r_cls: c_cat = '1勝クラス'
+                            elif '2勝' in r_cls: c_cat = '2勝クラス'
+                            elif '3勝' in r_cls: c_cat = '3勝クラス'
+                            elif 'オープン' in r_cls or 'OP' in r_cls: c_cat = 'オープン'
+                            elif any(g in r_cls for g in ['G1', 'G2', 'G3', '重賞']): c_cat = '重賞'
+                            elif '障害' in r_cls: c_cat = '障害'
+                            else: c_cat = 'その他'
+
+                            r_trk = str(f_row.get('race_type', ''))
+                            if '芝' in r_trk: t_trk = '芝'
+                            elif 'ダート' in r_trk or 'ダ' in r_trk: t_trk = 'ダート'
+                            elif '障害' in r_trk: t_trk = '障害'
+                            else: t_trk = 'その他'
+
+                            dist_val = f_row.get('distance', 0)
+                            try:
+                                dist_num = float(dist_val)
+                            except:
+                                dist_num = 0
+                            
+                            if dist_num > 2400: d_cat = '長距離 (>2400m)'
+                            elif 1400 <= dist_num <= 1600: d_cat = 'マイル (1400-1600m)'
+                            elif 0 < dist_num < 1400: d_cat = '短距離 (<1400m)'
+                            elif 1800 <= dist_num <= 2200: d_cat = '中距離 (1800-2200m)'
+                            else: d_cat = 'その他'
+
+                            baba_val = str(f_row.get('baba', f_row.get('track_condition', '')))
+                            baba_cond = '不良' if '不' in baba_val else ('重' if '重' in baba_val else ('稍' if '稍' in baba_val else '良'))
+
+                            day_meta[s_rid_str] = {
+                                'venue_name': v_name,
+                                'class_cat': c_cat,
+                                'track_type': t_trk,
+                                'venue_track': f"{v_name}_{t_trk}",
+                                'class_venue': f"{c_cat}_{v_name}",
+                                'class_venue_track': f"{c_cat}_{v_name}_{t_trk}",
+                                'class_track': f"{c_cat}_{t_trk}",
+                                'dist_track': f"{d_cat}_{t_trk}",
+                                'track_ground': f"{t_trk}_{baba_cond}"
+                            }
+                    except Exception as e:
+                        logger.error(f"Error reading {shutuba_p}: {e}")
+                race_meta_cache[r_day] = day_meta
+            
+            race_meta_item = race_meta_cache.get(r_day, {}).get(race_id_str, {})
+        
+        if not race_meta_item:
+            race_meta_item = {
+                'venue_name': place_name,
+                'class_cat': 'その他',
+                'track_type': 'その他',
+                'venue_track': f"{place_name}_その他",
+                'class_venue': f"その他_{place_name}",
+                'class_venue_track': f"その他_{place_name}_その他",
+                'class_track': 'その他_その他',
+                'dist_track': 'その他_その他',
+                'track_ground': 'その他_良'
+            }
+
         races[race_id_str] = {
             "race_id": race_id_str,
             "title": race_title,
@@ -355,6 +488,7 @@ def generate_static_html():
             "round": str(round_int),
             "horses": records,
             "strategies": race_strategies,
+            "meta": race_meta_item,
             "reasons": race_reasons
         }
 
@@ -434,6 +568,7 @@ def generate_static_html():
 
     _smappy_part2_js = 'try{if(typeof completion==="function")completion("OK");}catch(e){}var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
     _smappy_part2_js_json = json.dumps(_smappy_part2_js)
+    strategies2_json = json.dumps(strategies2_list, ensure_ascii=False)
 
 
     html_template = f"""<!DOCTYPE html>
@@ -780,7 +915,7 @@ def generate_static_html():
                 flex-wrap: wrap;
             }}
 
-            .pickup-badge, .reason-badge {{
+            .pickup-badge, .pickup2-badge, .reason-badge {{
                 padding: 4px 10px;
                 font-size: 0.75rem;
                 gap: 4px;
@@ -967,6 +1102,73 @@ def generate_static_html():
             background: linear-gradient(135deg, rgba(74, 222, 128, 0.4), rgba(59, 130, 246, 0.4));
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(74, 222, 128, 0.5);
             transform: translateY(-2px) scale(1.06);
+        }}
+
+        /* AI Recommendation Modal Styles (Strategy 2 / PICKUP 2) */
+        .pickup2-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(99, 102, 241, 0.35));
+            border: 1px solid rgba(168, 85, 247, 0.6);
+            color: #c084fc;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.25);
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+        }}
+
+        .pickup2-badge:hover {{
+            background: linear-gradient(135deg, rgba(192, 132, 252, 0.45), rgba(129, 140, 248, 0.55));
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 30px rgba(168, 85, 247, 0.5);
+            transform: translateY(-2px) scale(1.06);
+        }}
+
+        /* Recommendation Modal Tabs */
+        .rec-tab-group {{
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+        }}
+
+        .rec-tab-btn {{
+            padding: 8px 18px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            letter-spacing: 0.03em;
+        }}
+
+        .rec-tab-btn:hover {{
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }}
+
+        .rec-tab-btn.active {{
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.25), rgba(59, 130, 246, 0.25));
+            border-color: #4ade80;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(74, 222, 128, 0.35);
+        }}
+
+        .rec-tab-btn.strat2.active {{
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(99, 102, 241, 0.4));
+            border-color: #c084fc;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(168, 85, 247, 0.4);
         }}
 
         /* Evaluation Reasons Badge Styles */
@@ -1256,6 +1458,12 @@ def generate_static_html():
             <select id="filter-round" onchange="renderRaces()">
                 <option value="ALL">All Races</option>
             </select>
+            <select id="filter-pickup" onchange="renderRaces()">
+                <option value="ALL">All Status</option>
+                <option value="PICKUP1">🎯 PICKUP 1</option>
+                <option value="PICKUP2">🚀 PICKUP 2</option>
+                <option value="ANY_PICKUP">✨ PICKUP (いずれか)</option>
+            </select>
             <select id="sort-select" onchange="renderRaces()">
                 <option value="score">Sort by AI Score</option>
                 <option value="odds">Sort by Odds</option>
@@ -1263,6 +1471,7 @@ def generate_static_html():
             </select>
             <select id="model-select" onchange="renderRaces()" style="display: none;">
                 <option value="Ensemble">Ensemble</option>
+                <option value="AutoGluon">AutoGluon</option>
                 <option value="LightGBM">LightGBM</option>
                 <option value="XGBoost">XGBoost</option>
                 <option value="CatBoost">CatBoost</option>
@@ -1301,6 +1510,7 @@ def generate_static_html():
     <script>
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {{}};
+        window.strategies2 = {strategies2_json};
 
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {{
@@ -1551,6 +1761,7 @@ def generate_static_html():
             const fDate = document.getElementById('filter-date').value;
             const fPlace = document.getElementById('filter-place').value;
             const fRound = document.getElementById('filter-round').value;
+            const fPickup = document.getElementById('filter-pickup') ? document.getElementById('filter-pickup').value : 'ALL';
 
             // Show model selector only when sorting by score
             if (sortBy === 'score') {{
@@ -1578,6 +1789,21 @@ def generate_static_html():
                 if (fPlace !== 'ALL' && raceData.place !== fPlace) continue;
                 if (fRound !== 'ALL' && String(raceData.round) !== String(fRound)) continue;
 
+                // --- 2. Strategy Highlighting & PICKUP Calculation (Kelly2 High-Confidence Logic) ---
+                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
+                const jikuSet = kellyResult.jikuSet;
+                const partnerSet = kellyResult.partnerSet;
+                const hasPickup1 = kellyResult.validStrategies && kellyResult.validStrategies.length > 0;
+
+                // --- Strategy 2 (Common Purchase Strategy / PICKUP 2 Logic) ---
+                const strat2Result = evaluateStrategy2(raceData, raceId);
+                const hasPickup2 = strat2Result.validStrategies && strat2Result.validStrategies.length > 0;
+
+                // Filter by PICKUP status
+                if (fPickup === 'PICKUP1' && !hasPickup1) continue;
+                if (fPickup === 'PICKUP2' && !hasPickup2) continue;
+                if (fPickup === 'ANY_PICKUP' && !hasPickup1 && !hasPickup2) continue;
+
                 // Sort horses
                 let sortedHorses = [...raceData.horses];
                 
@@ -1604,7 +1830,7 @@ def generate_static_html():
                 const mainModelKey = (sortBy === 'score') ? ((sortModel === 'Ensemble') ? 'Ensemble' : sortModel + '_raw') : 'Ensemble';
 
                 // --- 1. Calculate Z-Scores for Each Model Per Race ---
-                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
+                const scoreModels = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw'];
                 const raceStats = {{}};
                 scoreModels.forEach(m => {{
                     const vals = raceData.horses.map(h => parseFloat(h[m]) || 0);
@@ -1643,11 +1869,6 @@ def generate_static_html():
                     return 0;
                 }};
 
-                // --- 2. Strategy Highlighting & PICKUP Calculation (Kelly2 High-Confidence Logic) ---
-                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
-                const jikuSet = kellyResult.jikuSet;
-                const partnerSet = kellyResult.partnerSet;
-
                 // --- Calculate Softmax Probabilities (KV_z_peak using selected model) ---
                 const allResultsForKV = [...raceData.horses];
                 const zAdjScores = allResultsForKV.map(h => getZ(h, mainModelKey) * 2.0);
@@ -1669,12 +1890,13 @@ def generate_static_html():
                 card.id = 'race-card-' + raceId;
                 card.dataset.startTime = raceData.start_time || '';
                 card.dataset.raceId = raceId;
+                card.dataset.hasPickup1 = hasPickup1 ? '1' : '0';
+                card.dataset.hasPickup2 = hasPickup2 ? '1' : '0';
 
                 let horsesHtml = '';
                 sortedHorses.forEach((horse, index) => {{
                     const hNum = horse.horse_number;
                     const hName = horse.horse_name;
-                    const ensScore = parseFloat(horse.Ensemble) || 0;
                     const pWin = horse.pWin || 0;
                     
                     // Normalize width for bar
@@ -1705,13 +1927,15 @@ def generate_static_html():
                         else if(index === 2) rankClass = 'rank-3';
                     }}
 
-                    // Strategy highlighting class
-                    const isJiku = jikuSet.has(String(hNum));
-                    const isPartner = partnerSet.has(String(hNum)) && !isJiku;
-                    const highlightClass = isJiku ? 'is-jiku' : (isPartner ? 'is-partner' : '');
+                    // Highlighting
+                    let highlightClass = '';
+                    if (jikuSet && jikuSet.has(String(hNum))) {{
+                        highlightClass = 'is-jiku';
+                    }} else if (partnerSet && partnerSet.has(String(hNum))) {{
+                        highlightClass = 'is-partner';
+                    }}
 
                     // Decide main score vs sub scores display
-                    // mainModelKey decided above
                     const subModels = scoreModels.filter(m => m !== mainModelKey);
                     const modelShortNames = {{
                         'Ensemble': 'Ens',
@@ -1722,12 +1946,13 @@ def generate_static_html():
                         'RandomForest_raw': 'RF',
                         'DecisionTree_raw': 'DT',
                         'Transformer_raw': 'TF',
-                        'TabNet_raw': 'TN'
+                        'TabNet_raw': 'TN',
+                        'AutoGluon_raw': 'AG'
                     }};
 
                     let subScoresHtml = '';
                     subModels.forEach(m => {{
-                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${{modelShortNames[m]}}: ${{getZ(horse, m).toFixed(4)}}</span> `;
+                        subScoresHtml += `<span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${{modelShortNames[m] || m}}: ${{getZ(horse, m).toFixed(4)}}</span> `;
                     }});
 
                     const winOddsNum = parseFloat(winOdds) || 999;
@@ -1766,11 +1991,21 @@ def generate_static_html():
                 const raceTitle = `${{raceData.place || ''}}${{raceData.round || ''}}R ${{raceData.start_time || ''}}`.trim() || raceData.title;
 
                 const pickupBadgeHtml = ( () => {{
-                    if (!kellyResult.validStrategies || kellyResult.validStrategies.length === 0) return '';
+                    if (!hasPickup1) return '';
                     return `
-                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}')">
+                        <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}', 'strat1')">
                             <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
                             <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                        </div>
+                    `;
+                }})();
+
+                const pickup2BadgeHtml = ( () => {{
+                    if (!hasPickup2) return '';
+                    return `
+                        <div class="pickup2-badge" onclick="event.stopPropagation(); showRecommendation('${{raceId}}', 'strat2')">
+                            <span style="font-size: 0.6rem; opacity: 0.85; font-weight: 700; color: #e9d5ff;">STRAT</span>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP 2</div>
                         </div>
                     `;
                 }})();
@@ -1797,6 +2032,7 @@ def generate_static_html():
                         <div class="race-header-row-bottom">
                             <div class="race-badges-group">
                                 ${{pickupBadgeHtml}}
+                                ${{pickup2BadgeHtml}}
                                 ${{reasonBadgeHtml}}
                             </div>
                             <button class="accordion-toggle-btn" aria-label="Toggle race" onclick="event.stopPropagation(); toggleRaceCard('${{raceId}}')">
@@ -1845,7 +2081,7 @@ def generate_static_html():
             }}
 
             // 2. モデルごとの平均/標準偏差 (raceStats) と 順位マップ の作成
-            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble'];
+            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw'];
             const raceStats = {{}};
             allScoreKeys.forEach(m => {{
                 const vals = horses.map(h => parseFloat(h[m]) || 0);
@@ -2052,19 +2288,197 @@ def generate_static_html():
             }};
         }}
 
-        function showRecommendation(raceId) {{
+        function evaluateStrategy2(raceData, raceId) {{
+            if (!raceData || !raceData.horses || raceData.horses.length < 5 || !window.strategies2) {{
+                return {{ validStrategies: [], isExcluded: false }};
+            }}
+
+            const horses = raceData.horses;
+            const meta = raceData.meta || {{}};
+
+            // 1. 各モデルの馬番順位リスト (Top 5)
+            const models = ['AutoGluon', 'LightGBM', 'CatBoost', 'XGBoost', 'TabNet', 'Ensemble'];
+            const modelRanks = {{}};
+            models.forEach(m => {{
+                const scoreKey = m === 'Ensemble' ? 'Ensemble' : (m + '_raw');
+                if (horses.some(h => h[scoreKey] !== undefined && h[scoreKey] !== null)) {{
+                    const sorted = [...horses].sort((a, b) => (parseFloat(b[scoreKey]) || 0) - (parseFloat(a[scoreKey]) || 0));
+                    modelRanks[m] = sorted.map(h => parseInt(h.horse_number));
+                }}
+            }});
+
+            // 2. EXCLUDE 除外ルール判定
+            const excludeRules = window.strategies2.filter(s => s.action === 'EXCLUDE');
+            const isExcluded = (strat, catCol, val, model, betType) => {{
+                for (const ex of excludeRules) {{
+                    const exCol = ex.cat_col;
+                    const exVal = String(ex.val);
+                    const raceVal = String(meta[exCol] || '');
+                    if (raceVal === exVal) {{
+                        const exModel = String(ex.model);
+                        const modelMatch = exModel.includes('全モデル') || exModel.includes(model);
+                        const exBet = String(ex.bet_type);
+                        const betMatch = exBet.includes('全券種') || exBet === betType || exBet.includes(betType) || betType.includes(exBet);
+                        if (modelMatch && betMatch) {{
+                            return true;
+                        }}
+                    }}
+                }}
+                return false;
+            }};
+
+            // 3. BUY ルール判定
+            const buyRules = window.strategies2.filter(s => s.action === 'BUY');
+            const candidates = [];
+            const pad = (n) => String(n).padStart(2, '0');
+
+            const dampedPriority = [
+                'POS_EXP_福島_3連単-3頭BOX_CatBoost',
+                'POS_EXP_函館_3連単-2通り_Ensemble',
+                'POS_S3_multi_nakayama_2class_ens',
+                'POS_S3_multi_mishori_sapporo_dirt_lgb',
+                'POS_S3_2jiku_nakayama_2class_shiba_tabnet',
+                'POS_S3_multi_hanshin_1class_dirt_xgb',
+                'POS_EXP_東京_3連単-2通り_AutoGluon',
+                'POS_EXP_京都_3連単-3頭BOX_Ensemble',
+                'POS_S3_nagashi_mishori_sapporo_dirt_lgb',
+                'POS_S3_multi_kyoto_shiba_tabnet',
+                'POS_S3_2jiku_mishori_hakodate_dirt_ag',
+                'POS_S3_box_nakayama_shiba_ag',
+                'POS_S3_multi_nakayama_shiba_cb',
+                'POS_EXP_福島_単勝_XGBoost',
+                'POS_EXP_中京_単勝_AutoGluon',
+                'POS_EXP_新潟_単勝_XGBoost',
+                'POS_EXP_小倉_単勝_XGBoost',
+                'POS_EXP_福島_単勝_TabNet',
+                'POS_EXP_京都_単勝_CatBoost',
+                'POS_EXP_阪神_単勝_CatBoost',
+                'POS_EXP_新潟_単勝_LightGBM',
+                'POS_EXP_阪神_複勝_CatBoost',
+                'POS_EXP_京都_複勝_Ensemble',
+                'POS_EXP_東京_単勝_Ensemble',
+                'POS_EXP_中山_単勝_Ensemble',
+                'POS_EXP_函館_複勝_Ensemble'
+            ];
+
+            buyRules.forEach(sRow => {{
+                const catCol = sRow.cat_col;
+                const ruleVal = String(sRow.val);
+                const raceVal = String(meta[catCol] || '');
+                if (raceVal !== ruleVal) return;
+
+                const m = sRow.model;
+                if (!modelRanks[m] || modelRanks[m].length < 5) return;
+
+                const btype = sRow.bet_type;
+                if (isExcluded(sRow, catCol, ruleVal, m, btype)) return;
+
+                const pList = modelRanks[m];
+                const [p1, p2, p3, p4, p5] = pList;
+
+                let bettingEyesText = '';
+                let combs = parseInt(sRow.bets) || 1;
+                let axis1 = p1;
+                let axis2 = null;
+                let partners = [];
+
+                if (btype === '単勝' || btype === '複勝') {{
+                    bettingEyesText = `${{pad(p1)}}`;
+                    combs = 1;
+                }} else if (btype === '3連単-2通り') {{
+                    bettingEyesText = `${{pad(p1)}} → ${{pad(p2)}}, ${{pad(p3)}} → ${{pad(p2)}}, ${{pad(p3)}}`;
+                    axis1 = p1;
+                    partners = [p2, p3];
+                    combs = 2;
+                }} else if (btype === '3連単-3頭BOX') {{
+                    const sortedBox = [p1, p2, p3].sort((a, b) => a - b);
+                    bettingEyesText = `${{pad(sortedBox[0])}}, ${{pad(sortedBox[1])}}, ${{pad(sortedBox[2])}} BOX`;
+                    axis1 = p1;
+                    partners = [p2, p3];
+                    combs = 6;
+                }} else if (btype === '3連単-1頭軸3頭流し') {{
+                    const sortedPartners = [p2, p3, p4].sort((a, b) => a - b);
+                    bettingEyesText = `${{pad(p1)}} → ${{sortedPartners.map(pad).join(', ')}}`;
+                    axis1 = p1;
+                    partners = sortedPartners;
+                    combs = 6;
+                }} else if (btype === '3連単-1頭軸3頭マルチ') {{
+                    const sortedPartners = [p2, p3, p4].sort((a, b) => a - b);
+                    bettingEyesText = `${{pad(p1)}} ↔ ${{sortedPartners.map(pad).join(', ')}}`;
+                    axis1 = p1;
+                    partners = sortedPartners;
+                    combs = 18;
+                }} else if (btype === '3連単-2頭軸3頭マルチ') {{
+                    const sortedPartners = [p3, p4, p5].sort((a, b) => a - b);
+                    bettingEyesText = `${{pad(p1)}}, ${{pad(p2)}} ↔ ${{sortedPartners.map(pad).join(', ')}}`;
+                    axis1 = p1;
+                    axis2 = p2;
+                    partners = sortedPartners;
+                    combs = 18;
+                }} else {{
+                    bettingEyesText = `${{pad(p1)}}`;
+                }}
+
+                const prioIdx = dampedPriority.indexOf(sRow.strategy_id);
+                const prio = prioIdx >= 0 ? prioIdx : 999;
+
+                candidates.push({{
+                    strat: sRow,
+                    strategy_id: sRow.strategy_id,
+                    model: m,
+                    rawType: btype,
+                    bettingEyesText,
+                    combs,
+                    axis1Num: axis1,
+                    axis2Num: axis2,
+                    partnerNums: partners,
+                    roi: parseFloat(sRow.roi_total) || 0,
+                    hitRate: parseFloat(sRow.hit_rate) || 0,
+                    monthlyWinRate: parseFloat(sRow.monthly_win_rate) || 0,
+                    prio
+                }});
+            }});
+
+            candidates.sort((a, b) => a.prio - b.prio || b.roi - a.roi);
+
+            return {{
+                validStrategies: candidates
+            }};
+        }}
+
+        let currentActiveRecTab = 'strat1';
+
+        function showRecommendation(raceId, initialTab) {{
             const raceData = currentData[raceId];
             if (!raceData) return;
+
+            if (initialTab) {{
+                currentActiveRecTab = initialTab;
+            }}
 
             const modal = document.getElementById('recommend-modal');
             const body = document.getElementById('modal-body');
             
             const kellyResult = evaluateKelly2Strategies(raceData, raceId);
-            const validStrategies = kellyResult.validStrategies || [];
+            const strat1List = kellyResult.validStrategies || [];
+
+            const strat2Result = evaluateStrategy2(raceData, raceId);
+            const strat2List = strat2Result.validStrategies || [];
+
+            // もし初期タブが指定されておらず、片方しか該当しない場合は該当するタブを優先
+            if (!initialTab) {{
+                if (strat1List.length === 0 && strat2List.length > 0) {{
+                    currentActiveRecTab = 'strat2';
+                }} else {{
+                    currentActiveRecTab = 'strat1';
+                }}
+            }}
 
             let html = `
-                <div style="text-align: center; margin-bottom: 25px; position: relative;">
-                    <div style="font-size: 0.8rem; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">Kelly2 AI Strategy</div>
+                <div style="text-align: center; margin-bottom: 20px; position: relative;">
+                    <div style="font-size: 0.8rem; color: ${{currentActiveRecTab === 'strat2' ? '#c084fc' : '#4ade80'}}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
+                        ${{currentActiveRecTab === 'strat2' ? 'Strategy 2 / Common Rules' : 'Kelly2 AI Strategy'}}
+                    </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
                             style="position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 30;"
@@ -2072,51 +2486,110 @@ def generate_static_html():
                         🔄
                     </button>
                 </div>
+
+                <div class="rec-tab-group">
+                    <button class="rec-tab-btn ${{currentActiveRecTab === 'strat1' ? 'active' : ''}}" onclick="switchRecTab('${{raceId}}', 'strat1')">
+                        🎯 戦略1 (Kelly2)${{strat1List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${{strat1List.length}})</span>` : ''}}
+                    </button>
+                    <button class="rec-tab-btn strat2 ${{currentActiveRecTab === 'strat2' ? 'active' : ''}}" onclick="switchRecTab('${{raceId}}', 'strat2')">
+                        🚀 戦略2 (共通購入戦略)${{strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${{strat2List.length}})</span>` : ''}}
+                    </button>
+                </div>
             `;
 
-            if (validStrategies.length > 0) {{
-                validStrategies.forEach(item => {{
-                    const s = item.strat;
-                    const displayType = item.rawType;
-                    const popDisp = item.h1PopRank ? `単勝 ${{item.h1PopRank}}番人気` : '';
-                    const confDisp = `4モデル平均 ${{item.h1Info.avgRank.toFixed(1)}}位 (Top3支持: ${{item.h1Info.top3Count}}モデル)`;
+            if (currentActiveRecTab === 'strat1') {{
+                if (strat1List.length > 0) {{
+                    strat1List.forEach(item => {{
+                        const s = item.strat;
+                        const displayType = item.rawType;
+                        const popDisp = item.h1PopRank ? `単勝 ${{item.h1PopRank}}番人気` : '';
+                        const confDisp = `4モデル平均 ${{item.h1Info.avgRank.toFixed(1)}}位 (Top3支持: ${{item.h1Info.top3Count}}モデル)`;
 
+                        html += `
+                            <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
+                                        ${{displayType}} 
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{item.model}}</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点</span>
+                                    </div>
+                                </div>
+                                <div class="bet-eyes-box">
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
+                                    <div class="bet-eyes-text">${{item.bettingEyesText}}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    <div style="color: #94a3b8;">
+                                        軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong> (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
+                                    </div>
+                                    <div>
+                                        ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>
+                                    </div>
+                                </div>
+                                <div class="bet-result-details"></div>
+                                <div style="margin-top: 10px; text-align: right;">
+                                    <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                                </div>
+                            </div>
+                        `;
+                    }});
+                }} else {{
                     html += `
-                        <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
-                                    ${{displayType}} 
-                                    <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{item.model}}</span>
-                                    <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点</span>
-                                </div>
-                            </div>
-                            <div class="bet-eyes-box">
-                                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                                <div class="bet-eyes-text">${{item.bettingEyesText}}</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-                                <div style="color: #94a3b8;">
-                                    軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong> (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
-                                </div>
-                                <div>
-                                    ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>
-                                </div>
-                            </div>
-                            <div class="bet-result-details"></div>
-                            <div style="margin-top: 10px; text-align: right;">
-                                <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
-                            </div>
+                        <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                            <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No High-Confidence Recommendations</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly2 高信頼度条件を満たす買い目はありません</div>
                         </div>
                     `;
-                }});
+                }}
             }} else {{
-                html += `
-                    <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
-                        <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
-                        <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No High-Confidence Recommendations</div>
-                        <div style="font-weight: 700; font-size: 0.8rem;">Kelly2 高信頼度条件を満たす買い目はありません</div>
-                    </div>
-                `;
+                // 戦略2 (共通購入戦略)
+                if (strat2List.length > 0) {{
+                    strat2List.forEach(item => {{
+                        const s = item.strat;
+                        const displayType = item.rawType;
+                        const condStr = `${{item.strat.cat_col || ''}} = ${{item.strat.val || ''}}`;
+
+                        html += `
+                            <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}" style="border-left: 4px solid #c084fc;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <div style="font-weight: 900; color: #c084fc; font-size: 1.1rem;">
+                                        ${{displayType}} 
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{item.model}}</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点</span>
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: #a855f7; font-weight: 700; background: rgba(168, 85, 247, 0.1); padding: 2px 8px; border-radius: 4px;">
+                                        PICKUP 2
+                                    </div>
+                                </div>
+                                <div class="bet-eyes-box" style="border-color: rgba(168, 85, 247, 0.3); background: rgba(168, 85, 247, 0.04);">
+                                    <div style="font-size: 0.7rem; color: #c084fc; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">Recommended Combination (戦略2)</div>
+                                    <div class="bet-eyes-text" style="color: #fff;">${{item.bettingEyesText}}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    <div style="color: #94a3b8;">
+                                        適合条件: <strong>${{condStr}}</strong>
+                                    </div>
+                                    <div>
+                                        通算ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong> | 月勝率: <strong style="color: #fbbf24;">${{item.monthlyWinRate}}%</strong>
+                                    </div>
+                                </div>
+                                <div class="bet-result-details"></div>
+                                <div style="margin-top: 10px; text-align: right;">
+                                    <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{item.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                                </div>
+                            </div>
+                        `;
+                    }});
+                }} else {{
+                    html += `
+                        <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
+                            <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Strategy 2 Recommendations</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">戦略2 (共通購入戦略) の購入条件を満たす買い目はありません</div>
+                        </div>
+                    `;
+                }}
             }}
 
             body.innerHTML = html;
@@ -2124,6 +2597,11 @@ def generate_static_html():
             document.body.style.overflow = 'hidden';
 
             fetchRaceResults(raceId);
+        }}
+
+        function switchRecTab(raceId, tabName) {{
+            currentActiveRecTab = tabName;
+            showRecommendation(raceId, tabName);
         }}
 
         async function fetchRaceResults(raceId) {{
