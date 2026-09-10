@@ -2769,8 +2769,18 @@ def generate_static_html():
 
                 // 買い目数の正確な計算 (正規化して3連/3連を統一)
                 const normType = type;
-                const axisCount = (eyesText.match(/→/g) || []).length; 
-                const partners = eyesText.split('→').pop().split(',').length;
+                
+                // 軸馬と相手馬のパース (マルチの '↔'、流しの '→' の両方に対応)
+                const sep = eyesText.includes('↔') ? '↔' : (eyesText.includes('→') ? '→' : '');
+                let parsedAxes = [];
+                let parsedPartners = [];
+                if (sep) {{
+                    const parts = eyesText.split(sep);
+                    parsedPartners = parts.pop().split(',').map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                    parsedAxes = parts.join(',').split(',').map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                }}
+                const axisCount = parsedAxes.length;
+                const partnersCount = parsedPartners.length;
                 
                 if (normType.includes("単勝") || normType.includes("複勝")) {{
                     eyesCount = 1;
@@ -2782,26 +2792,28 @@ def generate_static_html():
                     else if (normType.includes("馬連") || normType.includes("ワイド")) eyesCount = n * (n-1) / 2;
                 }} else if (normType.includes("マルチ")) {{
                     if (normType.includes("3連単")) {{
-                        if (axisCount === 1) eyesCount = 3 * partners * (partners - 1);
-                        else eyesCount = 6 * partners;
+                        if (axisCount === 1) eyesCount = 3 * partnersCount * (partnersCount - 1);
+                        else eyesCount = 6 * partnersCount;
                     }} else if (normType.includes("馬単")) {{
-                        eyesCount = 2 * partners;
+                        eyesCount = 2 * partnersCount;
+                    }} else {{
+                        eyesCount = 2 * partnersCount;
                     }}
                 }} else {{
                     // 流し
                     if (normType.includes("3連単")) {{
-                        if (axisCount === 1) eyesCount = partners * (partners - 1);
-                        else eyesCount = partners;
+                        if (axisCount === 1) eyesCount = partnersCount * (partnersCount - 1);
+                        else eyesCount = partnersCount;
                     }} else if (normType.includes("3連複")) {{
-                        if (axisCount === 1) eyesCount = (partners * (partners - 1)) / 2;
-                        else eyesCount = partners;
+                        if (axisCount === 1) eyesCount = (partnersCount * (partnersCount - 1)) / 2;
+                        else eyesCount = partnersCount;
                     }} else {{
-                        eyesCount = partners;
+                        eyesCount = partnersCount;
                     }}
                 }}
 
                 if (winNums.length > 0) {{
-                    const predictedSet = eyesText.split(/[→,]/).map(s => s.trim().replace(/^0+/, ''));
+                    const predictedSet = eyesText.split(/[→↔,]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
                     if (baseType === "単勝") {{
@@ -2816,9 +2828,8 @@ def generate_static_html():
                                 }}
                             }}
                         }} else if (normType.includes("マルチ")) {{
-                            const parts = eyesText.split(' → ');
-                            const partners = parts.pop().split(',').map(s => s.trim().replace(/^0+/, ''));
-                            const axes = parts.map(s => s.trim().replace(/^0+/, ''));
+                            const axes = parsedAxes;
+                            const partners = parsedPartners;
                             
                             const hasAllAxes = axes.every(a => winNums.includes(a));
                             const remainingWinNums = winNums.filter(n => !axes.includes(n));
@@ -2830,9 +2841,8 @@ def generate_static_html():
                         }}
                     }} else {{
                         // Nagashi (Flow) logic
-                        const parts = eyesText.split(' → ');
-                        const partners = parts.pop().split(',').map(s => s.trim().replace(/^0+/, ''));
-                        const axes = parts.map(s => s.trim().replace(/^0+/, ''));
+                        const axes = parsedAxes;
+                        const partners = parsedPartners;
                         
                         const axesMatch = axes.every((a, i) => i < winNums.length && winNums[i] === a);
                         const remainingWinNums = winNums.slice(axes.length);
