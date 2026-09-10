@@ -1734,27 +1734,7 @@
                 }
             });
 
-            // 2. EXCLUDE 除外ルール判定
-            const excludeRules = window.strategies2.filter(s => s.action === 'EXCLUDE');
-            const isExcluded = (strat, catCol, val, model, betType) => {
-                for (const ex of excludeRules) {
-                    const exCol = ex.cat_col;
-                    const exVal = String(ex.val);
-                    const raceVal = String(meta[exCol] || '');
-                    if (raceVal === exVal) {
-                        const exModel = String(ex.model);
-                        const modelMatch = exModel.includes('全モデル') || exModel.includes(model);
-                        const exBet = String(ex.bet_type);
-                        const betMatch = exBet.includes('全券種') || exBet === betType || exBet.includes(betType) || betType.includes(exBet);
-                        if (modelMatch && betMatch) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            };
-
-            // 3. BUY ルール判定
+            // 2. BUY ルール判定 (kelly3_auto_runner.py 準拠: EXCLUDE除外は行わずBUYのみ判定)
             const buyRules = window.strategies2.filter(s => s.action === 'BUY');
             const candidates = [];
             const pad = (n) => String(n).padStart(2, '0');
@@ -1771,21 +1751,10 @@
                 'POS_S3_nagashi_mishori_sapporo_dirt_lgb',
                 'POS_S3_multi_kyoto_shiba_tabnet',
                 'POS_S3_2jiku_mishori_hakodate_dirt_ag',
-                'POS_S3_box_nakayama_shiba_ag',
-                'POS_S3_multi_nakayama_shiba_cb',
-                'POS_EXP_福島_単勝_XGBoost',
-                'POS_EXP_中京_単勝_AutoGluon',
-                'POS_EXP_新潟_単勝_XGBoost',
-                'POS_EXP_小倉_単勝_XGBoost',
-                'POS_EXP_福島_単勝_TabNet',
-                'POS_EXP_京都_単勝_CatBoost',
-                'POS_EXP_阪神_単勝_CatBoost',
-                'POS_EXP_新潟_単勝_LightGBM',
-                'POS_EXP_阪神_複勝_CatBoost',
-                'POS_EXP_京都_複勝_Ensemble',
-                'POS_EXP_東京_単勝_Ensemble',
-                'POS_EXP_中山_単勝_Ensemble',
-                'POS_EXP_函館_複勝_Ensemble'
+                'POS_S3_multi_mishori_sapporo_lgb',
+                'POS_S3_2jiku_mishori_kokura_shiba_xgb',
+                'POS_S3_2jiku_kyoto_tabnet',
+                'POS_EXP_中京_3連単-2頭軸3頭マルチ_Ensemble'
             ];
 
             buyRules.forEach(sRow => {
@@ -1798,8 +1767,6 @@
                 if (!modelRanks[m] || modelRanks[m].length < 5) return;
 
                 const btype = sRow.bet_type;
-                if (isExcluded(sRow, catCol, ruleVal, m, btype)) return;
-
                 const pList = modelRanks[m];
                 const [p1, p2, p3, p4, p5] = pList;
 
