@@ -637,6 +637,7 @@ def generate_static_html():
                 axis1 = u[0] if len(u) >= 1 else None
                 axis2 = None
                 partners = []
+                sub_items = []
                 mode = act_info.get('mode', '')
                 
                 if action_id == 0:
@@ -689,8 +690,34 @@ def generate_static_html():
                 elif mode == "hybrid":
                     axis1 = u[0]
                     partners = u[1:4] if len(u) >= 4 else u[1:]
-                    betting_eyes_text = f"3連複4点 + 3連単({pad(u[0])}↔{pad(u[1])}→{pad(u[2])})"
+                    box4_str = f"{', '.join([pad(x) for x in sorted(u[:4])])} BOX"
+                    sanrentan_2way = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])}"
+                    betting_eyes_text = f"3連複: {box4_str} (4点) + 3連単: {sanrentan_2way} (2点)"
                     display_type = "ハイブリッド(3連複4点+3連単2点)"
+                    sub_items = [
+                        {
+                            'rawType': '3連複-4頭BOX',
+                            'combs': 4,
+                            'cost': 500,
+                            'bettingEyesText': box4_str,
+                            'axis1Num': None,
+                            'axis2Num': None,
+                            'partnerNums': sorted(u[:4]),
+                            'type': 'SANRENPUKU',
+                            'mode': 'box4'
+                        },
+                        {
+                            'rawType': '3連単-2通り',
+                            'combs': 2,
+                            'cost': 400,
+                            'bettingEyesText': sanrentan_2way,
+                            'axis1Num': u[0],
+                            'axis2Num': u[1],
+                            'partnerNums': [u[2]],
+                            'type': 'SANRENTAN',
+                            'mode': '2way'
+                        }
+                    ]
                 else:
                     betting_eyes_text = f"{pad(u[0])}"
                     display_type = act_name
@@ -707,7 +734,8 @@ def generate_static_html():
                     'bettingEyesText': betting_eyes_text,
                     'rawType': display_type,
                     'lines': lines,
-                    'model': 'v12 Ensemble RL'
+                    'model': 'v12 Ensemble RL',
+                    'sub_items': sub_items
                 }
                 
                 total_spent += cost
@@ -2674,51 +2702,103 @@ def generate_static_html():
                     const actionBadgeBg = isPickup ? 'rgba(249, 115, 22, 0.15)' : 'rgba(255, 255, 255, 0.05)';
                     const borderLeftColor = isPickup ? '#fb923c' : '#64748b';
                     const statusText = isPickup ? '🚀 PICKUP 2 (積極購入推奨)' : '見送り (SKIP)';
-                    
                     const pad = (n) => String(n).padStart(2, '0');
-                    let jikuDisp = '';
-                    if (s2.axis1Num && s2.axis2Num) {{
-                        jikuDisp = `軸馬: <strong>${{pad(s2.axis1Num)}}番, ${{pad(s2.axis2Num)}}番</strong>`;
-                    }} else if (s2.axis1Num) {{
-                        jikuDisp = `軸馬: <strong>${{pad(s2.axis1Num)}}番</strong>`;
-                    }}
-                    let partnerDisp = '';
-                    if (s2.partnerNums && s2.partnerNums.length > 0) {{
-                        partnerDisp = `相手馬: <strong>${{s2.partnerNums.map(pad).join(', ')}}</strong>`;
-                    }}
 
-                    html += `
-                        <div class="strategy-item-modal" data-strategy-type="${{s2.rawType}}" style="border-left: 4px solid ${{borderLeftColor}};">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                                <div style="font-weight: 900; color: ${{actionBadgeColor}}; font-size: 1.1rem;">
-                                    ${{s2.rawType}} 
-                                    <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'v12 Ensemble RL'}}</span>
-                                    <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</span>
+                    // 1. ハイブリッド等で複数券種に分割されている場合
+                    if (s2.sub_items && s2.sub_items.length > 0) {{
+                        html += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 12px 16px; background: rgba(249, 115, 22, 0.08); border-radius: 10px; border: 1px solid rgba(249, 115, 22, 0.25);">
+                                <div>
+                                    <div style="font-weight: 900; color: #fb923c; font-size: 1.1rem;">
+                                        ${{s2.action_name}}
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'v12 Ensemble RL'}}</span>
+                                    </div>
+                                    <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
+                                        合計: <strong style="color: #4ade80;">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</strong> / 1.5倍掛け適用
+                                    </div>
                                 </div>
-                                <div style="font-size: 0.7rem; color: ${{actionBadgeColor}}; font-weight: 700; background: ${{actionBadgeBg}}; padding: 3px 10px; border-radius: 4px; border: 1px solid ${{actionBadgeColor}}50;">
+                                <div style="font-size: 0.7rem; color: #fb923c; font-weight: 700; background: rgba(249, 115, 22, 0.2); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(249, 115, 22, 0.4);">
                                     ${{statusText}}
                                 </div>
                             </div>
-                            <div class="bet-eyes-box" style="border-color: ${{actionBadgeColor}}60; background: ${{actionBadgeBg}};">
-                                <div style="font-size: 0.7rem; color: ${{actionBadgeColor}}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
-                                    Kelly3 推奨買い目 (Action ${{s2.action_id}}: ${{s2.action_name}})
+                        `;
+
+                        s2.sub_items.forEach((sub, subIdx) => {{
+                            const subColor = sub.type === 'SANRENPUKU' ? '#fbbf24' : '#fb923c';
+                            const subBg = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.06)' : 'rgba(249, 115, 22, 0.06)';
+                            const subBorder = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.3)' : 'rgba(249, 115, 22, 0.3)';
+                            const subLabel = sub.rawType.includes('3連複') ? '① 3連複' : '② 3連単';
+
+                            html += `
+                                <div class="strategy-item-modal" data-strategy-type="${{sub.rawType}}" style="border-left: 4px solid ${{subColor}}; margin-bottom: 14px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <div style="font-weight: 900; color: ${{subColor}}; font-size: 1.05rem;">
+                                            ${{sub.rawType}}
+                                            <span style="font-size: 0.75rem; color: #4ade80; margin-left:8px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{sub.combs}}点 (${{sub.cost.toLocaleString()}}円)</span>
+                                        </div>
+                                        <div style="font-size: 0.7rem; color: ${{subColor}}; font-weight: 700; background: ${{subBg}}; padding: 2px 8px; border-radius: 4px; border: 1px solid ${{subBorder}};">
+                                            ${{subLabel}}
+                                        </div>
+                                    </div>
+                                    <div class="bet-eyes-box" style="border-color: ${{subBorder}}; background: ${{subBg}};">
+                                        <div style="font-size: 0.7rem; color: ${{subColor}}; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
+                                            Recommended Combination
+                                        </div>
+                                        <div class="bet-eyes-text" style="color: #fff; font-size: 1.15rem;">${{sub.bettingEyesText}}</div>
+                                    </div>
+                                    <div class="bet-result-details"></div>
+                                    <div style="margin-top: 10px; text-align: right;">
+                                        <button class="smappy-btn" data-eyes="${{sub.bettingEyesText}}" data-type="${{sub.rawType}}" data-round="${{raceData.round}}" data-axis="${{sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー (${{sub.rawType.split('-')[0]}})</button>
+                                    </div>
                                 </div>
-                                <div class="bet-eyes-text" style="color: #fff; font-size: 1.05rem;">${{s2.bettingEyesText || '買い目なし'}}</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
-                                <div style="color: #cbd5e1;">
-                                    ${{jikuDisp}}${{jikuDisp && partnerDisp ? ' | ' : ''}}${{partnerDisp}}
+                            `;
+                        }});
+                    }} else {{
+                        // 2. 通常の単一買い目
+                        let jikuDisp = '';
+                        if (s2.axis1Num && s2.axis2Num) {{
+                            jikuDisp = `軸馬: <strong>${{pad(s2.axis1Num)}}番, ${{pad(s2.axis2Num)}}番</strong>`;
+                        }} else if (s2.axis1Num) {{
+                            jikuDisp = `軸馬: <strong>${{pad(s2.axis1Num)}}番</strong>`;
+                        }}
+                        let partnerDisp = '';
+                        if (s2.partnerNums && s2.partnerNums.length > 0) {{
+                            partnerDisp = `相手馬: <strong>${{s2.partnerNums.map(pad).join(', ')}}</strong>`;
+                        }}
+
+                        html += `
+                            <div class="strategy-item-modal" data-strategy-type="${{s2.rawType}}" style="border-left: 4px solid ${{borderLeftColor}};">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                                    <div style="font-weight: 900; color: ${{actionBadgeColor}}; font-size: 1.1rem;">
+                                        ${{s2.rawType}} 
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'v12 Ensemble RL'}}</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</span>
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: ${{actionBadgeColor}}; font-weight: 700; background: ${{actionBadgeBg}}; padding: 3px 10px; border-radius: 4px; border: 1px solid ${{actionBadgeColor}}50;">
+                                        ${{statusText}}
+                                    </div>
                                 </div>
-                                <div style="color: #94a3b8;">
-                                    1.5倍掛けスケーリング適用
+                                <div class="bet-eyes-box" style="border-color: ${{actionBadgeColor}}60; background: ${{actionBadgeBg}};">
+                                    <div style="font-size: 0.7rem; color: ${{actionBadgeColor}}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
+                                        Kelly3 推奨買い目 (Action ${{s2.action_id}}: ${{s2.action_name}})
+                                    </div>
+                                    <div class="bet-eyes-text" style="color: #fff; font-size: 1.05rem;">${{s2.bettingEyesText || '買い目なし'}}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    <div style="color: #cbd5e1;">
+                                        ${{jikuDisp}}${{jikuDisp && partnerDisp ? ' | ' : ''}}${{partnerDisp}}
+                                    </div>
+                                    <div style="color: #94a3b8;">
+                                        1.5倍掛けスケーリング適用
+                                    </div>
+                                </div>
+                                <div class="bet-result-details"></div>
+                                <div style="margin-top: 10px; text-align: right;">
+                                    <button class="smappy-btn" data-eyes="${{s2.bettingEyesText}}" data-type="${{s2.rawType}}" data-round="${{raceData.round}}" data-axis="${{s2.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
-                            <div class="bet-result-details"></div>
-                            <div style="margin-top: 10px; text-align: right;">
-                                <button class="smappy-btn" data-eyes="${{s2.bettingEyesText}}" data-type="${{s2.rawType}}" data-round="${{raceData.round}}" data-axis="${{s2.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
-                            </div>
-                        </div>
-                    `;
+                        `;
+                    }}
                 }} else {{
                     html += `
                         <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
@@ -3055,7 +3135,8 @@ def generate_static_html():
 
         function getSmappyHou(type, axisCount) {{
             if (type.includes('BOX')) return '2';
-            if (type.includes('3連単') && axisCount >= 2) return '6';
+            if (type.includes('マルチ') || type.includes('MULTI')) return '7';
+            if (type.includes('2通り') || (type.includes('3連単') && axisCount >= 2)) return '6';
             if (type.includes('3連単')) return '3';
             return '3';
         }}
@@ -3063,11 +3144,16 @@ def generate_static_html():
         function parseSmappyEyes(text, stratType) {{
             text = text.trim();
             if (stratType.includes('BOX')) {{
-                var all = text.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
+                var clean = text.replace(/BOX/gi, '').trim();
+                var all = clean.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
                 return {{axes: all, partners: []}};
             }}
             var axesStr, partnersStr;
-            if (text.indexOf(' - ') >= 0) {{
+            if (text.indexOf(' ― ') >= 0) {{
+                var dp = text.split(' ― ');
+                partnersStr = dp.pop();
+                axesStr = dp.join(' ― ');
+            }} else if (text.indexOf(' - ') >= 0) {{
                 var dp = text.split(' - ');
                 partnersStr = dp.pop();
                 axesStr = dp.join(' - ');
@@ -3075,13 +3161,21 @@ def generate_static_html():
                 var ap = text.split(' \u2192 ');
                 partnersStr = ap.pop();
                 axesStr = ap.join(' \u2192 ');
+            }} else if (text.indexOf('→') >= 0) {{
+                var ap = text.split('→');
+                partnersStr = ap.pop();
+                axesStr = ap.join('→');
             }} else {{
                 return {{axes: [parseInt(text)], partners: []}};
             }}
             var partners = partnersStr.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
             var axes;
-            if (axesStr.indexOf(' \u2192 ') >= 0) {{
-                axes = axesStr.split(' \u2192 ').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
+            if (axesStr.indexOf(' \u2192 ') >= 0 || axesStr.indexOf('→') >= 0) {{
+                axes = axesStr.split(/ \u2192 |→/).map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
+            }} else if (axesStr.indexOf(' ↔ ') >= 0 || axesStr.indexOf('↔') >= 0) {{
+                axes = axesStr.split(/ ↔ |↔/).map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
+            }} else if (axesStr.indexOf(',') >= 0) {{
+                axes = axesStr.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
             }} else {{
                 axes = [parseInt(axesStr.trim())];
             }}
