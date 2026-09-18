@@ -1874,7 +1874,7 @@ def generate_static_html():
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {{
             window.addEventListener('load', () => {{
-                navigator.serviceWorker.register('./sw.js?v=9')
+                navigator.serviceWorker.register('./sw.js?v=10')
                     .then(reg => console.log('[SW] ServiceWorker registered with scope:', reg.scope))
                     .catch(err => console.warn('[SW] ServiceWorker registration failed:', err));
             }});
