@@ -5,6 +5,8 @@
 /**
  * JRA 即PAT (IPAT) ui-title完全一致型 自動投票スクリプト (for Scriptable)
  * 画面上部の class="ui-title" のテキストから現在画面を100%正確に判定して自動進行します。
+ * 金額入力までいかず5秒停止した場合は、自動的にTOP画面からやり直します。
+ * 上部バーに現在の処理内容と経過秒数をリアルタイム表示します。
  */
 
 async function main() {
@@ -91,7 +93,7 @@ async function main() {
   let presentPromise = wv.present(true);
   await wv.loadURL("https://www.ipat.jra.go.jp/sp/");
 
-  // 4. ui-title判定オートメーションの注入
+  // 4. ui-title判定 & 5秒リトライ型オートメーションの注入
   let automationScript = `
   (function() {
     var userNo = ${JSON.stringify(userNo)};
@@ -141,6 +143,10 @@ async function main() {
           return;
         } catch (e) {}
       }
+      var onclick = el.getAttribute("onclick") || "";
+      if (onclick) {
+        try { window.eval(onclick); } catch (e) {}
+      }
       try {
         var rect = el.getBoundingClientRect();
         var x = rect.left + rect.width / 2;
@@ -158,8 +164,14 @@ async function main() {
     var actionCooldown = 0;
     var loginAttemptCount = 0;
 
+    // 5秒停止検知 & TOPやり直し用の状態管理
+    var currentStepName = "";
+    var lastStepName = "";
+    var stepStartTime = Date.now();
+    var retryCount = 0;
+
     function runLoop() {
-      if (Date.now() - startTime > 45000) {
+      if (Date.now() - startTime > 50000) {
         dg("⚠️ 処理がタイムアウトしました", "rgba(239,68,68,0.95)");
         return;
       }
@@ -170,10 +182,11 @@ async function main() {
 
       try {
         var bodyText = document.body ? (document.body.innerText || "") : "";
-        var allLinks = Array.from(document.querySelectorAll("a, button, input[type='button'], input[type='submit']"));
+        var activePage = document.querySelector(".ui-page-active") || document;
+        var allLinks = Array.from(activePage.querySelectorAll("a, button, input[type='button'], input[type='submit']"));
 
-        // 1. class="ui-title" の取得（現在画面の判定基準）
-        var titleEl = document.querySelector(".ui-page-active .ui-title, .ui-title, h1.ui-title");
+        // 1. class="ui-title" の取得（現在アクティブな画面タイトルの判定）
+        var titleEl = activePage.querySelector(".ui-title, h1.ui-title") || document.querySelector(".ui-page-active .ui-title, .ui-title");
         var title = titleEl ? (titleEl.innerText || titleEl.textContent || "").trim() : "";
 
         // A. ログイン画面
@@ -193,7 +206,7 @@ async function main() {
           }
 
           loginAttemptCount++;
-          dg("🔐 即PATへログイン中...");
+          dg("🔐 【ログイン】 即PATへログイン情報を送信中...");
           elU.value = userNo;
           elP.value = passNo;
           elR.value = parsNo;
@@ -218,29 +231,85 @@ async function main() {
           return;
         }
 
-        // B. ログイン後のトップ画面判定 (logoHeader があるかで判断)
-        var isTopScreen = !!document.querySelector(".logoHeader, #logoHeader, [class*='logoHeader'], [id*='logoHeader']");
-        if (isTopScreen) {
-          dg("📋 トップ画面検出 (logoHeader)！通常投票へ進みます...");
-          var regBtn = document.querySelector("a.ico_regular") || allLinks.find(function(a) {
-            var t = (a.innerText || a.textContent || "").trim();
-            return t === "通常投票" || t.indexOf("通常投票") >= 0;
-          });
-          if (typeof ToSPBet === "function") ToSPBet(0);
-          else if (typeof ToQRBet === "function") ToQRBet();
-          else if (regBtn) trigger(regBtn);
+        // B. 現在の画面ステップを特定（判定順序：ゴールである確認・金額画面 -> 各選択画面 -> TOP画面）
+        var passInput = activePage.querySelector("input[type='password'], #password, input[name='p']");
+        var textInputs = Array.from(activePage.querySelectorAll("input[type='tel'], input[type='text'], input[type='number']"));
+        var isConfirmScreen = (title.indexOf("確認") >= 0 || passInput) && (bodyText.indexOf("合計") >= 0 || bodyText.indexOf("投票内容") >= 0 || bodyText.indexOf("購入") >= 0);
 
-          lastAction = "MENU_TO_BET";
-          actionCooldown = Date.now() + 1000;
-          setTimeout(runLoop, 600);
-          return;
+        var isAmountScreen = (title.indexOf("金額") >= 0 || document.getElementById("kin") || activePage.querySelector("#kin .amount input"));
+
+        var isHorseTitle = title.indexOf("単勝") >= 0 || title.indexOf("複勝") >= 0 || title.indexOf("ボックス") >= 0 ||
+                           title.indexOf("軸") >= 0 || title.indexOf("相手") >= 0 ||
+                           title.indexOf("1着") >= 0 || title.indexOf("2着") >= 0 || title.indexOf("3着") >= 0;
+
+        var horseBtns = allLinks.filter(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          var dv = a.getAttribute("data-value") || "";
+          var n = parseInt(t) || parseInt(dv);
+          return n >= 1 && n <= 18 && (t === String(n) || t === ("0" + n) || dv === String(n));
+        });
+        var isHorseScreen = (isHorseTitle || horseBtns.length >= 5) && !isAmountScreen && !isConfirmScreen;
+
+        var isHouScreen = (title.indexOf("方式") >= 0) && !isHorseScreen && !isAmountScreen;
+        var isSikiScreen = (title.indexOf("式別") >= 0) && !isHouScreen && !isHorseScreen;
+        var isRaceScreen = (title.indexOf("レース") >= 0) && !isSikiScreen && !isHouScreen;
+        var isVenueScreen = (title.indexOf("競馬場") >= 0 || title.indexOf("場名") >= 0 || title === "競馬場名") && !isRaceScreen;
+
+        // TOP画面判定：アクティブページ内にlogoHeaderがある、または他画面ではなく通常投票ボタンがある
+        var hasLogoHeader = !!activePage.querySelector(".logoHeader, #logoHeader, [class*='logoHeader'], [id*='logoHeader']");
+        var regBtn = activePage.querySelector("a.ico_regular") || allLinks.find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return t === "通常投票" || t.indexOf("通常投票") >= 0;
+        });
+        var isTopScreen = (hasLogoHeader || regBtn) && !isVenueScreen && !isRaceScreen && !isSikiScreen && !isHouScreen && !isHorseScreen && !isAmountScreen && !isConfirmScreen;
+
+        // ステップ名の決定
+        var detectedStep = "";
+        if (isConfirmScreen) detectedStep = "CONFIRM";
+        else if (isAmountScreen) detectedStep = "AMOUNT";
+        else if (isHorseScreen) detectedStep = "HORSE";
+        else if (isHouScreen) detectedStep = "HOU";
+        else if (isSikiScreen) detectedStep = "SIKI";
+        else if (isRaceScreen) detectedStep = "RACE";
+        else if (isVenueScreen) detectedStep = "VENUE";
+        else if (isTopScreen) detectedStep = "TOP";
+        else detectedStep = "WAIT";
+
+        // ステップ変化の監視（同じ画面で5秒止まったらTOPからやり直し）
+        if (detectedStep !== lastStepName && detectedStep !== "WAIT") {
+          lastStepName = detectedStep;
+          stepStartTime = Date.now();
         }
 
-        // C. 最終確認画面（ui-titleが「確認」または暗証番号欄がある）
-        var passInput = document.querySelector("input[type='password'], #password, input[name='p']");
-        var textInputs = Array.from(document.querySelectorAll("input[type='tel'], input[type='text'], input[type='number']"));
-        if ((title.indexOf("確認") >= 0 || passInput) && (bodyText.indexOf("合計") >= 0 || bodyText.indexOf("投票内容") >= 0 || bodyText.indexOf("購入") >= 0)) {
-          dg("📝 確認画面に暗証番号と金額を入力中...");
+        var stepElapsedSec = Math.floor((Date.now() - stepStartTime) / 1000);
+
+        // 【5秒ルール】金額入力まで行かず、どこかの処理で5秒止まったらTOPからやり直す
+        if (detectedStep !== "AMOUNT" && detectedStep !== "CONFIRM" && detectedStep !== "WAIT") {
+          if (stepElapsedSec >= 5) {
+            retryCount++;
+            dg("⚠️ 5秒停止検知: TOP画面からやり直します (" + retryCount + "回目)...", "rgba(239,68,68,0.95)");
+            stepStartTime = Date.now();
+            lastStepName = "RETRY";
+
+            // TOP画面への復帰処理
+            if (typeof ToSPMenu === "function") {
+              try { ToSPMenu(); } catch(e) {}
+            } else {
+              var homeBtn = activePage.querySelector("a[data-rel='back'], a.ico_menu, a[href*='menu'], a.ui-btn-left");
+              if (homeBtn) trigger(homeBtn);
+              else if (typeof ToSPBet === "function") ToSPBet(0);
+            }
+            actionCooldown = Date.now() + 1500;
+            setTimeout(runLoop, 800);
+            return;
+          }
+        }
+
+        // --- 各画面の自動実行処理 ---
+
+        // 1. 最終確認画面
+        if (isConfirmScreen) {
+          dg("✅ 【最終確認】 暗証番号と金額を入力中...");
           for (var j = 0; j < textInputs.length; j++) {
             var inp = textInputs[j];
             var iid = (inp.id || "").toLowerCase();
@@ -258,17 +327,17 @@ async function main() {
             if (passInput.oninput) passInput.oninput();
           }
 
-          dg("✅ セット完了！内容を確認し、よろしければ【投票】を押してください", "rgba(16,185,129,0.95)");
-          return; // 全完了！
+          dg("🎉 【セット完了】 内容を確認し【投票】ボタンを押してください！", "rgba(16,185,129,0.95)");
+          return; // 全自動処理完了
         }
 
-        // C. 金額入力セット後、確認画面へ進むボタン（「入力終了」または「投票確認」）
+        // 2. 金額入力セット後の確認画面への送信ボタン
         var toSendBtn = allLinks.find(function(a) {
           var t = (a.innerText || a.textContent || "").trim();
           return t === "入力終了" || t === "投票確認" || t.indexOf("入力終了") >= 0 || t.indexOf("投票確認") >= 0;
         });
         if (toSendBtn && (lastAction === "SET_BET" || bodyText.indexOf("投票リスト") >= 0)) {
-          dg("📑 投票確認画面へ進みます...");
+          dg("📑 【投票確認へ】 確認画面へ進みます...");
           if (typeof ToSend === "function") ToSend();
           else trigger(toSendBtn);
           lastAction = "TO_SEND";
@@ -277,22 +346,22 @@ async function main() {
           return;
         }
 
-        // D. 「金額入力」画面 (ui-title === "金額入力" または titleに「金額」を含む)
-        if (title.indexOf("金額") >= 0 || document.getElementById("kin") || document.querySelector("#kin .amount input")) {
-          var kinInput = document.querySelector("#kin .amount input, input.amount, input[name='amount'], input[type='tel']");
+        // 3. 金額入力画面
+        if (isAmountScreen) {
+          var kinInput = activePage.querySelector("#kin .amount input, input.amount, input[name='amount'], input[type='tel']");
           var setBtn = allLinks.find(function(a) {
             var t = (a.innerText || a.textContent || "").trim();
             return t === "セット" || t.indexOf("セット") >= 0;
           });
           if (lastAction !== "SET_BET") {
-            dg("💰 金額を入力・セット中 (1点: " + (hundreds * 100) + "円)...");
+            dg("💰 【金額入力】 1点 " + (hundreds * 100) + "円をセット中...");
             if (kinInput) {
               kinInput.value = String(hundreds);
               if (kinInput.onchange) kinInput.onchange();
               if (kinInput.oninput) kinInput.oninput();
             }
             if (typeof VMA === "function") {
-              VMA(String(hundreds));
+              try { VMA(String(hundreds)); } catch(e) {}
             }
             setTimeout(function() {
               if (typeof SetBet === "function") SetBet(0);
@@ -306,27 +375,15 @@ async function main() {
           }
         }
 
-        // E. 馬番選択画面 (ui-title に「単勝」「複勝」「ボックス」「軸」「相手」「1着」「2着」「3着」など)
-        var isHorseTitle = title.indexOf("単勝") >= 0 || title.indexOf("複勝") >= 0 || title.indexOf("ボックス") >= 0 ||
-                           title.indexOf("軸") >= 0 || title.indexOf("相手") >= 0 ||
-                           title.indexOf("1着") >= 0 || title.indexOf("2着") >= 0 || title.indexOf("3着") >= 0;
-
-        var horseBtns = allLinks.filter(function(a) {
-          var t = (a.innerText || a.textContent || "").trim();
-          var dv = a.getAttribute("data-value") || "";
-          var n = parseInt(t) || parseInt(dv);
-          return n >= 1 && n <= 18 && (t === String(n) || t === ("0" + n) || dv === String(n));
-        });
-
-        if ((isHorseTitle || horseBtns.length >= 5) && lastAction !== "SELECT_HORSE" && lastAction !== "SET_BET") {
+        // 4. 馬番選択画面
+        if (isHorseScreen && lastAction !== "SELECT_HORSE" && lastAction !== "SET_BET") {
           var allHorses = [];
           if (axes && axes.length > 0) allHorses = allHorses.concat(axes);
           if (partners && partners.length > 0) allHorses = allHorses.concat(partners);
           if (allHorses.length === 0 && rawSteps.length > 3) allHorses = rawSteps.slice(3);
 
-          dg("🐎 馬番を選択中 (" + title + "): " + allHorses.join(", "));
+          dg("🐎 【馬番選択】 " + title + " (" + allHorses.join(", ") + "番) を選択中... (" + stepElapsedSec + "秒/5秒)");
 
-          // ながしでタイトルが「相手」の場合
           if (title.indexOf("相手") >= 0 && partners && partners.length > 0) {
             partners.forEach(function(h) {
               var hStr = String(parseInt(h));
@@ -339,11 +396,10 @@ async function main() {
               else if (typeof SelectHorse === "function") SelectHorse(hStr);
             });
             if (isMulti) {
-              var mb = document.querySelector("input[name='multi'], #multi, input[type='checkbox']");
+              var mb = activePage.querySelector("input[name='multi'], #multi, input[type='checkbox']");
               if (mb && !mb.checked) mb.click();
             }
           } else {
-            // 軸または通常の馬番選択
             var targetList = (axes && axes.length > 0) ? axes : allHorses;
             targetList.forEach(function(h) {
               var hStr = String(parseInt(h));
@@ -356,7 +412,6 @@ async function main() {
               else if (typeof SelectHorse === "function") SelectHorse(hStr);
             });
 
-            // ながしで相手選択ボタンがあればクリック
             if (axes && axes.length > 0 && partners && partners.length > 0) {
               var nextPartnerBtn = allLinks.find(function(a) {
                 var t = (a.innerText || a.textContent || "").trim();
@@ -377,13 +432,13 @@ async function main() {
           return;
         }
 
-        // F. 「方式」画面 (ui-title === "方式" または titleに「方式」を含む)
-        if (title.indexOf("方式") >= 0 && lastAction !== "SELECT_HOU" && lastAction !== "SELECT_HORSE") {
+        // 5. 方式選択画面
+        if (isHouScreen && lastAction !== "SELECT_HOU" && lastAction !== "SELECT_HORSE") {
           var hName = "通常";
           if (houCode === "1" || houCode === "box") hName = "ボックス";
           else if (houCode === "2" || houCode === "nagashi" || houCode === "multi") hName = "ながし";
 
-          dg("📐 方式を選択中: " + hName);
+          dg("📐 【方式選択】 「" + hName + "」を選択中... (" + stepElapsedSec + "秒/5秒)");
           var matchedHou = allLinks.find(function(a) {
             return (a.innerText || a.textContent || "").trim().indexOf(hName) >= 0;
           });
@@ -395,10 +450,10 @@ async function main() {
           return;
         }
 
-        // G. 「式別」画面 (ui-title === "式別" または titleに「式別」を含む)
-        if (title.indexOf("式別") >= 0 && lastAction !== "SELECT_SIKI" && lastAction !== "SELECT_HOU" && lastAction !== "SELECT_HORSE") {
+        // 6. 式別選択画面
+        if (isSikiScreen && lastAction !== "SELECT_SIKI" && lastAction !== "SELECT_HOU") {
           var targets = sikiMap[String(sikiCode)] || ["単勝"];
-          dg("🎯 式別を選択中: " + targets[0]);
+          dg("🎯 【式別選択】 「" + targets[0] + "」を選択中... (" + stepElapsedSec + "秒/5秒)");
           var matchedSiki = allLinks.find(function(a) {
             var t = (a.innerText || a.textContent || "").trim();
             return targets.some(function(tgt) { return t.indexOf(tgt) >= 0; });
@@ -411,9 +466,9 @@ async function main() {
           return;
         }
 
-        // H. 「レース」画面 (ui-title === "レース" または titleに「レース」を含む)
-        if (title.indexOf("レース") >= 0 && lastAction !== "SELECT_RACE" && lastAction !== "SELECT_SIKI") {
-          dg("🏁 レースを選択中: " + raceNum + "R");
+        // 7. レース選択画面
+        if (isRaceScreen && lastAction !== "SELECT_RACE" && lastAction !== "SELECT_SIKI") {
+          dg("🏁 【レース選択】 " + raceNum + "Rを選択中... (" + stepElapsedSec + "秒/5秒)");
           var matchedRace = allLinks.find(function(a) {
             var t = (a.innerText || a.textContent || "").trim();
             return t === raceNum + "R" || t === raceNum + "レース" || t === raceNum;
@@ -426,9 +481,9 @@ async function main() {
           return;
         }
 
-        // I. 「競馬場名」画面 (ui-title === "競馬場名" または titleに「競馬場」「場名」を含む)
-        if ((title.indexOf("競馬場") >= 0 || title.indexOf("場名") >= 0 || title === "競馬場名") && lastAction !== "SELECT_VENUE" && lastAction !== "SELECT_RACE") {
-          dg("🏇 競馬場を選択中: " + (venue || "開催場"));
+        // 8. 競馬場名選択画面
+        if (isVenueScreen && lastAction !== "SELECT_VENUE" && lastAction !== "SELECT_RACE") {
+          dg("🏇 【競馬場選択】 「" + (venue || "開催場") + "」を選択中... (" + stepElapsedSec + "秒/5秒)");
           var matchedVenue = allLinks.find(function(a) {
             var t = (a.innerText || a.textContent || "").trim();
             return venue && t.indexOf(venue) >= 0;
@@ -441,9 +496,25 @@ async function main() {
           return;
         }
 
+        // 9. TOP画面（通常投票ボタンを押す）
+        if (isTopScreen) {
+          dg("📋 【TOP画面】 通常投票へ進みます... (" + stepElapsedSec + "秒/5秒)");
+          if (typeof ToSPBet === "function") {
+            try { ToSPBet(0); } catch(e) {}
+          }
+          if (regBtn) trigger(regBtn);
+
+          lastAction = "MENU_TO_BET";
+          actionCooldown = Date.now() + 1000;
+          setTimeout(runLoop, 600);
+          return;
+        }
+
+        // 10. 読み込み待ち状態の表示
+        dg("⏳ 【画面読み込み中】 " + (title ? "タイトル: " + title : "処理待機中") + " (" + stepElapsedSec + "秒/5秒)");
         setTimeout(runLoop, 350);
       } catch(err) {
-        dg("エラー: " + err.message, "rgba(239,68,68,0.95)");
+        dg("⚠️ エラー: " + err.message, "rgba(239,68,68,0.95)");
         setTimeout(runLoop, 600);
       }
     }
