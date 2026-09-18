@@ -131,27 +131,106 @@ async function main() {
   })();
   `;
   await wv.evaluateJavaScript(loginScript, false);
-  await wv.waitForLoad();
 
-  // 5. ログイン後メニューから「通常投票」へ遷移
-  let toVoteScript = `
-  (function() {
-    var a = document.querySelector("a.ico_regular");
-    if (a) {
-      a.click();
-    } else if (typeof ToSPBet === "function") {
-      ToSPBet(0);
-    } else {
-      var regularBtn = Array.from(document.querySelectorAll("a,button")).find(b => {
-        var t = b.textContent || "";
-        return t.indexOf("通常投票") >= 0;
-      });
-      if (regularBtn) regularBtn.click();
+  // 5. メニュー画面または通常投票画面が表示されるまで待機（最大12秒ポーリング）
+  let menuReached = false;
+  for (let waitCount = 0; waitCount < 30; waitCount++) {
+    await new Promise(res => Timer.schedule(400, false, res));
+    let checkMenuScript = `
+    (function() {
+      if (document.getElementById("jyo") || document.getElementById("race") || document.getElementById("siki") || !!document.querySelector("a[data-value]")) {
+        return "VOTING_SCREEN";
+      }
+      if (typeof ToSPBet === "function" || !!document.querySelector("a.ico_regular") || !!Array.from(document.querySelectorAll("a,button")).find(b => (b.textContent||"").includes("通常投票"))) {
+        return "MENU_SCREEN";
+      }
+      if (document.body && (document.body.innerText.indexOf("エラー") >= 0 || document.body.innerText.indexOf("誤りがあります") >= 0)) {
+        return "LOGIN_ERROR";
+      }
+      return "WAITING";
+    })();
+    `;
+    let status = await wv.evaluateJavaScript(checkMenuScript, false);
+    if (status === "VOTING_SCREEN" || status === "MENU_SCREEN") {
+      menuReached = (status === "MENU_SCREEN");
+      break;
     }
-  })();
-  `;
-  await wv.evaluateJavaScript(toVoteScript, false);
-  await wv.waitForLoad();
+    if (status === "LOGIN_ERROR") {
+      let errA = new Alert();
+      errA.title = "UMACAログインエラー";
+      errA.message = "カード番号、生年月日、または暗証番号に誤りがあります。\nKeychainの情報を再設定してください。";
+      errA.addAction("設定を再入力する");
+      errA.addCancelAction("キャンセル");
+      let choice = await errA.present();
+      if (choice === 0) {
+        Keychain.remove("umaca_card_no");
+        Keychain.remove("umaca_birth_day");
+        Keychain.remove("umaca_pass_no");
+      }
+      Script.complete();
+      return;
+    }
+  }
+
+  // 6. メニュー画面から「通常投票」へ遷移
+  if (menuReached) {
+    let toVoteScript = `
+    (function() {
+      function setDiag(m) {
+        var x = document.getElementById("umaca-diag");
+        if (!x) {
+          x = document.createElement("div");
+          x.id = "umaca-diag";
+          x.style = "position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(147,51,234,0.95);color:#ffffff;font-size:12px;font-weight:bold;padding:8px 12px;pointer-events:none;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);";
+          document.body.appendChild(x);
+        }
+        x.innerText = m;
+      }
+      setDiag("📋 メニュー検出！通常投票へ遷移中...");
+
+      function tp(e) {
+        var rect = e.getBoundingClientRect();
+        var x = rect.left + rect.width / 2;
+        var y = rect.top + rect.height / 2;
+        var o = {bubbles:true, cancelable:true, clientX:x, clientY:y, view:window};
+        try {
+          var t = new Touch({identifier:Date.now(), target:e, clientX:x, clientY:y, radiusX:2, radiusY:2});
+          var to = {bubbles:true, cancelable:true, touches:[t], targetTouches:[t], changedTouches:[t], view:window};
+          e.dispatchEvent(new TouchEvent("touchstart", to));
+          e.dispatchEvent(new TouchEvent("touchend", to));
+        } catch(err) {}
+        e.dispatchEvent(new MouseEvent("mousedown", o));
+        e.dispatchEvent(new MouseEvent("mouseup", o));
+        e.dispatchEvent(new MouseEvent("click", o));
+        try { e.click(); } catch(err) {}
+      }
+
+      if (typeof ToSPBet === "function") {
+        ToSPBet(0);
+      } else {
+        var a = document.querySelector("a.ico_regular");
+        if (a) {
+          tp(a);
+        } else {
+          var regularBtn = Array.from(document.querySelectorAll("a,button")).find(b => (b.textContent||"").includes("通常投票"));
+          if (regularBtn) tp(regularBtn);
+        }
+      }
+    })();
+    `;
+    await wv.evaluateJavaScript(toVoteScript, false);
+
+    // 通常投票画面が表示されるまで待機（最大10秒ポーリング）
+    for (let waitCount = 0; waitCount < 25; waitCount++) {
+      await new Promise(res => Timer.schedule(400, false, res));
+      let inVoting = await wv.evaluateJavaScript(`
+        (function() {
+          return !!(document.getElementById("jyo") || document.getElementById("race") || document.getElementById("siki") || document.querySelector("a[data-value]"));
+        })();
+      `, false);
+      if (inVoting) break;
+    }
+  }
 
   // ページ初期化を少し待機
   await new Promise(res => Timer.schedule(600, false, res));
