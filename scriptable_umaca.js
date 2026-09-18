@@ -135,28 +135,65 @@ async function main() {
 
     function trigger(el) {
       if (!el) return;
-      var href = el.getAttribute("href") || "";
-      if (href.toLowerCase().startsWith("javascript:")) {
-        try {
-          var code = href.replace(/^javascript:/i, '');
-          window.eval(code);
-          return;
-        } catch (e) {}
-      }
-      var onclick = el.getAttribute("onclick") || "";
-      if (onclick) {
-        try { window.eval(onclick); } catch (e) {}
-      }
+      try { el.focus(); } catch(e) {}
+
+      // 1. TouchEvent（スマホ/WebViewのタップ）
       try {
-        var rect = el.getBoundingClientRect();
-        var x = rect.left + rect.width / 2;
-        var y = rect.top + rect.height / 2;
-        var o = {bubbles:true, cancelable:true, clientX:x, clientY:y, view:window};
+        var r = el.getBoundingClientRect();
+        var x = r.left + r.width / 2;
+        var y = r.top + r.height / 2;
+        var t = new Touch({identifier: Date.now(), target: el, clientX: x, clientY: y, radiusX: 2, radiusY: 2});
+        var to = {bubbles: true, cancelable: true, touches: [t], targetTouches: [t], changedTouches: [t], view: window};
+        el.dispatchEvent(new TouchEvent("touchstart", to));
+        el.dispatchEvent(new TouchEvent("touchend", to));
+      } catch (err) {}
+
+      // 2. PointerEvent
+      try {
+        var r2 = el.getBoundingClientRect();
+        var x2 = r2.left + r2.width / 2;
+        var y2 = r2.top + r2.height / 2;
+        el.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true, cancelable: true, clientX: x2, clientY: y2, view: window}));
+        el.dispatchEvent(new PointerEvent("pointerup", {bubbles: true, cancelable: true, clientX: x2, clientY: y2, view: window}));
+      } catch (err) {}
+
+      // 3. MouseEvent
+      try {
+        var r3 = el.getBoundingClientRect();
+        var x3 = r3.left + r3.width / 2;
+        var y3 = r3.top + r3.height / 2;
+        var o = {bubbles: true, cancelable: true, clientX: x3, clientY: y3, view: window};
         el.dispatchEvent(new MouseEvent("mousedown", o));
         el.dispatchEvent(new MouseEvent("mouseup", o));
         el.dispatchEvent(new MouseEvent("click", o));
-      } catch (e) {}
-      try { el.click(); } catch(e) {}
+      } catch (err) {}
+
+      // 4. 標準 el.click()
+      try { el.click(); } catch (err) {}
+
+      // 5. jQuery Mobile 用 (もしページ内に $ や jQuery がある場合)
+      try {
+        if (window.$ && typeof window.$(el).trigger === "function") {
+          window.$(el).trigger("vclick");
+          window.$(el).trigger("tap");
+          window.$(el).trigger("click");
+        }
+      } catch (err) {}
+
+      // 6. onclick / href 属性の直接実行
+      var onclick = el.getAttribute("onclick") || "";
+      if (onclick) {
+        try { window.eval(onclick); } catch (err) {}
+      }
+      var href = el.getAttribute("href") || "";
+      if (href) {
+        if (href.toLowerCase().startsWith("javascript:")) {
+          try {
+            var code = href.replace(/^javascript:/i, '');
+            window.eval(code);
+          } catch (err) {}
+        }
+      }
     }
 
     var startTime = Date.now();
@@ -271,10 +308,15 @@ async function main() {
 
         // TOP画面判定：アクティブページ内にlogoHeaderがある、または他画面ではなく通常投票ボタンがある
         var hasLogoHeader = !!activePage.querySelector(".logoHeader, #logoHeader, [class*='logoHeader'], [id*='logoHeader']");
-        var regBtn = activePage.querySelector("a.ico_regular") || allLinks.find(function(a) {
-          var t = (a.innerText || a.textContent || "").trim();
-          return t === "通常投票" || t.indexOf("通常投票") >= 0;
-        });
+        var regBtn = document.querySelector(".ui-page-active a.ico_regular, a.ico_regular.ui-link, a.ico_regular, a[class*='ico_regular']") ||
+                     allLinks.find(function(a) {
+                       var t = (a.innerText || a.textContent || "").trim();
+                       return t === "通常投票" || t.indexOf("通常投票") >= 0;
+                     }) ||
+                     Array.from(document.querySelectorAll("a")).find(function(a) {
+                       var t = (a.innerText || a.textContent || "").trim();
+                       return t === "通常投票" || t.indexOf("通常投票") >= 0;
+                     });
         var isTopScreen = (hasLogoHeader || regBtn) && !isVenueScreen && !isRaceScreen && !isSikiScreen && !isHouScreen && !isHorseScreen && !isAmountScreen && !isConfirmScreen;
 
         // ステップ名の決定
@@ -513,16 +555,19 @@ async function main() {
           return;
         }
 
-        // 9. TOP画面（通常投票ボタンを押す）
+        // 9. TOP画面（<a class="ico_regular ui-link">通常投票</a> をクリックして競馬場名へ遷移）
         if (isTopScreen) {
-          dg("📋 【TOP画面】 通常投票へ進みます... (" + stepElapsedSec + "秒/5秒)");
-          if (typeof ToSPBet === "function") {
-            try { ToSPBet(0); } catch(e) {}
+          dg("📋 【TOP画面】 通常投票 (<a class='ico_regular ui-link'>) をタップ中... (" + stepElapsedSec + "秒/5秒)");
+          if (regBtn) {
+            trigger(regBtn);
+          } else {
+            if (typeof ToSPBet === "function") {
+              try { ToSPBet(0); } catch(e) {}
+            }
+            if (typeof ToQRBet === "function") {
+              try { ToQRBet(); } catch(e) {}
+            }
           }
-          if (typeof ToQRBet === "function") {
-            try { ToQRBet(); } catch(e) {}
-          }
-          if (regBtn) trigger(regBtn);
 
           lastAction = "MENU_TO_BET";
           actionCooldown = Date.now() + 1000;
