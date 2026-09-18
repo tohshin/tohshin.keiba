@@ -1874,7 +1874,7 @@ def generate_static_html():
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {{
             window.addEventListener('load', () => {{
-                navigator.serviceWorker.register('./sw.js')
+                navigator.serviceWorker.register('./sw.js?v=8')
                     .then(reg => console.log('[SW] ServiceWorker registered with scope:', reg.scope))
                     .catch(err => console.warn('[SW] ServiceWorker registration failed:', err));
             }});
@@ -3589,12 +3589,14 @@ def generate_static_html():
             btn.parentElement.appendChild(popup);
 
             window._ipatParsed = {{
+                placeName: currentPlace,
                 weekday: weekday,
                 round: round,
                 siki: siki,
                 hou: hou,
                 axes: parsed.axes,
                 partners: parsed.partners,
+                isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
             }};
@@ -3617,7 +3619,7 @@ def generate_static_html():
             if (!venueEl || !window._ipatParsed) return;
             var v = venueEl.value;
             var p = window._ipatParsed;
-            var placeName = (window._ipatPlaces && window._ipatPlaces[v]) || "";
+            var placeName = (window._ipatPlaces && window._ipatPlaces[v]) || p.placeName || "";
 
             var unitInp = document.getElementById('ipat-unit-amount');
             var unitVal = unitInp ? (parseInt(unitInp.value) || 100) : 100;
@@ -3634,6 +3636,14 @@ def generate_static_html():
             var payload = {{
                 steps: rawSteps,
                 venueName: placeName,
+                placeName: placeName,
+                round: p.round,
+                raceNo: p.round,
+                siki: p.siki,
+                hou: p.hou,
+                axes: p.axes || [],
+                partners: p.partners || [],
+                isMulti: p.isMulti || false,
                 weekday: p.weekday || "",
                 unitAmount: unitVal,
                 totalAmount: totalVal
@@ -3753,12 +3763,14 @@ def generate_static_html():
             btn.parentElement.appendChild(popup);
 
             window._umacaParsed = {{
+                placeName: currentPlace,
                 weekday: weekday,
                 round: round,
                 siki: siki,
                 hou: hou,
                 axes: parsed.axes,
                 partners: parsed.partners,
+                isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
             }};
@@ -3781,7 +3793,7 @@ def generate_static_html():
             if (!venueEl || !window._umacaParsed) return;
             var v = venueEl.value;
             var p = window._umacaParsed;
-            var placeName = (window._umacaPlaces && window._umacaPlaces[v]) || "";
+            var placeName = (window._umacaPlaces && window._umacaPlaces[v]) || p.placeName || "";
 
             var unitInp = document.getElementById('umaca-unit-amount');
             var unitVal = unitInp ? (parseInt(unitInp.value) || 100) : 100;
@@ -3798,6 +3810,14 @@ def generate_static_html():
             var payload = {{
                 steps: rawSteps,
                 venueName: placeName,
+                placeName: placeName,
+                round: p.round,
+                raceNo: p.round,
+                siki: p.siki,
+                hou: p.hou,
+                axes: p.axes || [],
+                partners: p.partners || [],
+                isMulti: p.isMulti || false,
                 weekday: p.weekday || "",
                 unitAmount: unitVal,
                 totalAmount: totalVal
