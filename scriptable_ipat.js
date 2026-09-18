@@ -34,7 +34,7 @@ async function main() {
     return;
   }
 
-  const { steps, venueName, placeName, weekday, unitAmount, totalAmount, round, raceNo, siki, hou, axes, partners, isMulti } = params;
+  const { steps, venueName, placeName, weekday, unitAmount, totalAmount, round, raceNo, siki, hou, axes, partners, isMulti, resetLogin } = params;
   const targetVenue = venueName || placeName || "";
   const targetRace = String(round || raceNo || (steps && steps[1]) || "1").replace(/[^0-9]/g, "");
   const targetSiki = String(siki || (steps && steps[2]) || "1");
@@ -43,7 +43,13 @@ async function main() {
   const hundreds = Math.floor(uAmount / 100);
   const tAmount = parseInt(totalAmount) || uAmount;
 
-  // 2. Keychain から IPAT ログイン情報を取得 (初回はプロンプト)
+  if (resetLogin) {
+    if (Keychain.contains("ipat_user_no")) Keychain.remove("ipat_user_no");
+    if (Keychain.contains("ipat_pass_no")) Keychain.remove("ipat_pass_no");
+    if (Keychain.contains("ipat_pars_no")) Keychain.remove("ipat_pars_no");
+  }
+
+  // 2. Keychain から IPAT ログイン情報を取得 (初回またはリセット時はプロンプト)
   let userNo = Keychain.contains("ipat_user_no") ? Keychain.get("ipat_user_no") : "";
   let passNo = Keychain.contains("ipat_pass_no") ? Keychain.get("ipat_pass_no") : "";
   let parsNo = Keychain.contains("ipat_pars_no") ? Keychain.get("ipat_pars_no") : "";
@@ -150,6 +156,7 @@ async function main() {
     var startTime = Date.now();
     var lastAction = "";
     var actionCooldown = 0;
+    var loginAttemptCount = 0;
 
     function runLoop() {
       if (Date.now() - startTime > 45000) {
@@ -173,7 +180,19 @@ async function main() {
         var elU = document.getElementById("userid") || document.querySelector("input[name='i']");
         var elP = document.getElementById("password") || document.querySelector("input[name='p']");
         var elR = document.getElementById("pars") || document.querySelector("input[name='r']");
-        if (elU && elP && elR && elU.value !== userNo) {
+        if (elU && elP && elR) {
+          if (loginAttemptCount >= 1) {
+            var errMsg = "ログインできませんでした。";
+            if (bodyText.indexOf("エラー") >= 0 || bodyText.indexOf("誤り") >= 0 || bodyText.indexOf("022/1010") >= 0) {
+              errMsg = "加入者番号・暗証番号・P-ARS番号に誤りがあります。";
+            } else if (bodyText.indexOf("時間外") >= 0 || bodyText.indexOf("休止") >= 0 || bodyText.indexOf("メンテナンス") >= 0) {
+              errMsg = "現在JRAのサービス提供時間外（メンテナンス中）です。";
+            }
+            dg("⚠️ " + errMsg, "rgba(239,68,68,0.95)");
+            return;
+          }
+
+          loginAttemptCount++;
           dg("🔐 即PATへログイン中...");
           elU.value = userNo;
           elP.value = passNo;
@@ -188,8 +207,8 @@ async function main() {
             if (form) form.submit();
           }
           lastAction = "LOGIN";
-          actionCooldown = Date.now() + 1000;
-          setTimeout(runLoop, 500);
+          actionCooldown = Date.now() + 1500;
+          setTimeout(runLoop, 800);
           return;
         }
 

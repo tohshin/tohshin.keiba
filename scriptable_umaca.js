@@ -34,7 +34,7 @@ async function main() {
     return;
   }
 
-  const { steps, venueName, placeName, weekday, unitAmount, totalAmount, round, raceNo, siki, hou, axes, partners, isMulti } = params;
+  const { steps, venueName, placeName, weekday, unitAmount, totalAmount, round, raceNo, siki, hou, axes, partners, isMulti, resetLogin } = params;
   const targetVenue = venueName || placeName || "";
   const targetRace = String(round || raceNo || (steps && steps[1]) || "1").replace(/[^0-9]/g, "");
   const targetSiki = String(siki || (steps && steps[2]) || "1");
@@ -43,7 +43,13 @@ async function main() {
   const hundreds = Math.floor(uAmount / 100);
   const tAmount = parseInt(totalAmount) || uAmount;
 
-  // 2. Keychain から UMACA ログイン情報を取得 (初回はプロンプト)
+  if (resetLogin) {
+    if (Keychain.contains("umaca_card_no")) Keychain.remove("umaca_card_no");
+    if (Keychain.contains("umaca_birth_day")) Keychain.remove("umaca_birth_day");
+    if (Keychain.contains("umaca_pass_no")) Keychain.remove("umaca_pass_no");
+  }
+
+  // 2. Keychain から UMACA ログイン情報を取得 (初回またはリセット時はプロンプト)
   let cardNo = Keychain.contains("umaca_card_no") ? Keychain.get("umaca_card_no") : "";
   let birthDay = Keychain.contains("umaca_birth_day") ? Keychain.get("umaca_birth_day") : "";
   let passNo = Keychain.contains("umaca_pass_no") ? Keychain.get("umaca_pass_no") : "";
@@ -150,6 +156,7 @@ async function main() {
     var startTime = Date.now();
     var lastAction = "";
     var actionCooldown = 0;
+    var loginAttemptCount = 0;
 
     function runLoop() {
       if (Date.now() - startTime > 45000) {
@@ -185,7 +192,17 @@ async function main() {
           }
         }
 
-        if (elC && elB && elP && elC.value !== cardNo) {
+        if (elC && elB && elP) {
+          if (loginAttemptCount >= 1) {
+            var errMsg = "UMACAログインに失敗しました。";
+            if (bodyText.indexOf("エラー") >= 0 || bodyText.indexOf("カード番号") >= 0 || bodyText.indexOf("暗証番号") >= 0) {
+              errMsg = "カード番号・生年月日・暗証番号に誤りがあります。";
+            }
+            dg("⚠️ " + errMsg, "rgba(239,68,68,0.95)");
+            return;
+          }
+
+          loginAttemptCount++;
           dg("🟣 UMACAへログイン中...");
           elC.value = cardNo;
           elB.value = birthDay;
@@ -204,8 +221,8 @@ async function main() {
             if (form) form.submit();
           }
           lastAction = "LOGIN";
-          actionCooldown = Date.now() + 1000;
-          setTimeout(runLoop, 500);
+          actionCooldown = Date.now() + 1500;
+          setTimeout(runLoop, 800);
           return;
         }
 

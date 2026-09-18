@@ -1874,7 +1874,7 @@ def generate_static_html():
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {{
             window.addEventListener('load', () => {{
-                navigator.serviceWorker.register('./sw.js?v=12')
+                navigator.serviceWorker.register('./sw.js?v=13')
                     .then(reg => console.log('[SW] ServiceWorker registered with scope:', reg.scope))
                     .catch(err => console.warn('[SW] ServiceWorker registration failed:', err));
             }});
@@ -3580,6 +3580,7 @@ def generate_static_html():
                         4. 初回実行時のみ、加入者番号・暗証番号・P-ARS番号を入力（iOSのKeychainに安全に暗号化保存されます）
                     </div>
                     <button onclick="copyIpatAppCode()" style="margin-top: 8px; width: 100%; padding: 8px; background: #334155; color: #f8fafc; border: none; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">📋 即PAT用Scriptableコードをコピー</button>
+                    <button onclick="launchIpatScriptable(true)" style="margin-top: 6px; width: 100%; padding: 6px; background: transparent; border: 1px dashed rgba(255,255,255,0.2); color: #94a3b8; border-radius: 6px; font-size: 0.7rem; cursor: pointer;">🔄 ログイン情報（加入者番号・暗証番号）を再設定して実行</button>
                 </details>
 
                 <div style="font-size: 0.65rem; color: #94a3b8; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; line-height: 1.4;">
@@ -3614,7 +3615,7 @@ def generate_static_html():
             disp.innerText = tot.toLocaleString() + '円';
         }}
 
-        function launchIpatScriptable() {{
+        function launchIpatScriptable(resetLogin) {{
             var venueEl = document.getElementById('ipat-venue');
             if (!venueEl || !window._ipatParsed) return;
             var v = venueEl.value;
@@ -3646,7 +3647,8 @@ def generate_static_html():
                 isMulti: p.isMulti || false,
                 weekday: p.weekday || "",
                 unitAmount: unitVal,
-                totalAmount: totalVal
+                totalAmount: totalVal,
+                resetLogin: !!resetLogin
             }};
 
             var jsonStr = JSON.stringify(payload);
@@ -3754,6 +3756,7 @@ def generate_static_html():
                         4. 初回実行時のみ、カード番号(12桁)・生年月日(8桁)・暗証番号(4桁)を入力（iOSのKeychainに安全に暗号化保存されます）
                     </div>
                     <button onclick="copyUmacaAppCode()" style="margin-top: 8px; width: 100%; padding: 8px; background: #334155; color: #f8fafc; border: none; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">📋 UMACA用Scriptableコードをコピー</button>
+                    <button onclick="launchUmacaScriptable(true)" style="margin-top: 6px; width: 100%; padding: 6px; background: transparent; border: 1px dashed rgba(255,255,255,0.2); color: #94a3b8; border-radius: 6px; font-size: 0.7rem; cursor: pointer;">🔄 ログイン情報（カード番号・暗証番号）を再設定して実行</button>
                 </details>
 
                 <div style="font-size: 0.65rem; color: #94a3b8; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; line-height: 1.4;">
@@ -3788,7 +3791,7 @@ def generate_static_html():
             disp.innerText = tot.toLocaleString() + '円';
         }}
 
-        function launchUmacaScriptable() {{
+        function launchUmacaScriptable(resetLogin) {{
             var venueEl = document.getElementById('umaca-venue');
             if (!venueEl || !window._umacaParsed) return;
             var v = venueEl.value;
@@ -3820,7 +3823,8 @@ def generate_static_html():
                 isMulti: p.isMulti || false,
                 weekday: p.weekday || "",
                 unitAmount: unitVal,
-                totalAmount: totalVal
+                totalAmount: totalVal,
+                resetLogin: !!resetLogin
             }};
 
             var jsonStr = JSON.stringify(payload);
