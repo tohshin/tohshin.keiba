@@ -2551,6 +2551,7 @@
 
             var jsonStr = JSON.stringify(payload);
 
+            // クリップボードにもフォールバック用にコピー
             try {
                 var t = document.createElement('textarea');
                 t.value = jsonStr;
@@ -2560,6 +2561,7 @@
                 document.body.removeChild(t);
             } catch(e) {}
 
+            // Scriptable URLスキームを起動
             var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("スマッピー") + "&data=" + encodeURIComponent(jsonStr);
             window.location.href = scriptableUrl;
         }
