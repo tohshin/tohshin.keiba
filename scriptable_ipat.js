@@ -404,15 +404,18 @@ async function main() {
           return;
         }
 
-        // J. メニュー画面（ui-titleが投票画面ではない、かつ「通常投票」ボタンがある）
+        // J. メニュー画面（トップ画面）
+        // ユーザー提供: <img src="tmpl/images/qr_service_logo.png"> はトップ画面
+        var isTopLogo = !!document.querySelector("img[src*='qr_service_logo']");
         var regBtn = document.querySelector("a.ico_regular") || allLinks.find(function(a) {
           var t = (a.innerText || a.textContent || "").trim();
           return t === "通常投票" || t.indexOf("通常投票") >= 0;
         });
-        if (regBtn && title.indexOf("競馬場") < 0 && title.indexOf("レース") < 0 && title.indexOf("式別") < 0) {
-          dg("📋 メニュー検出！通常投票へ進みます...");
+        if ((isTopLogo || regBtn) && title.indexOf("競馬場") < 0 && title.indexOf("レース") < 0 && title.indexOf("式別") < 0 && title.indexOf("方式") < 0) {
+          dg("📋 トップ画面検出！通常投票へ進みます...");
           if (typeof ToSPBet === "function") ToSPBet(0);
-          else trigger(regBtn);
+          else if (typeof ToQRBet === "function") ToQRBet();
+          else if (regBtn) trigger(regBtn);
 
           lastAction = "MENU_TO_BET";
           actionCooldown = Date.now() + 1000;
