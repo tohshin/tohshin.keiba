@@ -848,6 +848,8 @@ def generate_static_html():
             logger.warning(f"Failed to read scriptable_smappy.js: {e}")
     _scriptable_app_code_json = json.dumps(_scriptable_app_code)
 
+    _smappy_fixed_bml = 'javascript:void((async function(){var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var text="";if(navigator.clipboard&&navigator.clipboard.readText){try{text=await navigator.clipboard.readText();}catch(e){}}if(!text||text.indexOf("steps")<0){text=prompt("買い目データを貼り付けてください:",text||"");}if(!text)return;var data;try{data=JSON.parse(text);}catch(e){alert("データ形式が正しくありません");return;}var s=data.steps;var vn=data.venueName||"";var wd=data.weekday||"";if(!s||!s.length){alert("買い目データが空です");return;}var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})());'
+    _smappy_fixed_bml_json = json.dumps(_smappy_fixed_bml)
     _smappy_part2_js = 'try{if(typeof completion==="function")completion("OK");}catch(e){}var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
     _smappy_part2_js_json = json.dumps(_smappy_part2_js)
     strategies2_json = json.dumps(strategies2_list, ensure_ascii=False)
@@ -3328,14 +3330,26 @@ def generate_static_html():
                 </div>
 
                 <div id="panel-pc" style="display: none;">
-                    <div class="step-box">
-                        <span class="step-title">使い方</span>
-                        <div class="step-desc">下のボタンをブックマークバーにドラッグ登録して、JRAの会場画面で開くだけ！</div>
+                    <div class="step-box" style="background: rgba(99, 102, 241, 0.08); border-left: 3px solid #6366f1; padding: 8px 10px; margin-bottom: 10px; border-radius: 4px;">
+                        <span class="step-title" style="color: #818cf8; font-weight: 800; font-size: 0.75rem;">🌟 コピー＆ブックマークで自動入力</span>
+                        <div class="step-desc" style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                            下のボタンで買い目をコピーし、JRA画面でブックマークを押すだけ！
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 6px;">
-                        <a id="smappy-bml-link" href="#" style="flex: 1; text-align: center; padding: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 800; font-size: 0.8rem; border-radius: 8px; text-decoration: none;">📌 ドラッグ登録</a>
-                        <button onclick="copySmappyBml()" style="padding: 10px 12px; background: #334155; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">📋 コピー</button>
-                    </div>
+                    <button onclick="copySmappyPayload()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        📋 買い目をコピーしてJRAへ
+                    </button>
+                    <details style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; font-size: 0.7rem;">
+                        <summary style="cursor: pointer; color: #94a3b8; font-weight: 700; outline: none; user-select: none;">📌 自動入力ブックマーク（初回1回のみ登録）</summary>
+                        <div style="margin-top: 8px; line-height: 1.6; color: #cbd5e1;">
+                            <b>1度登録すれば全てのレースで使えます！</b><br>
+                            下のボタンをブックマークバーにドラッグ登録（またはコードをコピーしてブックマーク追加）してください。
+                        </div>
+                        <div style="display: flex; gap: 6px; margin-top: 8px;">
+                            <a id="smappy-fixed-bml-link" href="#" style="flex: 1; text-align: center; padding: 8px; background: #334155; color: #fff; font-weight: 700; font-size: 0.75rem; border-radius: 6px; text-decoration: none;">📌 ドラッグ登録</a>
+                            <button onclick="copyFixedBml()" style="padding: 8px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-weight: 600; font-size: 0.72rem; cursor: pointer;">📋 コードコピー</button>
+                        </div>
+                    </details>
                 </div>
 
                 <div id="panel-ios" style="display: block;">
@@ -3367,11 +3381,17 @@ def generate_static_html():
 
             window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners}};
             
+            var fixedLink = document.getElementById('smappy-fixed-bml-link');
+            if (fixedLink) {{
+                fixedLink.href = {_smappy_fixed_bml_json};
+            }}
+
             function updateBml() {{
                 var v = document.getElementById('smappy-venue').value;
                 var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
                 var bml = genSmappyBml(v, placeName, weekday, round, siki, hou, parsed.axes, parsed.partners);
-                document.getElementById('smappy-bml-link').href = bml;
+                var linkEl = document.getElementById('smappy-bml-link');
+                if (linkEl) linkEl.href = bml;
                 window._smappyBml = bml;
             }}
             document.getElementById('smappy-venue').addEventListener('change', updateBml);
@@ -3383,6 +3403,49 @@ def generate_static_html():
             document.getElementById('tab-ios').className = 'smappy-tab' + (tab === 'ios' ? ' active' : '');
             document.getElementById('panel-pc').style.display = (tab === 'pc' ? 'block' : 'none');
             document.getElementById('panel-ios').style.display = (tab === 'ios' ? 'block' : 'none');
+        }}
+
+        function copySmappyPayload() {{
+            var venueEl = document.getElementById('smappy-venue');
+            if (!venueEl || !window._smappyParsed) return;
+            var v = venueEl.value;
+            var p = window._smappyParsed;
+            var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
+
+            var rawSteps = [v, p.round, p.siki];
+            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+            if (!simple && p.hou) rawSteps.push(p.hou);
+            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+
+            var payload = {{
+                steps: rawSteps,
+                venueName: placeName,
+                weekday: p.weekday || ""
+            }};
+
+            var jsonStr = JSON.stringify(payload);
+            var t = document.createElement('textarea');
+            t.value = jsonStr;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+
+            if (confirm('買い目データをコピーしました！\\nJRA通常投票（会場画面）を開きますか？\\n（開いた画面で登録したブックマークを押してください）')) {{
+                window.open('https://qrcode.jra.go.jp/pw_982_i.cgi', '_blank');
+            }}
+        }}
+
+        function copyFixedBml() {{
+            var bml = {_smappy_fixed_bml_json};
+            var t = document.createElement('textarea');
+            t.value = bml;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('固定ブックマーク用コードをコピーしました！\\nブラウザのブックマーク登録画面のURL欄に貼り付けて保存してください。');
         }}
 
         function launchSmappyScriptable() {{
