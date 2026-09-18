@@ -858,6 +858,16 @@ def generate_static_html():
             logger.warning(f"Failed to read scriptable_ipat.js: {e}")
     _scriptable_ipat_code_json = json.dumps(_scriptable_ipat_code)
 
+    scriptable_umaca_file = os.path.join(os.path.dirname(__file__), "scriptable_umaca.js")
+    _scriptable_umaca_code = ""
+    if os.path.exists(scriptable_umaca_file):
+        try:
+            with open(scriptable_umaca_file, "r", encoding="utf-8") as sf:
+                _scriptable_umaca_code = sf.read()
+        except Exception as e:
+            logger.warning(f"Failed to read scriptable_umaca.js: {e}")
+    _scriptable_umaca_code_json = json.dumps(_scriptable_umaca_code)
+
     _smappy_fixed_bml = 'javascript:void((async function(){var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var text="";if(navigator.clipboard&&navigator.clipboard.readText){try{text=await navigator.clipboard.readText();}catch(e){}}if(!text||text.indexOf("steps")<0){text=prompt("買い目データを貼り付けてください:",text||"");}if(!text)return;var data;try{data=JSON.parse(text);}catch(e){alert("データ形式が正しくありません");return;}var s=data.steps;var vn=data.venueName||"";var wd=data.weekday||"";if(!s||!s.length){alert("買い目データが空です");return;}var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})());'
     _smappy_fixed_bml_json = json.dumps(_smappy_fixed_bml)
     _smappy_part2_js = 'try{if(typeof completion==="function")completion("OK");}catch(e){}var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
@@ -1688,6 +1698,22 @@ def generate_static_html():
         .ipat-btn:hover {{
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+        }}
+        .umaca-btn {{
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            border: none;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+        }}
+        .umaca-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(168, 85, 247, 0.45);
         }}
         .smappy-popup {{
             background: #1e293b;
@@ -2789,8 +2815,9 @@ def generate_static_html():
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
-                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
                                     <button class="ipat-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
+                                    <button class="umaca-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showUmaca(this)">🟣 UMACA</button>
                                     <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
@@ -2859,8 +2886,9 @@ def generate_static_html():
                                         <div class="bet-eyes-text" style="color: #fff; font-size: 1.15rem;">${{sub.bettingEyesText}}</div>
                                     </div>
                                     <div class="bet-result-details"></div>
-                                    <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                    <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
                                         <button class="ipat-btn" data-eyes="${{sub.bettingEyesText}}" data-type="${{sub.rawType}}" data-round="${{raceData.round}}" data-axis="${{sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT (${{sub.rawType.split('-')[0]}})</button>
+                                        <button class="umaca-btn" data-eyes="${{sub.bettingEyesText}}" data-type="${{sub.rawType}}" data-round="${{raceData.round}}" data-axis="${{sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showUmaca(this)">🟣 UMACA (${{sub.rawType.split('-')[0]}})</button>
                                         <button class="smappy-btn" data-eyes="${{sub.bettingEyesText}}" data-type="${{sub.rawType}}" data-round="${{raceData.round}}" data-axis="${{sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー (${{sub.rawType.split('-')[0]}})</button>
                                     </div>
                                 </div>
@@ -2906,8 +2934,9 @@ def generate_static_html():
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
-                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
                                     <button class="ipat-btn" data-eyes="${{s2.bettingEyesText}}" data-type="${{s2.rawType}}" data-round="${{raceData.round}}" data-axis="${{s2.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
+                                    <button class="umaca-btn" data-eyes="${{s2.bettingEyesText}}" data-type="${{s2.rawType}}" data-round="${{raceData.round}}" data-axis="${{s2.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showUmaca(this)">🟣 UMACA</button>
                                     <button class="smappy-btn" data-eyes="${{s2.bettingEyesText}}" data-type="${{s2.rawType}}" data-round="${{raceData.round}}" data-axis="${{s2.axis2Num ? 2 : 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
@@ -3638,6 +3667,170 @@ def generate_static_html():
             document.execCommand('copy');
             document.body.removeChild(t);
             alert('即PAT用コードをコピーしました！\\n\\n【次の手順】\\n1. Scriptableアプリを開く\\n2. 右上の「＋」を押して貼り付け\\n3. スクリプト名を「即PAT」にして保存');
+        }}
+
+        function showUmaca(btn) {{
+            var prev = document.querySelector('.smappy-popup');
+            if (prev) prev.remove();
+
+            var eyes = btn.getAttribute('data-eyes');
+            var type = btn.getAttribute('data-type');
+            var round = btn.getAttribute('data-round');
+            var axisCount = parseInt(btn.getAttribute('data-axis')) || 1;
+            var unitAmount = parseInt(btn.getAttribute('data-unit')) || 100;
+            var totalAmount = parseInt(btn.getAttribute('data-total')) || 100;
+            if (!eyes || eyes === '--') {{ alert('買い目がありません'); return; }}
+
+            var siki = getSmappySiki(type);
+            var hou = getSmappyHou(type, axisCount);
+            var parsed = parseSmappyEyes(eyes, type);
+
+            var currentPlace = btn.getAttribute('data-place') || "";
+            var weekday = btn.getAttribute('data-weekday') || "";
+
+            var vCodes = {{ "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" }};
+            var todayPlaces = [];
+            for (var k in currentData) {{
+                var p = currentData[k].place;
+                if (!todayPlaces.includes(p)) todayPlaces.push(p);
+            }}
+            todayPlaces.sort(function(a, b) {{ return (vCodes[a] || "99") - (vCodes[b] || "99"); }});
+            window._umacaPlaces = todayPlaces;
+            var vIdx = todayPlaces.indexOf(currentPlace);
+            if (vIdx < 0) vIdx = 0;
+
+            var popup = document.createElement('div');
+            popup.className = 'smappy-popup';
+            popup.innerHTML = `
+                <div style="font-weight: 800; font-size: 0.9rem; color: #c084fc; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    🟣 JRA UMACAスマート 自動投票 (Scriptable連携)
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">会場判定:</label>
+                    <select id="umaca-venue" style="flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem;">
+                        <option value="0" ${{vIdx==0?'selected':''}}>0 (1場目: ${{todayPlaces[0] || '?'}})</option>
+                        <option value="1" ${{vIdx==1?'selected':''}}>1 (2場目: ${{todayPlaces[1] || '?'}})</option>
+                        <option value="2" ${{vIdx==2?'selected':''}}>2 (3場目: ${{todayPlaces[2] || '?'}})</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
+                    <input type="number" id="umaca-unit-amount" value="${{unitAmount}}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="updateUmacaTotal()">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
+                    <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
+                        合計: <strong id="umaca-total-disp" style="color: #c084fc;">${{totalAmount.toLocaleString()}}円</strong>
+                    </span>
+                </div>
+
+                <div class="step-box" style="background: rgba(168, 85, 247, 0.08); border-left: 3px solid #a855f7; padding: 8px 10px; margin-bottom: 10px; border-radius: 4px;">
+                    <span class="step-title" style="color: #c084fc; font-weight: 800; font-size: 0.75rem;">🌟 ワンタップで自動ログイン＆入力</span>
+                    <div class="step-desc" style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                        ボタンを押すとScriptableが起動し、UMACAスマートへのログイン・買い目セット・確認画面まで自動で進みます！
+                    </div>
+                </div>
+
+                <button onclick="launchUmacaScriptable()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #a855f7, #7c3aed); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35); margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    🚀 UMACAで自動投票を実行
+                </button>
+
+                <details style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; font-size: 0.7rem; margin-bottom: 8px;">
+                    <summary style="cursor: pointer; color: #94a3b8; font-weight: 700; outline: none; user-select: none;">⚙️ 初回設定（1分・初回のみ）</summary>
+                    <div style="margin-top: 8px; line-height: 1.6; color: #cbd5e1;">
+                        1. App Storeで <b>Scriptable</b> アプリ（無料）をインストール<br>
+                        2. 下のボタンでUMACA用スクリプトコードをコピー<br>
+                        3. Scriptableで右上の「<b>＋</b>」を押し、貼り付けて名前を「<b>UMACA</b>」で保存<br>
+                        4. 初回実行時のみ、カード番号(12桁)・生年月日(8桁)・暗証番号(4桁)を入力（iOSのKeychainに安全に暗号化保存されます）
+                    </div>
+                    <button onclick="copyUmacaAppCode()" style="margin-top: 8px; width: 100%; padding: 8px; background: #334155; color: #f8fafc; border: none; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">📋 UMACA用Scriptableコードをコピー</button>
+                </details>
+
+                <div style="font-size: 0.65rem; color: #94a3b8; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; line-height: 1.4;">
+                    ※ 誤投票防止のため、最終確認画面（金額・暗証番号入力済）で停止します。<br>内容を目視確認して【投票】ボタンを押してください。
+                </div>
+            `;
+            btn.parentElement.appendChild(popup);
+
+            window._umacaParsed = {{
+                weekday: weekday,
+                round: round,
+                siki: siki,
+                hou: hou,
+                axes: parsed.axes,
+                partners: parsed.partners,
+                baseUnit: unitAmount,
+                baseTotal: totalAmount
+            }};
+        }}
+
+        function updateUmacaTotal() {{
+            if (!window._umacaParsed) return;
+            var inp = document.getElementById('umaca-unit-amount');
+            var disp = document.getElementById('umaca-total-disp');
+            if (!inp || !disp) return;
+            var u = parseInt(inp.value) || 100;
+            var baseU = window._umacaParsed.baseUnit || 100;
+            var ratio = u / baseU;
+            var tot = Math.round((window._umacaParsed.baseTotal || u) * ratio);
+            disp.innerText = tot.toLocaleString() + '円';
+        }}
+
+        function launchUmacaScriptable() {{
+            var venueEl = document.getElementById('umaca-venue');
+            if (!venueEl || !window._umacaParsed) return;
+            var v = venueEl.value;
+            var p = window._umacaParsed;
+            var placeName = (window._umacaPlaces && window._umacaPlaces[v]) || "";
+
+            var unitInp = document.getElementById('umaca-unit-amount');
+            var unitVal = unitInp ? (parseInt(unitInp.value) || 100) : 100;
+            var baseU = p.baseUnit || 100;
+            var ratio = unitVal / baseU;
+            var totalVal = Math.round((p.baseTotal || unitVal) * ratio);
+
+            var rawSteps = [v, p.round, p.siki];
+            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+            if (!simple && p.hou) rawSteps.push(p.hou);
+            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+
+            var payload = {{
+                steps: rawSteps,
+                venueName: placeName,
+                weekday: p.weekday || "",
+                unitAmount: unitVal,
+                totalAmount: totalVal
+            }};
+
+            var jsonStr = JSON.stringify(payload);
+
+            try {{
+                var t = document.createElement('textarea');
+                t.value = jsonStr;
+                document.body.appendChild(t);
+                t.select();
+                document.execCommand('copy');
+                document.body.removeChild(t);
+            }} catch(e) {{}}
+
+            var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("UMACA") + "&data=" + encodeURIComponent(jsonStr);
+            window.location.href = scriptableUrl;
+        }}
+
+        function copyUmacaAppCode() {{
+            var code = {_scriptable_umaca_code_json};
+            if (!code) {{
+                alert('スクリプトコードが見つかりません');
+                return;
+            }}
+            var t = document.createElement('textarea');
+            t.value = code;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('UMACA用コードをコピーしました！\\n\\n【次の手順】\\n1. Scriptableアプリを開く\\n2. 右上の「＋」を押して貼り付け\\n3. スクリプト名を「UMACA」にして保存');
         }}
 
         function launchSmappyScriptable() {{
