@@ -838,6 +838,16 @@ def generate_static_html():
     except Exception as e:
         logger.error(f"Failed to write meta.json: {e}")
 
+    scriptable_file = os.path.join(os.path.dirname(__file__), "scriptable_smappy.js")
+    _scriptable_app_code = ""
+    if os.path.exists(scriptable_file):
+        try:
+            with open(scriptable_file, "r", encoding="utf-8") as sf:
+                _scriptable_app_code = sf.read()
+        except Exception as e:
+            logger.warning(f"Failed to read scriptable_smappy.js: {e}")
+    _scriptable_app_code_json = json.dumps(_scriptable_app_code)
+
     _smappy_part2_js = 'try{if(typeof completion==="function")completion("OK");}catch(e){}var sn={"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};var i=0,r=0,d=false,T=Date.now();function dg(m){var x=document.getElementById("smappy-diag");if(!x){x=document.createElement("div");x.id="smappy-diag";x.style="position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;padding:4px;pointer-events:none;";document.body.appendChild(x);}x.innerText=m;}function fi(ok){if(d)return;d=true;dg("FINISH:"+ok);}function tp(e){var r=e.getBoundingClientRect();var x=r.left+r.width/2;var y=r.top+r.height/2;var o={bubbles:true,cancelable:true,clientX:x,clientY:y,view:window};try{var t=new Touch({identifier:Date.now(),target:e,clientX:x,clientY:y,radiusX:2,radiusY:2});var to={bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t],view:window};e.dispatchEvent(new TouchEvent("touchstart",to));e.dispatchEvent(new TouchEvent("touchend",to));}catch(err){}e.dispatchEvent(new MouseEvent("mousedown",o));e.dispatchEvent(new MouseEvent("mouseup",o));e.dispatchEvent(new MouseEvent("click",o));try{e.click();}catch(err){}}function cf(){var k=["金額","セット","次へ","決定"];var a=document.querySelectorAll("a,button");for(var j=0;j<a.length;j++){var b=a[j].getBoundingClientRect();if(b.width>0&&b.height>0){for(var l=0;l<k.length;l++){if(a[j].textContent.indexOf(k[l])>=0){tp(a[j]);return;}}}}}function nx(){try{if(Date.now()-T>25000){fi(false);return;}var p="";if(document.getElementById("jyo"))p="V";else if(document.getElementById("race"))p="R";else if(document.getElementById("siki"))p="S";else if(document.getElementById("hou"))p="M";else{var c=(document.body.innerText||"");if(c.indexOf("会場")>=0||c.indexOf("開催")>=0)p="V";if(c.indexOf("レース")>=0||c.indexOf("回次")>=0)p="R";if(c.indexOf("式別")>=0)p="S";if(c.indexOf("方式")>=0)p="M";}if(i>=s.length){dg("Done");cf();fi(true);return;}var v=s[i];var f=false;var vs=[v];var n=parseInt(v);if(!isNaN(n)){if(i===1){vs=[String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}else{vs=[v,String(n),(n<10?"0"+n:String(n)),String(n-1),(n-1<10?"0"+(n-1):String(n-1))];}}dg("S"+i+":"+v+" r:"+r+" p:"+p);var okP=(i===0&&(p==="V"||p===""||r>1))||(i===1&&(p==="R"||p==="V"||p===""||r>1))||(i===2&&(p==="S"||r>1))||(i===3&&(p==="M"||p==="S"||r>1))||(i>3);if(okP){if(i===0){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4||bs[k2].classList.contains("disabled"))continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(vn&&t.indexOf(vn)>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(!f){for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}}}else{for(var k=0;k<vs.length;k++){var es=document.querySelectorAll("a[data-value=\'"+vs[k]+"\'],button[data-value=\'"+vs[k]+"\']");for(var j=0;j<es.length;j++){var b=es[j].getBoundingClientRect();if(b.width>3&&b.height>3){tp(es[j]);i++;r=0;setTimeout(nx,450);f=true;break;}}if(f)break;}if(!f){var bs=document.querySelectorAll("a,button");for(var k2=0;k2<bs.length;k2++){var b2=bs[k2].getBoundingClientRect();if(b2.width<=4||b2.height<=4)continue;var t=(bs[k2].innerText||bs[k2].textContent||"").trim();if(i===1&&(t===v+"R"||t===v+"レース"||t.indexOf(v+"R")>=0)){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}if(i===2&&sn[v]&&t.indexOf(sn[v])>=0){tp(bs[k2]);i++;r=0;setTimeout(nx,450);f=true;break;}}}}}if(!f){r++;setTimeout(nx,200);}}catch(e){dg("E:"+e.message);fi(false);}}nx();})();'
     _smappy_part2_js_json = json.dumps(_smappy_part2_js)
     strategies2_json = json.dumps(strategies2_list, ensure_ascii=False)
@@ -3304,8 +3314,8 @@ def generate_static_html():
             popup.className = 'smappy-popup';
             popup.innerHTML = `
                 <div class="smappy-tabs">
+                    <div id="tab-ios" class="smappy-tab active" onclick="switchSmappyTab('ios')">📱 iPhone (Scriptable)</div>
                     <div id="tab-pc" class="smappy-tab" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
-                    <div id="tab-ios" class="smappy-tab active" onclick="switchSmappyTab('ios')">🍎 iPhone (Shortcuts)</div>
                 </div>
 
                 <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
@@ -3329,24 +3339,28 @@ def generate_static_html():
                 </div>
 
                 <div id="panel-ios" style="display: block;">
-                    <div class="step-box">
-                        <span class="step-title">1. 初回設定 (1分)</span>
-                        <div class="step-desc">
-                            1. iOSショートカットアプリで新規作成<br>
-                            2. <b>「クリップボードを取得」</b>アクションを追加<br>
-                            3. <b>「WebページでJavaScriptを実行」</b>を追加<br>
-                            4. JavaScriptの中身を <b>eval(クリップボード)</b> にして完了（※クリップボードの部分は変数で選択）
+                    <div class="step-box" style="background: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; padding: 8px 10px; margin-bottom: 10px; border-radius: 4px;">
+                        <span class="step-title" style="color: #10b981; font-weight: 800; font-size: 0.75rem;">🌟 ワンタップで自動入力</span>
+                        <div class="step-desc" style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                            下のボタンを押すとScriptableが起動し、JRAスマッピーで自動選択が完了します！
                         </div>
                     </div>
-                    <div class="step-box">
-                        <span class="step-title">2. 使い方</span>
-                        <div class="step-desc">下のボタンで「コード」をコピー。JRA画面で共有ボタン(⬆️)からそのショートカットを押すだけ！</div>
-                    </div>
-                    <button onclick="copySmappyShortcutJS()" style="width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🍎 実行用のコードをコピー</button>
+                    <button onclick="launchSmappyScriptable()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        🚀 Scriptableで投票を起動
+                    </button>
+                    <details style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; font-size: 0.7rem;">
+                        <summary style="cursor: pointer; color: #94a3b8; font-weight: 700; outline: none; user-select: none;">⚙️ 初回設定（1分・初回のみ）</summary>
+                        <div style="margin-top: 8px; line-height: 1.6; color: #cbd5e1;">
+                            1. App Storeで <b>Scriptable</b> アプリ（無料）をインストール<br>
+                            2. 下のボタンでスクリプトコードをコピー<br>
+                            3. Scriptableで右上の「<b>＋</b>」を押し、貼り付けて名前を「<b>スマッピー</b>」で保存
+                        </div>
+                        <button onclick="copyScriptableAppCode()" style="margin-top: 8px; width: 100%; padding: 8px; background: #334155; color: #f8fafc; border: none; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">📋 Scriptable用コードをコピー</button>
+                    </details>
                 </div>
                 
                 <div style="font-size: 0.55rem; color: var(--text-muted); margin-top: 10px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
-                    JRA通常投票の「会場選択」画面で実行してください
+                    JRAスマッピー投票（QR作成）に自動連携します
                 </div>
             `;
             btn.parentElement.appendChild(popup);
@@ -3369,6 +3383,57 @@ def generate_static_html():
             document.getElementById('tab-ios').className = 'smappy-tab' + (tab === 'ios' ? ' active' : '');
             document.getElementById('panel-pc').style.display = (tab === 'pc' ? 'block' : 'none');
             document.getElementById('panel-ios').style.display = (tab === 'ios' ? 'block' : 'none');
+        }}
+
+        function launchSmappyScriptable() {{
+            var venueEl = document.getElementById('smappy-venue');
+            if (!venueEl || !window._smappyParsed) return;
+            var v = venueEl.value;
+            var p = window._smappyParsed;
+            var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
+
+            var rawSteps = [v, p.round, p.siki];
+            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+            if (!simple && p.hou) rawSteps.push(p.hou);
+            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+
+            var payload = {{
+                steps: rawSteps,
+                venueName: placeName,
+                weekday: p.weekday || ""
+            }};
+
+            var jsonStr = JSON.stringify(payload);
+
+            // クリップボードにもフォールバック用にコピー
+            try {{
+                var t = document.createElement('textarea');
+                t.value = jsonStr;
+                document.body.appendChild(t);
+                t.select();
+                document.execCommand('copy');
+                document.body.removeChild(t);
+            }} catch(e) {{}}
+
+            // Scriptable URLスキームを起動
+            var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("スマッピー") + "&data=" + encodeURIComponent(jsonStr);
+            window.location.href = scriptableUrl;
+        }}
+
+        function copyScriptableAppCode() {{
+            var code = {_scriptable_app_code_json};
+            if (!code) {{
+                alert('スクリプトコードが見つかりません');
+                return;
+            }}
+            var t = document.createElement('textarea');
+            t.value = code;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('Scriptable用コードをコピーしました！\\n\\n【次の手順】\\n1. Scriptableアプリを開く\\n2. 右上の「＋」を押して貼り付け\\n3. スクリプト名を「スマッピー」にして保存');
         }}
 
         function copySmappyShortcutJS() {{
