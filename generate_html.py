@@ -41,7 +41,7 @@ REVERSE_PLACE_DICT = {v: k for k, v in PLACE_DICT_CHUOH.items()}
 def generate_static_html():
     eval_dir = r"C:\Users\kyoui\keiba\data\eval"
     output_html_path = r"C:\Users\kyoui\tohshin_keiba\index.html"
-    strategies_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies.csv"
+    strategies_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies_v13.csv"
     strategies2_csv_path = r"C:\Users\kyoui\keiba\config\winning_strategies2.csv"
     race_id_list_path = r"C:\Users\kyoui\keiba\data\raceid\raceIdList.csv"
     race_meta_cache = {}
@@ -68,7 +68,7 @@ def generate_static_html():
     else:
         logger.warning(f"raceIdList.csv not found: {race_id_list_path}")
     
-    # 戦略データの読み込み (戦略1: winning_strategies.csv)
+    # 戦略データの読み込み (戦略1: winning_strategies_v13.csv)
     strategies_dict = {}
     shubetsu_order = {'3連単': 1, '3連複': 2, '馬単': 3, '馬連': 4, 'ワイド': 5, '単勝': 6}
     type_order = {
@@ -85,10 +85,15 @@ def generate_static_html():
             sdf = pd.read_csv(strategies_csv_path, encoding='utf-8-sig')
             # NaNをNoneに置き換える (JSONでnullとして出力される)
             sdf = sdf.astype(object).where(pd.notnull(sdf), None)
+            # BUY行のみ使用 (EXCLUDE行は除外フィルタとして別途使われる想定)
+            if 'action' in sdf.columns:
+                sdf = sdf[sdf['action'] == 'BUY'].copy()
             
             for _, row in sdf.iterrows():
                 row_dict = row.to_dict()
-                raw_type = str(row_dict.get('type') or '')
+                # v13形式: bet_type -> type にマッピング
+                raw_type = str(row_dict.get('bet_type') or row_dict.get('type') or '')
+                row_dict['type'] = raw_type
                 parts = raw_type.split('-')
                 shubetsu = parts[0].strip() if len(parts) > 0 else ''
                 type_sub = parts[1].strip() if len(parts) > 1 else ''
@@ -96,12 +101,24 @@ def generate_static_html():
                 row_dict['type_sub'] = type_sub
                 row_dict['s_rank'] = shubetsu_order.get(shubetsu, 99)
                 row_dict['t_rank'] = type_order.get(type_sub, 99)
+                # ROI/的中率カラムのマッピング
+                if 'roi' not in row_dict:
+                    row_dict['roi'] = row_dict.get('roi_total', 0)
+                if 'hit_rate' not in row_dict:
+                    row_dict['hit_rate'] = row_dict.get('monthly_win_rate', 0)
 
-                v_name = str(row['venue_name'])
+                # v13: cat_col='venue_name'の場合はvalで会場別グループ化、それ以外は'全場'
+                cat_col = str(row_dict.get('cat_col') or '')
+                if cat_col == 'venue_name':
+                    v_name = str(row_dict.get('val') or '全場')
+                elif 'venue_name' in row_dict:
+                    v_name = str(row_dict['venue_name'])
+                else:
+                    v_name = '全場'
                 if v_name not in strategies_dict:
                     strategies_dict[v_name] = []
                 strategies_dict[v_name].append(row_dict)
-            logger.info(f"Loaded {len(sdf)} strategies from {strategies_csv_path}")
+            logger.info(f"Loaded {sum(len(v) for v in strategies_dict.values())} BUY strategies from {strategies_csv_path}")
         except Exception as e:
             logger.error(f"Error loading strategies CSV: {e}")
     else:
@@ -645,49 +662,49 @@ def generate_static_html():
                     partners = [u[1], u[2]] if len(u) >= 3 else []
                     betting_eyes_text = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])} (2通り)" if len(u) >= 3 else ""
                     display_type = "見送り (SKIP)"
-                elif mode == "1jiku_5p":
+                elif mode in ("1jiku_5p", "sanrenpuku_1jiku_5p"):
                     axis1 = u[0]
                     partners = u[1:6] if len(u) >= 6 else u[1:]
                     betting_eyes_text = f"{pad(axis1)} ― {', '.join([pad(x) for x in sorted(partners)])}"
                     display_type = "3連複-1頭軸5頭流し"
-                elif mode == "2jiku_4p":
+                elif mode in ("2jiku_4p", "sanrenpuku_2jiku_4p"):
                     axis1, axis2 = u[0], u[1]
                     partners = u[2:6] if len(u) >= 6 else u[2:]
                     betting_eyes_text = f"{pad(axis1)}, {pad(axis2)} ― {', '.join([pad(x) for x in sorted(partners)])}"
                     display_type = "3連複-2頭軸4頭流し"
-                elif mode == "box4":
+                elif mode in ("box4", "sanrenpuku_box4"):
                     partners = u[:4] if len(u) >= 4 else u
                     betting_eyes_text = f"{', '.join([pad(x) for x in sorted(partners)])} BOX"
                     display_type = "3連複-4頭BOX"
-                elif mode == "box5":
+                elif mode in ("box5", "sanrenpuku_box5"):
                     partners = u[:5] if len(u) >= 5 else u
                     betting_eyes_text = f"{', '.join([pad(x) for x in sorted(partners)])} BOX"
                     display_type = "3連複-5頭BOX"
-                elif mode == "1jiku_multi3":
+                elif mode in ("1jiku_multi3", "sanrentan_1jiku_multi3"):
                     axis1 = u[0]
                     partners = u[1:4] if len(u) >= 4 else u[1:]
                     betting_eyes_text = f"{pad(axis1)} ↔ {', '.join([pad(x) for x in sorted(partners)])}"
                     display_type = "3連単-1頭軸3頭マルチ"
-                elif mode == "2jiku_multi3":
+                elif mode in ("2jiku_multi3", "sanrentan_2jiku_multi3"):
                     axis1, axis2 = u[0], u[1]
                     partners = u[2:5] if len(u) >= 5 else u[2:]
                     betting_eyes_text = f"{pad(axis1)}, {pad(axis2)} ↔ {', '.join([pad(x) for x in sorted(partners)])}"
                     display_type = "3連単-2頭軸3頭マルチ"
-                elif mode == "form6":
+                elif mode in ("form6", "sanrentan_form6"):
                     axis1 = u[0]
                     partners = u[1:5] if len(u) >= 5 else u[1:]
                     betting_eyes_text = f"{pad(u[0])} → {pad(u[1])}, {pad(u[2])} → {', '.join([pad(x) for x in u[1:5]])}"
                     display_type = "3連単-フォーメーション(6点)"
-                elif mode == "2way":
+                elif mode in ("2way", "sanrentan_2way"):
                     axis1 = u[0]
                     partners = [u[1], u[2]] if len(u) >= 3 else []
                     betting_eyes_text = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])}"
                     display_type = "3連単-2通り"
-                elif mode == "box3":
+                elif mode in ("box3", "sanrentan_box3"):
                     partners = u[:3] if len(u) >= 3 else u
                     betting_eyes_text = f"{', '.join([pad(x) for x in sorted(partners)])} BOX"
                     display_type = "3連単-3頭BOX"
-                elif mode == "hybrid":
+                elif mode in ("hybrid", "sanrenpuku_sanrentan_hybrid"):
                     axis1 = u[0]
                     partners = u[1:4] if len(u) >= 4 else u[1:]
                     box4_str = f"{', '.join([pad(x) for x in sorted(u[:4])])} BOX"
@@ -718,6 +735,62 @@ def generate_static_html():
                             'mode': '2way'
                         }
                     ]
+                elif mode == "sanrenpuku_1jiku_4p":
+                    axis1 = u[0]
+                    partners = u[1:5] if len(u) >= 5 else u[1:]
+                    betting_eyes_text = f"{pad(axis1)} → {', '.join([pad(x) for x in sorted(partners)])}"
+                    display_type = "3連複-1頭軸4頭流し"
+                elif mode == "sanrentan_form8":
+                    axis1, axis2 = u[0], u[1]
+                    partners = u[2:6] if len(u) >= 6 else u[2:]
+                    p_str = ', '.join([pad(x) for x in partners])
+                    betting_eyes_text = f"{pad(u[0])}, {pad(u[1])} → {pad(u[0])}, {pad(u[1])} → {p_str}"
+                    display_type = "3連単-2強フォーメーション(8点)"
+                elif mode == "sanrentan_form12":
+                    axis1 = u[0]
+                    partners = u[1:6] if len(u) >= 6 else u[1:]
+                    p1 = ', '.join([pad(x) for x in u[1:4]])
+                    p2 = ', '.join([pad(x) for x in (u[1:6] if len(u) >= 6 else u[1:])])
+                    betting_eyes_text = f"{pad(u[0])} → {p1} → {p2}"
+                    display_type = "3連単-フォーメーション拡大(12点)"
+                elif mode == "sanrentan_box4":
+                    partners = u[:4] if len(u) >= 4 else u
+                    betting_eyes_text = f"{', '.join([pad(x) for x in sorted(partners)])} BOX"
+                    display_type = "3連単-4頭BOX"
+                elif mode == "tansho_1":
+                    axis1 = u[0]
+                    partners = []
+                    betting_eyes_text = f"{pad(u[0])}"
+                    display_type = "単勝-1位"
+                elif mode == "tansho_2":
+                    axis1 = u[0]
+                    partners = [u[1]] if len(u) >= 2 else []
+                    betting_eyes_text = f"{pad(u[0])}, {pad(u[1])}" if len(u) >= 2 else pad(u[0])
+                    display_type = "単勝-1位,2位"
+                elif mode == "umaren_1":
+                    axis1 = u[0]
+                    partners = [u[1]] if len(u) >= 2 else []
+                    betting_eyes_text = f"{pad(u[0])} ↔ {pad(u[1])}" if len(u) >= 2 else pad(u[0])
+                    display_type = "馬連-1-2位"
+                elif mode == "umaren_3":
+                    axis1 = u[0]
+                    partners = u[1:4] if len(u) >= 4 else u[1:]
+                    betting_eyes_text = f"{pad(axis1)} → {', '.join([pad(x) for x in sorted(partners)])}"
+                    display_type = "馬連-1頭軸3頭流し"
+                elif mode == "umatan_1":
+                    axis1 = u[0]
+                    partners = [u[1]] if len(u) >= 2 else []
+                    betting_eyes_text = f"{pad(u[0])} → {pad(u[1])}" if len(u) >= 2 else pad(u[0])
+                    display_type = "馬単-1→2位"
+                elif mode == "umatan_3":
+                    axis1 = u[0]
+                    partners = u[1:4] if len(u) >= 4 else u[1:]
+                    betting_eyes_text = f"{pad(axis1)} → {', '.join([pad(x) for x in sorted(partners)])}"
+                    display_type = "馬単-1頭軸3頭流し"
+                elif mode == "wide_box3":
+                    partners = u[:3] if len(u) >= 3 else u
+                    betting_eyes_text = f"{', '.join([pad(x) for x in sorted(partners)])} BOX"
+                    display_type = "ワイド-3頭BOX"
                 else:
                     betting_eyes_text = f"{pad(u[0])}"
                     display_type = act_name
