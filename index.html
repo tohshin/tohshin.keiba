@@ -806,6 +806,22 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
         }
+        .ipat-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .ipat-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+        }
         .smappy-popup {
             background: #1e293b;
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1906,7 +1922,8 @@
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
-                                <div style="margin-top: 10px; text-align: right;">
+                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                    <button class="ipat-btn" data-eyes="${item.bettingEyesText}" data-type="${item.rawType}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" data-unit="100" data-total="100" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
                                     <button class="smappy-btn" data-eyes="${item.bettingEyesText}" data-type="${item.rawType}" data-round="${raceData.round}" data-axis="${s.axis_count || 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
@@ -1975,7 +1992,8 @@
                                         <div class="bet-eyes-text" style="color: #fff; font-size: 1.15rem;">${sub.bettingEyesText}</div>
                                     </div>
                                     <div class="bet-result-details"></div>
-                                    <div style="margin-top: 10px; text-align: right;">
+                                    <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                        <button class="ipat-btn" data-eyes="${sub.bettingEyesText}" data-type="${sub.rawType}" data-round="${raceData.round}" data-axis="${sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" data-unit="${sub.cost && sub.combs ? Math.round(sub.cost / sub.combs) : 100}" data-total="${sub.cost || 100}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
                                         <button class="smappy-btn" data-eyes="${sub.bettingEyesText}" data-type="${sub.rawType}" data-round="${raceData.round}" data-axis="${sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー (${sub.rawType.split('-')[0]})</button>
                                     </div>
                                 </div>
@@ -2021,7 +2039,8 @@
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
-                                <div style="margin-top: 10px; text-align: right;">
+                                <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                                    <button class="ipat-btn" data-eyes="${s2.bettingEyesText}" data-type="${s2.rawType}" data-round="${raceData.round}" data-axis="${s2.axis2Num ? 2 : 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" data-unit="${s2.cost && s2.combs ? Math.round(s2.cost / s2.combs) : 100}" data-total="${s2.cost || 100}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
                                     <button class="smappy-btn" data-eyes="${s2.bettingEyesText}" data-type="${s2.rawType}" data-round="${raceData.round}" data-axis="${s2.axis2Num ? 2 : 1}" data-place="${raceData.place}" data-weekday="${raceData.weekday}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
@@ -2425,6 +2444,174 @@
             // 末尾の ";" を取り除いてから void() を正しく閉じる
             return part1 + part2.slice(0, -1) + ")";
         }
+
+        
+        window._ipatScriptableCode = "// Variables used by Scriptable.\n// These must be at the very top of the file. Do not edit.\n// icon-color: blue; icon-glyph: ticket-alt;\n\n/**\n * JRA \u5373PAT (IPAT) \u81ea\u52d5\u6295\u7968\u30b9\u30af\u30ea\u30d7\u30c8 (for Scriptable)\n * \u4e88\u60f3\u30b5\u30a4\u30c8\u306e\u300c\u5373PAT\u6295\u7968\u300d\u30dc\u30bf\u30f3\u304b\u3089\u8d77\u52d5\u3057\u307e\u3059\u3002\n * \u30ed\u30b0\u30a4\u30f3 -> \u901a\u5e38\u6295\u7968 -> \u4f1a\u5834/\u30ec\u30fc\u30b9/\u5f0f\u5225/\u99ac\u756a -> \u91d1\u984d\u30bb\u30c3\u30c8 -> \u6295\u7968\u78ba\u8a8d\u753b\u9762\u307e\u3067\u81ea\u52d5\u5b9f\u884c\u3057\u307e\u3059\u3002\n * \n * \u203b\u30ed\u30b0\u30a4\u30f3\u60c5\u5831\u306fiOS\u306e\u5b89\u5168\u306a\u6697\u53f7\u5316\u9818\u57df\uff08Keychain\uff09\u306b\u521d\u56de\u306e\u307f\u4fdd\u5b58\u3055\u308c\u307e\u3059\u3002\n */\n\nasync function main() {\n  // 1. \u30d1\u30e9\u30e1\u30fc\u30bf\u306e\u53d6\u5f97 (URL\u30af\u30a8\u30ea \u307e\u305f\u306f \u30af\u30ea\u30c3\u30d7\u30dc\u30fc\u30c9)\n  let rawData = null;\n  if (args.queryParameters && args.queryParameters.data) {\n    rawData = args.queryParameters.data;\n  }\n  if (!rawData) {\n    rawData = Pasteboard.paste();\n  }\n\n  let params = null;\n  if (rawData) {\n    try {\n      params = JSON.parse(rawData);\n    } catch (e) {}\n  }\n\n  if (!params || !params.steps) {\n    let a = new Alert();\n    a.title = \"\u8cb7\u3044\u76ee\u30c7\u30fc\u30bf\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\";\n    a.message = \"\u30b5\u30a4\u30c8\u4e0a\u306e\u300c\u5373PAT\u300d\u30dc\u30bf\u30f3\u304b\u3089\u5b9f\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002\";\n    a.addAction(\"OK\");\n    await a.present();\n    Script.complete();\n    return;\n  }\n\n  const { steps, venueName, weekday, unitAmount, totalAmount } = params;\n  const uAmount = parseInt(unitAmount) || 100;\n  const hundreds = Math.floor(uAmount / 100);\n  const tAmount = parseInt(totalAmount) || uAmount;\n\n  // 2. Keychain \u304b\u3089 IPAT \u30ed\u30b0\u30a4\u30f3\u60c5\u5831\u3092\u53d6\u5f97 (\u521d\u56de\u306f\u30d7\u30ed\u30f3\u30d7\u30c8)\n  let userNo = Keychain.contains(\"ipat_user_no\") ? Keychain.get(\"ipat_user_no\") : \"\";\n  let passNo = Keychain.contains(\"ipat_pass_no\") ? Keychain.get(\"ipat_pass_no\") : \"\";\n  let parsNo = Keychain.contains(\"ipat_pars_no\") ? Keychain.get(\"ipat_pars_no\") : \"\";\n\n  if (!userNo || !passNo || !parsNo) {\n    let loginAlert = new Alert();\n    loginAlert.title = \"\u5373PAT\u30ed\u30b0\u30a4\u30f3\u60c5\u5831\u306e\u8a2d\u5b9a\uff08\u521d\u56de\u306e\u307f\uff09\";\n    loginAlert.message = \"JRA\u5373PAT\u306e\u60c5\u5831\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002\\n\u203b\u7aef\u672b\u5185\u306e\u6697\u53f7\u5316\u9818\u57df\uff08Keychain\uff09\u306b\u5b89\u5168\u306b\u4fdd\u5b58\u3055\u308c\u307e\u3059\u3002\";\n    loginAlert.addTextField(\"\u52a0\u5165\u8005\u756a\u53f7 (\u307e\u305f\u306fINET-ID)\", userNo);\n    loginAlert.addSecureTextField(\"\u6697\u8a3c\u756a\u53f7 (4\u6841\u6570\u5b57)\", passNo);\n    loginAlert.addSecureTextField(\"P-ARS\u756a\u53f7 (4\u6841\u82f1\u6570\u5b57)\", parsNo);\n    loginAlert.addAction(\"\u4fdd\u5b58\u3057\u3066\u6295\u7968\u3078\u9032\u3080\");\n    loginAlert.addCancelAction(\"\u30ad\u30e3\u30f3\u30bb\u30eb\");\n    let resp = await loginAlert.present();\n    if (resp === -1) {\n      Script.complete();\n      return;\n    }\n    userNo = loginAlert.textFieldValue(0).trim();\n    passNo = loginAlert.textFieldValue(1).trim();\n    parsNo = loginAlert.textFieldValue(2).trim();\n\n    if (!userNo || !passNo || !parsNo) {\n      let errA = new Alert();\n      errA.title = \"\u5165\u529b\u30a8\u30e9\u30fc\";\n      errA.message = \"\u672a\u5165\u529b\u306e\u9805\u76ee\u304c\u3042\u308a\u307e\u3059\u3002\";\n      await errA.present();\n      Script.complete();\n      return;\n    }\n\n    Keychain.set(\"ipat_user_no\", userNo);\n    Keychain.set(\"ipat_pass_no\", passNo);\n    Keychain.set(\"ipat_pars_no\", parsNo);\n  }\n\n  // 3. JRA IPAT \u30b9\u30de\u30db\u7248\u3092\u958b\u304f\n  let wv = new WebView();\n  let presentPromise = wv.present(true);\n  await wv.loadURL(\"https://www.ipat.jra.go.jp/sp/\");\n\n  // 4. \u30ed\u30b0\u30a4\u30f3\u5b9f\u884c\n  let loginScript = `\n  (function() {\n    var u = ${JSON.stringify(userNo)};\n    var p = ${JSON.stringify(passNo)};\n    var r = ${JSON.stringify(parsNo)};\n\n    var elU = document.getElementById(\"userid\") || document.querySelector(\"input[name='i']\");\n    var elP = document.getElementById(\"password\") || document.querySelector(\"input[name='p']\");\n    var elR = document.getElementById(\"pars\") || document.querySelector(\"input[name='r']\");\n\n    if (elU && elP && elR) {\n      elU.value = u;\n      elP.value = p;\n      elR.value = r;\n      if (typeof ToSPMenu === \"function\") {\n        ToSPMenu();\n      } else {\n        var form = document.querySelector(\"form\");\n        if (form) form.submit();\n      }\n    }\n  })();\n  `;\n  await wv.evaluateJavaScript(loginScript, false);\n  await wv.waitForLoad();\n\n  // 5. \u30ed\u30b0\u30a4\u30f3\u5f8c\u30e1\u30cb\u30e5\u30fc\u304b\u3089\u300c\u901a\u5e38\u6295\u7968\u300d\u3078\u9077\u79fb\n  let toVoteScript = `\n  (function() {\n    var a = document.querySelector(\"a.ico_regular\");\n    if (a) {\n      a.click();\n    } else if (typeof ToSPBet === \"function\") {\n      ToSPBet(0);\n    }\n  })();\n  `;\n  await wv.evaluateJavaScript(toVoteScript, false);\n  await wv.waitForLoad();\n\n  // \u30da\u30fc\u30b8\u521d\u671f\u5316\u3092\u5c11\u3057\u5f85\u6a5f\n  await new Promise(res => Timer.schedule(600, false, res));\n\n  // 6. \u901a\u5e38\u6295\u7968\u753b\u9762\u3067\u306e\u81ea\u52d5\u5165\u529b & \u91d1\u984d\u30bb\u30c3\u30c8 & \u6295\u7968\u78ba\u8a8d\u753b\u9762\u3078\u9077\u79fb\n  let runnerScript = `\n  (function() {\n    var s = ${JSON.stringify(steps)};\n    var vn = ${JSON.stringify(venueName || \"\")};\n    var wd = ${JSON.stringify(weekday || \"\")};\n    var hundreds = ${hundreds};\n    var totalAmount = ${tAmount};\n    var passNo = ${JSON.stringify(passNo)};\n    var sn = {\"1\":\"\u5358\u52dd\",\"2\":\"\u8907\u52dd\",\"3\":\"\u67a0\u9023\",\"4\":\"\u99ac\u9023\",\"5\":\"\u30ef\u30a4\u30c9\",\"6\":\"\u99ac\u5358\",\"7\":\"3\u9023\u8907\",\"8\":\"3\u9023\u5358\"};\n    var i = 0, r = 0, d = false, T = Date.now();\n\n    function dg(m, color) {\n      var x = document.getElementById(\"ipat-diag\");\n      if (!x) {\n        x = document.createElement(\"div\");\n        x.id = \"ipat-diag\";\n        x.style = \"position:fixed;top:0;left:0;width:100%;z-index:100000;background:\" + (color || \"rgba(79,70,229,0.95)\") + \";color:#ffffff;font-size:12px;font-weight:bold;padding:8px 12px;pointer-events:none;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);\";\n        document.body.appendChild(x);\n      }\n      x.innerText = m;\n      if (color) x.style.background = color;\n    }\n\n    function tp(e) {\n      var rect = e.getBoundingClientRect();\n      var x = rect.left + rect.width / 2;\n      var y = rect.top + rect.height / 2;\n      var o = {bubbles:true, cancelable:true, clientX:x, clientY:y, view:window};\n      try {\n        var t = new Touch({identifier:Date.now(), target:e, clientX:x, clientY:y, radiusX:2, radiusY:2});\n        var to = {bubbles:true, cancelable:true, touches:[t], targetTouches:[t], changedTouches:[t], view:window};\n        e.dispatchEvent(new TouchEvent(\"touchstart\", to));\n        e.dispatchEvent(new TouchEvent(\"touchend\", to));\n      } catch(err) {}\n      e.dispatchEvent(new MouseEvent(\"mousedown\", o));\n      e.dispatchEvent(new MouseEvent(\"mouseup\", o));\n      e.dispatchEvent(new MouseEvent(\"click\", o));\n      try { e.click(); } catch(err) {}\n    }\n\n    function setAmountAndSend() {\n      dg(\"\ud83d\udcb0 \u91d1\u984d\u3092\u5165\u529b\u4e2d (1\u70b9: \" + (hundreds * 100) + \"\u5186)...\");\n      var kinInput = document.querySelector(\"#kin .amount input, input.amount\");\n      if (kinInput) {\n        kinInput.value = String(hundreds);\n        if (kinInput.onchange) kinInput.onchange();\n      } else if (typeof VMA === \"function\") {\n        VMA(String(hundreds));\n      }\n\n      setTimeout(function() {\n        dg(\"\u30bb\u30c3\u30c8\u51e6\u7406\u3092\u5b9f\u884c\u4e2d...\");\n        if (typeof SetBet === \"function\") {\n          SetBet(0);\n        } else {\n          var k = [\"\u30bb\u30c3\u30c8\", \"\u6b21\u3078\", \"\u6c7a\u5b9a\"];\n          var a = document.querySelectorAll(\"a,button\");\n          for (var j = 0; j < a.length; j++) {\n            for (var l = 0; l < k.length; l++) {\n              if (a[j].textContent.indexOf(k[l]) >= 0) { tp(a[j]); break; }\n            }\n          }\n        }\n\n        setTimeout(function() {\n          dg(\"\u78ba\u8a8d\u753b\u9762\u3078\u79fb\u52d5\u4e2d...\");\n          if (typeof ToSend === \"function\") {\n            ToSend();\n          } else {\n            var sendBtn = Array.from(document.querySelectorAll(\"a,button\")).find(function(b) {\n              return b.textContent.includes(\"\u5165\u529b\u7d42\u4e86\") || b.textContent.includes(\"\u6295\u7968\u78ba\u8a8d\");\n            });\n            if (sendBtn) tp(sendBtn);\n          }\n\n          // \u78ba\u8a8d\u753b\u9762\u3067\u306e\u5165\u529b\u51e6\u7406\n          pollConfirmScreen();\n        }, 1200);\n      }, 800);\n    }\n\n    function pollConfirmScreen() {\n      var pollCount = 0;\n      var timer = setInterval(function() {\n        pollCount++;\n        var inputs = document.querySelectorAll(\"input\");\n        var hasPassword = document.querySelector(\"input[type='password'], #password\");\n        \n        if (hasPassword || pollCount > 30) {\n          clearInterval(timer);\n          fillConfirmForm();\n        }\n      }, 400);\n    }\n\n    function fillConfirmForm() {\n      // \u5408\u8a08\u91d1\u984d\u5165\u529b\n      var inputs = document.querySelectorAll(\"input\");\n      for (var j = 0; j < inputs.length; j++) {\n        var inp = inputs[j];\n        var itype = (inp.type || \"\").toLowerCase();\n        var iid = (inp.id || \"\").toLowerCase();\n        var iname = (inp.name || \"\").toLowerCase();\n        if ((itype === \"tel\" || itype === \"text\" || itype === \"number\") && iid.indexOf(\"pass\") < 0 && iname.indexOf(\"pass\") < 0) {\n          inp.value = String(totalAmount);\n          if (inp.onchange) inp.onchange();\n          break;\n        }\n      }\n\n      // \u6697\u8a3c\u756a\u53f7\u5165\u529b\n      var passInput = document.querySelector(\"input[type='password'], #password\");\n      if (passInput) {\n        passInput.value = passNo;\n        if (passInput.onchange) passInput.onchange();\n      }\n\n      dg(\"\u2705 \u30bb\u30c3\u30c8\u5b8c\u4e86\uff01\u5185\u5bb9\u3092\u78ba\u8a8d\u3057\u3001\u3088\u308d\u3057\u3051\u308c\u3070\u3010\u6295\u7968\u3011\u3092\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\", \"rgba(16,185,129,0.95)\");\n    }\n\n    function nx() {\n      try {\n        if (Date.now() - T > 25000) { dg(\"\u26a0\ufe0f \u30bf\u30a4\u30e0\u30a2\u30a6\u30c8\u3057\u307e\u3057\u305f\"); return; }\n        var p = \"\";\n        if (document.getElementById(\"jyo\")) p = \"V\";\n        else if (document.getElementById(\"race\")) p = \"R\";\n        else if (document.getElementById(\"siki\")) p = \"S\";\n        else if (document.getElementById(\"hou\")) p = \"M\";\n\n        if (i >= s.length) {\n          setAmountAndSend();\n          return;\n        }\n\n        var v = s[i];\n        var f = false;\n        var vs = [v];\n        var n = parseInt(v);\n        if (!isNaN(n)) {\n          if (i === 1) {\n            vs = [String(n - 1), (n - 1 < 10 ? \"0\" + (n - 1) : String(n - 1))];\n          } else {\n            vs = [v, String(n), (n < 10 ? \"0\" + n : String(n)), String(n - 1), (n - 1 < 10 ? \"0\" + (n - 1) : String(n - 1))];\n          }\n        }\n\n        dg(\"\ud83c\udfc7 \u5373PAT\u81ea\u52d5\u9078\u629e\u4e2d... Step \" + (i + 1) + \"/\" + s.length);\n\n        var okP = (i === 0 && (p === \"V\" || p === \"\" || r > 1)) ||\n                  (i === 1 && (p === \"R\" || p === \"V\" || p === \"\" || r > 1)) ||\n                  (i === 2 && (p === \"S\" || r > 1)) ||\n                  (i === 3 && (p === \"M\" || p === \"S\" || r > 1)) ||\n                  (i > 3);\n\n        if (okP) {\n          if (i === 0) {\n            var bs = document.querySelectorAll(\"a,button\");\n            for (var k2 = 0; k2 < bs.length; k2++) {\n              if (bs[k2].getBoundingClientRect().width <= 4) continue;\n              var t = (bs[k2].innerText || bs[k2].textContent || \"\").trim();\n              if (vn && t.indexOf(vn) >= 0) {\n                tp(bs[k2]);\n                i++;\n                r = 0;\n                setTimeout(nx, 450);\n                f = true;\n                break;\n              }\n            }\n            if (!f) {\n              for (var k = 0; k < vs.length; k++) {\n                var es = document.querySelectorAll(\"a[data-value='\" + vs[k] + \"'],button[data-value='\" + vs[k] + \"']\");\n                for (var j = 0; j < es.length; j++) {\n                  if (es[j].getBoundingClientRect().width > 3) {\n                    tp(es[j]);\n                    i++;\n                    r = 0;\n                    setTimeout(nx, 450);\n                    f = true;\n                    break;\n                  }\n                }\n                if (f) break;\n              }\n            }\n          } else {\n            for (var k = 0; k < vs.length; k++) {\n              var es = document.querySelectorAll(\"a[data-value='\" + vs[k] + \"'],button[data-value='\" + vs[k] + \"']\");\n              for (var j = 0; j < es.length; j++) {\n                if (es[j].getBoundingClientRect().width > 3) {\n                  tp(es[j]);\n                  i++;\n                  r = 0;\n                  setTimeout(nx, 450);\n                  f = true;\n                  break;\n                }\n              }\n              if (f) break;\n            }\n            if (!f) {\n              var bs = document.querySelectorAll(\"a,button\");\n              for (var k2 = 0; k2 < bs.length; k2++) {\n                if (bs[k2].getBoundingClientRect().width <= 4) continue;\n                var t = (bs[k2].innerText || bs[k2].textContent || \"\").trim();\n                if (i === 1 && (t === v + \"R\" || t === v + \"\u30ec\u30fc\u30b9\" || t.indexOf(v + \"R\") >= 0)) {\n                  tp(bs[k2]);\n                  i++;\n                  r = 0;\n                  setTimeout(nx, 450);\n                  f = true;\n                  break;\n                }\n                if (i === 2 && sn[v] && t.indexOf(sn[v]) >= 0) {\n                  tp(bs[k2]);\n                  i++;\n                  r = 0;\n                  setTimeout(nx, 450);\n                  f = true;\n                  break;\n                }\n              }\n            }\n          }\n        }\n        if (!f) {\n          r++;\n          setTimeout(nx, 200);\n        }\n      } catch (e) {\n        dg(\"\u30a8\u30e9\u30fc: \" + e.message);\n      }\n    }\n    nx();\n  })();\n  `;\n\n  await wv.evaluateJavaScript(runnerScript, false);\n\n  // 7. WebView\u306e\u7d42\u4e86\u5f85\u6a5f\n  await presentPromise;\n  Script.complete();\n}\n\nawait main();\n";
+
+        function showIpat(btn) {
+            var prev = document.querySelector('.smappy-popup');
+            if (prev) prev.remove();
+            
+            var eyes = btn.getAttribute('data-eyes');
+            var type = btn.getAttribute('data-type');
+            var round = btn.getAttribute('data-round');
+            var axisCount = parseInt(btn.getAttribute('data-axis')) || 1;
+            var unitAmount = parseInt(btn.getAttribute('data-unit')) || 100;
+            var totalAmount = parseInt(btn.getAttribute('data-total')) || 100;
+            if (!eyes || eyes === '--') { alert('買い目がありません'); return; }
+            
+            var siki = getSmappySiki(type);
+            var hou = getSmappyHou(type, axisCount);
+            var parsed = parseSmappyEyes(eyes, type);
+            
+            var currentPlace = btn.getAttribute('data-place') || "";
+            var weekday = btn.getAttribute('data-weekday') || "";
+            
+            var vCodes = { "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" };
+            var todayPlaces = [];
+            for (var k in currentData) {
+                var p = currentData[k].place;
+                if (!todayPlaces.includes(p)) todayPlaces.push(p);
+            }
+            todayPlaces.sort(function(a, b) { return (vCodes[a] || "99") - (vCodes[b] || "99"); });
+            window._ipatPlaces = todayPlaces;
+            var vIdx = todayPlaces.indexOf(currentPlace);
+            if (vIdx < 0) vIdx = 0;
+
+            var popup = document.createElement('div');
+            popup.className = 'smappy-popup';
+            popup.innerHTML = `
+                <div style="font-weight: 800; font-size: 0.9rem; color: #10b981; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    🟢 JRA即PAT 自動投票 (Scriptable連携)
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">会場判定:</label>
+                    <select id="ipat-venue" style="flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem;">
+                        <option value="0" ${vIdx==0?'selected':''}>0 (1場目: ${todayPlaces[0] || '?'})</option>
+                        <option value="1" ${vIdx==1?'selected':''}>1 (2場目: ${todayPlaces[1] || '?'})</option>
+                        <option value="2" ${vIdx==2?'selected':''}>2 (3場目: ${todayPlaces[2] || '?'})</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
+                    <input type="number" id="ipat-unit-amount" value="${unitAmount}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="updateIpatTotal()">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
+                    <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
+                        合計: <strong id="ipat-total-disp" style="color: #4ade80;">${totalAmount.toLocaleString()}円</strong>
+                    </span>
+                </div>
+
+                <div class="step-box" style="background: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; padding: 8px 10px; margin-bottom: 10px; border-radius: 4px;">
+                    <span class="step-title" style="color: #10b981; font-weight: 800; font-size: 0.75rem;">🌟 ワンタップで自動ログイン＆入力</span>
+                    <div class="step-desc" style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                        下のボタンを押すとScriptableが起動し、即PATへのログイン・買い目セット・確認画面まで自動で進みます！
+                    </div>
+                </div>
+
+                <button onclick="launchIpatScriptable()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    🚀 即PATで自動投票を実行
+                </button>
+
+                <details style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; font-size: 0.7rem; margin-bottom: 8px;">
+                    <summary style="cursor: pointer; color: #94a3b8; font-weight: 700; outline: none; user-select: none;">⚙️ 初回設定（1分・初回のみ）</summary>
+                    <div style="margin-top: 8px; line-height: 1.6; color: #cbd5e1;">
+                        1. App Storeで <b>Scriptable</b> アプリ（無料）をインストール<br>
+                        2. 下のボタンで即PAT用スクリプトコードをコピー<br>
+                        3. Scriptableで右上の「<b>＋</b>」を押し、貼り付けて名前を「<b>即PAT</b>」で保存<br>
+                        4. 初回実行時のみ、加入者番号・暗証番号・P-ARS番号を入力（iOSのKeychainに安全に暗号化保存されます）
+                    </div>
+                    <button onclick="copyIpatAppCode()" style="margin-top: 8px; width: 100%; padding: 8px; background: #334155; color: #f8fafc; border: none; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">📋 即PAT用Scriptableコードをコピー</button>
+                </details>
+
+                <div style="font-size: 0.65rem; color: #94a3b8; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; line-height: 1.4;">
+                    ※ 誤投票防止のため、最終確認画面（金額・暗証番号入力済）で停止します。<br>内容を目視確認して【投票】ボタンを押してください。
+                </div>
+            `;
+            btn.parentElement.appendChild(popup);
+
+            window._ipatParsed = {
+                weekday: weekday,
+                round: round,
+                siki: siki,
+                hou: hou,
+                axes: parsed.axes,
+                partners: parsed.partners,
+                baseUnit: unitAmount,
+                baseTotal: totalAmount
+            };
+        }
+
+        function updateIpatTotal() {
+            if (!window._ipatParsed) return;
+            var inp = document.getElementById('ipat-unit-amount');
+            var disp = document.getElementById('ipat-total-disp');
+            if (!inp || !disp) return;
+            var u = parseInt(inp.value) || 100;
+            var baseU = window._ipatParsed.baseUnit || 100;
+            var ratio = u / baseU;
+            var tot = Math.round((window._ipatParsed.baseTotal || u) * ratio);
+            disp.innerText = tot.toLocaleString() + '円';
+        }
+
+        function launchIpatScriptable() {
+            var venueEl = document.getElementById('ipat-venue');
+            if (!venueEl || !window._ipatParsed) return;
+            var v = venueEl.value;
+            var p = window._ipatParsed;
+            var placeName = (window._ipatPlaces && window._ipatPlaces[v]) || "";
+
+            var unitInp = document.getElementById('ipat-unit-amount');
+            var unitVal = unitInp ? (parseInt(unitInp.value) || 100) : 100;
+            var baseU = p.baseUnit || 100;
+            var ratio = unitVal / baseU;
+            var totalVal = Math.round((p.baseTotal || unitVal) * ratio);
+
+            var rawSteps = [v, p.round, p.siki];
+            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+            if (!simple && p.hou) rawSteps.push(p.hou);
+            (p.axes || []).forEach(function(a) { rawSteps.push(String(a)); });
+            (p.partners || []).forEach(function(pt) { rawSteps.push(String(pt)); });
+
+            var payload = {
+                steps: rawSteps,
+                venueName: placeName,
+                weekday: p.weekday || "",
+                unitAmount: unitVal,
+                totalAmount: totalVal
+            };
+
+            var jsonStr = JSON.stringify(payload);
+
+            try {
+                var t = document.createElement('textarea');
+                t.value = jsonStr;
+                document.body.appendChild(t);
+                t.select();
+                document.execCommand('copy');
+                document.body.removeChild(t);
+            } catch(e) {}
+
+            var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("即PAT") + "&data=" + encodeURIComponent(jsonStr);
+            window.location.href = scriptableUrl;
+        }
+
+        function copyIpatAppCode() {
+            var code = window._ipatScriptableCode || "";
+            if (!code) {
+                alert('スクリプトコードが見つかりません');
+                return;
+            }
+            var t = document.createElement('textarea');
+            t.value = code;
+            document.body.appendChild(t);
+            t.select();
+            document.execCommand('copy');
+            document.body.removeChild(t);
+            alert('即PAT用コードをコピーしました！\n\n【次の手順】\n1. Scriptableアプリを開く\n2. 右上の「＋」を押して貼り付け\n3. スクリプト名を「即PAT」にして保存');
+        }
+
 
         function showSmappy(btn) {
             var prev = document.querySelector('.smappy-popup');
