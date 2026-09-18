@@ -215,7 +215,25 @@ async function main() {
           return;
         }
 
-        // B. 最終確認画面
+        // B. ログイン後のトップ画面判定 (logoHeader があるかで判断)
+        var isTopScreen = !!document.querySelector(".logoHeader, #logoHeader, [class*='logoHeader'], [id*='logoHeader']");
+        if (isTopScreen) {
+          dg("📋 トップ画面検出 (logoHeader)！通常投票へ進みます...");
+          var regBtn = document.querySelector("a.ico_regular") || allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            return t === "通常投票" || t.indexOf("通常投票") >= 0;
+          });
+          if (typeof ToSPBet === "function") ToSPBet(0);
+          else if (typeof ToQRBet === "function") ToQRBet();
+          else if (regBtn) trigger(regBtn);
+
+          lastAction = "MENU_TO_BET";
+          actionCooldown = Date.now() + 1000;
+          setTimeout(runLoop, 600);
+          return;
+        }
+
+        // C. 最終確認画面
         var passInput = document.querySelector("input[type='password'], #password, input[name='p']");
         var textInputs = Array.from(document.querySelectorAll("input[type='tel'], input[type='text'], input[type='number']"));
         if ((title.indexOf("確認") >= 0 || passInput) && (bodyText.indexOf("合計") >= 0 || bodyText.indexOf("投票内容") >= 0 || bodyText.indexOf("購入") >= 0)) {
