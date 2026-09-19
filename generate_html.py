@@ -769,10 +769,19 @@ def generate_static_html():
         return
 
     import glob
-    pickle_files = glob.glob(os.path.join(eval_dir, "*.pickle"))
-    if not pickle_files:
+    from datetime import datetime, timedelta
+    all_pickle_files = glob.glob(os.path.join(eval_dir, "*.pickle"))
+    if not all_pickle_files:
         logger.error(f"No pickle files found in {eval_dir}")
         return
+
+    # 直近1ヶ月以内に更新されたpickleファイルのみ対象
+    pickle_mtime_cutoff = (datetime.now() - timedelta(days=31)).timestamp()
+    pickle_files = [f for f in all_pickle_files if os.path.getmtime(f) >= pickle_mtime_cutoff]
+    logger.info(f"Pickle files: {len(pickle_files)} recent / {len(all_pickle_files)} total (cutoff: {datetime.fromtimestamp(pickle_mtime_cutoff).strftime('%Y-%m-%d')})")
+    if not pickle_files:
+        logger.warning(f"No recently modified pickle files found. Using all files.")
+        pickle_files = all_pickle_files
     
     # Extract direct features from pickle
     try:
@@ -1203,8 +1212,9 @@ def generate_static_html():
                     d_races[k_rid]['strat2'] = strat2_item
 
     # 1. 各日付のデータを保存
+    jsons_dir = r"C:\Users\kyoui\tohshin_keiba\jsons"
     for d, d_races in dates_data.items():
-        out_json = os.path.join(r"C:\Users\kyoui\tohshin_keiba\jsons", f"data_{d}.json")
+        out_json = os.path.join(jsons_dir, f"data_{d}.json")
         try:
             os.makedirs(os.path.dirname(out_json), exist_ok=True)
             with open(out_json, "w", encoding="utf-8") as f:
@@ -1214,15 +1224,24 @@ def generate_static_html():
             logger.error(f"Failed to write daily JSON {out_json}: {e}")
 
     # 2. メタデータ（日付リスト）を保存
+    # pickleフィルタにより dates_data は直近分のみの場合があるため、
+    # 既存JSONファイルからも日付を収集して完全なリストを維持する
+    import re as _re
+    existing_dates = set()
+    for jf in glob.glob(os.path.join(jsons_dir, "data_*.json")):
+        m = _re.search(r'data_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(jf))
+        if m:
+            existing_dates.add(m.group(1))
+    all_dates = sorted(existing_dates | set(dates_data.keys()))
     meta_data = {
-        "dates": sorted(list(dates_data.keys())),
-        "latest": max(dates_data.keys()) if dates_data else ""
+        "dates": all_dates,
+        "latest": max(all_dates) if all_dates else ""
     }
-    meta_json_path = r"C:\Users\kyoui\tohshin_keiba\jsons\meta.json"
+    meta_json_path = os.path.join(jsons_dir, "meta.json")
     try:
         with open(meta_json_path, "w", encoding="utf-8") as f:
             json.dump(meta_data, f, ensure_ascii=False)
-        logger.info(f"Generated meta.json at {meta_json_path}")
+        logger.info(f"Generated meta.json at {meta_json_path} ({len(all_dates)} dates, {len(dates_data)} updated)")
     except Exception as e:
         logger.error(f"Failed to write meta.json: {e}")
 
