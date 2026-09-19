@@ -1192,10 +1192,9 @@ def generate_static_html():
         # ==================================================================
         day_str = d.replace('-', '')
         kelly2_map = build_kelly2_bets_for_day(day_str, d_races)
-        if kelly2_map:
-            for k_rid, kelly2_item in kelly2_map.items():
-                if k_rid in d_races:
-                    d_races[k_rid]['kelly2'] = kelly2_item
+        if kelly2_map is not None:
+            for k_rid in d_races:
+                d_races[k_rid]['kelly2'] = kelly2_map.get(k_rid, {'bets': [], 'total_cost': 0})
 
         kelly3_map = build_kelly3_portfolio_for_day(day_str, d_races)
         if kelly3_map:
@@ -2858,12 +2857,9 @@ def generate_static_html():
         }}
 
         function evaluateKelly2Strategies(raceData, raceId) {{
-            // --- 0. サーバ側で Kelly2.ipynb と同一ロジックにより算出した買い目がある場合はそれを採用 ---
-            //      (v13モデルスコアCSVが取得できた日のみ。それ以外の日は従来の近似ロジックを使う)
-            if (raceData && raceData.kelly2 && Array.isArray(raceData.kelly2.bets)
-                && raceData.kelly2.bets.length > 0) {{
-                const jikuSet = new Set();
-                const partnerSet = new Set();
+            const jikuSet = new Set();
+            const partnerSet = new Set();
+            if (raceData && raceData.kelly2 && Array.isArray(raceData.kelly2.bets)) {{
                 const validStrategies = raceData.kelly2.bets.map(b => {{
                     if (b.axis1Num) jikuSet.add(String(b.axis1Num));
                     if (b.axis2Num) jikuSet.add(String(b.axis2Num));
@@ -2889,97 +2885,6 @@ def generate_static_html():
                 return {{ validStrategies, jikuSet, partnerSet, horseConf: {{}}, popRanks: {{}}, source: 'Kelly2.ipynb' }};
             }}
 
-            if (!raceData || !raceData.horses || raceData.horses.length < 5 || !raceData.strategies) {{
-                return {{ validStrategies: [], jikuSet: new Set(), partnerSet: new Set(), horseConf: {{}}, popRanks: {{}} }};
-            }}
-
-            const horses = raceData.horses;
-            const rIdShort = String(raceId).length === 12 ? String(raceId).substring(2) : raceId;
-            const rOdds = window.tanshoData ? (window.tanshoData[raceId] || window.tanshoData[rIdShort]) : null;
-
-            // 1. レース内の単勝人気順位 (popRanks) の計算
-            const popRanks = {{}};
-            if (rOdds && rOdds.length > 0) {{
-                const sortedOdds = [...rOdds]
-                    .filter(o => o && o[0] !== undefined)
-                    .sort((a, b) => {{
-                        const valA = parseFloat(a[1]) > 0 ? parseFloat(a[1]) : 9999;
-                        const valB = parseFloat(b[1]) > 0 ? parseFloat(b[1]) : 9999;
-                        return valA - valB;
-                    }});
-                sortedOdds.forEach((item, idx) => {{
-                    popRanks[parseInt(item[0])] = idx + 1;
-                }});
-            }}
-
-            // 2. モデルごとの平均/標準偏差 (raceStats) と 順位マップ の作成
-            const allScoreKeys = ['LightGBM_raw', 'XGBoost_raw', 'CatBoost_raw', 'LSTM_raw', 'RandomForest_raw', 'DecisionTree_raw', 'Transformer_raw', 'TabNet_raw', 'Ensemble', 'AutoGluon_raw'];
-            const raceStats = {{}};
-            allScoreKeys.forEach(m => {{
-                const vals = horses.map(h => parseFloat(h[m]) || 0);
-                const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-                const variance = vals.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - 1);
-                const std = Math.sqrt(variance) || 1.0;
-                raceStats[m] = {{ mean, std }};
-            }});
-
-            const getZ = (h, m) => {{
-                const s = raceStats[m] || {{ mean: 0, std: 1.0 }};
-                return ((parseFloat(h[m]) || 0) - s.mean) / s.std;
-            }};
-
-            // 高信頼度判定用 主要4モデル（DecisionTree除外）
-            const CONF_MODELS = ['LightGBM_raw', 'CatBoost_raw', 'RandomForest_raw', 'TabNet_raw'];
-            const availableConfModels = CONF_MODELS.filter(m => horses.some(h => h[m] !== undefined && h[m] !== null));
-
-            const modelRanks = {{}};
-            availableConfModels.forEach(m => {{
-                const sorted = [...horses].sort((a, b) => (parseFloat(b[m]) || 0) - (parseFloat(a[m]) || 0));
-                modelRanks[m] = {{}};
-                sorted.forEach((h, idx) => {{
-                    modelRanks[m][h.horse_number] = idx + 1;
-                }});
-            }});
-
-            const horseConf = {{}};
-            horses.forEach(h => {{
-                const hNum = h.horse_number;
-                const ranks = availableConfModels.map(m => modelRanks[m][hNum]).filter(r => r !== undefined);
-                if (ranks.length > 0) {{
-                    const avgRank = ranks.reduce((a, b) => a + b, 0) / ranks.length;
-                    const top3Count = ranks.filter(r => r <= 3).length;
-                    const top4Count = ranks.filter(r => r <= 4).length;
-                    horseConf[hNum] = {{ avgRank, top3Count, top4Count }};
-                }} else {{
-                    horseConf[hNum] = {{ avgRank: 99.0, top3Count: 0, top4Count: 0 }};
-                }}
-            }});
-
-            const pad = (n) => String(n).padStart(2, '0');
-
-            // 3. 各戦略の判定
-            const candidates = [];
-            const seenKey = new Set();
-
-            (raceData.strategies || []).forEach(strat => {{
-                const mName = strat.model;
-                const scoreKey = mName === 'Ensemble' ? 'Ensemble' : (mName + '_raw');
-                if (!horses[0] || horses[0][scoreKey] === undefined) return;
-
-                const allSorted = [...horses].sort((a, b) => getZ(b, scoreKey) - getZ(a, scoreKey));
-                if (allSorted.length < 5) return;
-
-                const axis1 = allSorted[0];
-                const h1Num = axis1.horse_number;
-                const scoreTh = (strat.score_th !== null && strat.score_th !== undefined) ? parseFloat(strat.score_th) : -99;
-                
-                // スコア閾値
-                if (getZ(axis1, scoreKey) < scoreTh) return;
-
-                // 主要4モデル合意度フィルター: 軸馬1 (平均順位 <= 2.2 かつ 3モデル以上Top3支持)
-                const h1Info = horseConf[h1Num] || {{ avgRank: 99, top3Count: 0, top4Count: 0 }};
-                if (availableConfModels.length >= 3) {{
-                    if (!(h1Info.avgRank <= 2.2 && h1Info.top3Count >= 3)) return;
                 }}
 
                 // 単勝5番人気以内フィルター
