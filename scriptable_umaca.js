@@ -219,6 +219,42 @@ async function main() {
       var titleEl = activePage.querySelector(".ui-title, h1.ui-title") || document.querySelector(".ui-page-active .ui-title, .ui-title");
       var title = titleEl ? (titleEl.innerText || titleEl.textContent || "").trim() : "";
 
+      // 0. お知らせ画面/ポップアップの自動クリア（「今後はこのお知らせを表示しない」にチェックしてOK）
+      var forceInfoCb = document.getElementById("force_info_checkbox") ||
+                        document.querySelector("input[name='force_info_checkbox'], input[id*='force_info'], input[id*='notice']");
+      if (!forceInfoCb) {
+        var allLabels = Array.from(document.querySelectorAll("label"));
+        var noticeLabel = allLabels.find(function(l) {
+          var t = (l.innerText || l.textContent || "").trim();
+          return t.indexOf("お知らせを表示しない") >= 0 || t.indexOf("表示しない") >= 0;
+        });
+        if (noticeLabel) {
+          var forId = noticeLabel.getAttribute("for");
+          if (forId) forceInfoCb = document.getElementById(forId);
+          if (!forceInfoCb) forceInfoCb = noticeLabel.querySelector("input[type='checkbox']");
+        }
+      }
+
+      if (forceInfoCb || title.indexOf("お知らせ") >= 0 || bodyText.indexOf("今後はこのお知らせを表示しない") >= 0) {
+        dg("📢 【お知らせ検知】 「表示しない」にチェックしてOKを押下中...");
+        if (forceInfoCb && !forceInfoCb.checked) {
+          trigger(forceInfoCb);
+        }
+        var okBtn = allLinks.find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return t === "OK" || t.indexOf("OK") >= 0 || t === "閉じる";
+        }) || Array.from(document.querySelectorAll("a, button, input[type='button']")).find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return t === "OK" || t.indexOf("OK") >= 0 || t === "閉じる";
+        });
+
+        if (okBtn) {
+          setTimeout(function() { trigger(okBtn); }, 100);
+          st.actionCooldown = Date.now() + 1000;
+          return { status: "NOTICE_CLEARED" };
+        }
+      }
+
       // A. ログイン画面
       var inps = Array.from(document.querySelectorAll("input"));
       var elC = document.getElementById("cardno") || document.querySelector("input[name='c']") || inps.find(i => (i.name||"").toLowerCase().indexOf("card") >= 0 || (i.placeholder||"").indexOf("カード") >= 0);
