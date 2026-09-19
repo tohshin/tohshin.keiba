@@ -2907,6 +2907,7 @@ def generate_static_html():
                         model: b.model,
                         strategyId: b.strategy_id,
                         s: {{ axis_count: b.axis2Num ? 2 : 1 }},
+                        strat: {{ axis_count: b.axis2Num ? 2 : 1 }},
                         combs: b.combs,
                         cost: b.cost,
                         unit: b.unit,
@@ -3018,10 +3019,11 @@ def generate_static_html():
             if (currentActiveRecTab === 'strat1') {{
                 if (strat1List.length > 0) {{
                     strat1List.forEach(item => {{
-                        const s = item.strat;
+                        const s = item.strat || item.s || {{}};
                         const displayType = item.rawType;
                         const popDisp = item.h1PopRank ? `単勝 ${{item.h1PopRank}}番人気` : '';
-                        const confDisp = `4モデル平均 ${{item.h1Info.avgRank.toFixed(1)}}位 (Top3支持: ${{item.h1Info.top3Count}}モデル)`;
+                        const h1 = item.h1Info || {{}};
+                        const confDisp = (typeof h1.avgRank === 'number') ? `4モデル平均 ${{h1.avgRank.toFixed(1)}}位 (Top3支持: ${{h1.top3Count ?? 0}}モデル)` : '';
 
                         html += `
                             <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}">
