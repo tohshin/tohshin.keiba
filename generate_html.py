@@ -698,7 +698,7 @@ def generate_static_html():
                 elif mode in ("2way", "sanrentan_2way"):
                     axis1 = u[0]
                     partners = [u[1], u[2]] if len(u) >= 3 else []
-                    betting_eyes_text = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])}"
+                    betting_eyes_text = f"{pad(u[0])} → {pad(u[1])} → {pad(u[2])}, {pad(u[1])} → {pad(u[0])} → {pad(u[2])}" if len(u) >= 3 else ""
                     display_type = "3連単-2通り"
                 elif mode in ("box3", "sanrentan_box3"):
                     partners = u[:3] if len(u) >= 3 else u
@@ -708,7 +708,7 @@ def generate_static_html():
                     axis1 = u[0]
                     partners = u[1:4] if len(u) >= 4 else u[1:]
                     box4_str = f"{', '.join([pad(x) for x in sorted(u[:4])])} BOX"
-                    sanrentan_2way = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])}"
+                    sanrentan_2way = f"{pad(u[0])} → {pad(u[1])} → {pad(u[2])}, {pad(u[1])} → {pad(u[0])} → {pad(u[2])}" if len(u) >= 3 else ""
                     betting_eyes_text = f"3連複: {box4_str} (4点) + 3連単: {sanrentan_2way} (2点)"
                     display_type = "ハイブリッド(3連複4点+3連単2点)"
                     sub_items = [
@@ -1612,7 +1612,9 @@ def generate_static_html():
             font-family: 'Space Mono', monospace;
             text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
             letter-spacing: 0.1em;
-            white-space: nowrap;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.35;
         }}
 
         .strategy-item-modal {{
@@ -2573,7 +2575,8 @@ def generate_static_html():
                 const sRank = strat.s_rank !== undefined ? strat.s_rank : 99;
                 const tRank = strat.t_rank !== undefined ? strat.t_rank : 99;
 
-                const is2Axis = typeSub.includes('2頭') || (strat.axis_count && parseInt(strat.axis_count) >= 2);
+                const is2Touri = typeSub.includes('2通り') || rawType.includes('2通り');
+                const is2Axis = !is2Touri && (typeSub.includes('2頭') || (strat.axis_count && parseInt(strat.axis_count) >= 2));
                 let axis2 = null;
                 let h2Num = null;
 
@@ -2591,16 +2594,37 @@ def generate_static_html():
                         const h2Info = horseConf[h2Num] || {{ avgRank: 99, top3Count: 0, top4Count: 0 }};
                         if (!(h2Info.avgRank <= 3.7 && h2Info.top4Count >= 2)) return;
                     }}
+                }} else if (is2Touri) {{
+                    axis2 = allSorted[1];
+                    h2Num = axis2.horse_number;
                 }}
 
                 // 相手馬
                 const pScoreTh = (strat.partner_score_th !== null && strat.partner_score_th !== undefined) ? parseFloat(strat.partner_score_th) : -99;
-                const nPartners = parseInt(strat.partners) || 5;
+                
+                let targetPartners = 5;
+                if (strat.partners) {{
+                    targetPartners = parseInt(strat.partners);
+                }} else if (is2Touri) {{
+                    targetPartners = 1;
+                }} else if (typeSub.includes('3頭BOX') || rawType.includes('3頭BOX') || typeSub === 'box3') {{
+                    targetPartners = 2;
+                }} else if (typeSub.includes('4頭BOX') || rawType.includes('4頭BOX') || typeSub === 'box4') {{
+                    targetPartners = 3;
+                }} else if (typeSub.includes('5頭BOX') || rawType.includes('5頭BOX') || typeSub === 'box5') {{
+                    targetPartners = 4;
+                }} else if (typeSub.includes('3頭') || rawType.includes('3頭') || typeSub.includes('3p')) {{
+                    targetPartners = 3;
+                }} else if (typeSub.includes('4頭') || rawType.includes('4頭') || typeSub.includes('4p')) {{
+                    targetPartners = 4;
+                }} else if (typeSub.includes('5頭') || rawType.includes('5頭') || typeSub.includes('5p')) {{
+                    targetPartners = 5;
+                }}
 
-                const others = is2Axis ? allSorted.slice(2) : allSorted.slice(1);
-                const validPartners = others.filter(h => getZ(h, scoreKey) >= pScoreTh).slice(0, nPartners);
+                const others = (is2Axis || is2Touri) ? allSorted.slice(2) : allSorted.slice(1);
+                const validPartners = others.filter(h => getZ(h, scoreKey) >= pScoreTh).slice(0, targetPartners);
 
-                const reqMinPartners = (shubetsu.includes('3連') || rawType.includes('3連')) ? 2 : ((shubetsu.includes('馬') || rawType.includes('馬')) ? 1 : 0);
+                const reqMinPartners = is2Touri ? 1 : ((shubetsu.includes('3連') || rawType.includes('3連')) ? 2 : ((shubetsu.includes('馬') || rawType.includes('馬')) ? 1 : 0));
                 if (validPartners.length < reqMinPartners) return;
 
                 // 買い目テキストと点数(combs)
@@ -2609,37 +2633,52 @@ def generate_static_html():
                 let combs = 0;
                 const P = validPartners.length;
 
-                if (typeSub === '1頭軸マルチ') {{
+                if (is2Touri) {{
+                    if (!h2Num || P < 1) return;
+                    const h3Num = validPartners[0].horse_number;
+                    bettingEyesText = `${{pad(h1Num)}} → ${{pad(h2Num)}} → ${{pad(h3Num)}}, ${{pad(h2Num)}} → ${{pad(h1Num)}} → ${{pad(h3Num)}}`;
+                    combs = 2;
+                }} else if (typeSub.includes('1頭軸マルチ') || rawType.includes('1頭軸マルチ') || (typeSub.includes('マルチ') && !is2Axis)) {{
                     if (P < 2) return;
                     bettingEyesText = `${{pad(h1Num)}} ↔ ${{pNums.join(', ')}}`;
                     combs = (shubetsu.includes('3連単') || rawType.includes('3連単')) ? 3 * P * (P - 1) : 2 * P;
-                }} else if (typeSub === '2頭軸マルチ') {{
+                }} else if (typeSub.includes('2頭軸マルチ') || rawType.includes('2頭軸マルチ') || (typeSub.includes('マルチ') && is2Axis)) {{
                     if (!h2Num || P < 1) return;
                     bettingEyesText = `${{pad(h1Num)}}, ${{pad(h2Num)}} ↔ ${{pNums.join(', ')}}`;
                     combs = 6 * P;
-                }} else if (typeSub === '1頭軸ながし') {{
-                    if (P < (shubetsu.includes('3連') ? 2 : 1)) return;
-                    bettingEyesText = `${{pad(h1Num)}} → ${{pNums.join(', ')}}`;
-                    combs = (shubetsu.includes('3連単') || rawType.includes('3連単')) ? P * (P - 1) : ((shubetsu.includes('3連複') || rawType.includes('3連複')) ? Math.floor((P * (P - 1)) / 2) : P);
-                }} else if (typeSub === '2頭軸ながし') {{
-                    if (!h2Num || P < 1) return;
-                    bettingEyesText = `${{pad(h1Num)}} → ${{pad(h2Num)}} → ${{pNums.join(', ')}}`;
-                    combs = P;
-                }} else if (typeSub === 'マルチ') {{
-                    if (P < 1) return;
-                    bettingEyesText = `${{pad(h1Num)}} ↔ ${{pNums.join(', ')}}`;
-                    combs = 2 * P;
-                }} else if (typeSub === 'ながし') {{
-                    if (P < 1) return;
-                    bettingEyesText = `${{pad(h1Num)}} → ${{pNums.join(', ')}}`;
-                    combs = P;
+                }} else if (typeSub.includes('1頭軸流し') || typeSub.includes('1頭軸ながし') || rawType.includes('1頭軸流し') || rawType.includes('1頭軸ながし') || typeSub.includes('ながし') || typeSub.includes('流し')) {{
+                    if (is2Axis) {{
+                        if (!h2Num || P < 1) return;
+                        bettingEyesText = `${{pad(h1Num)}} → ${{pad(h2Num)}} → ${{pNums.join(', ')}}`;
+                        combs = P;
+                    }} else {{
+                        if (P < (shubetsu.includes('3連') ? 2 : 1)) return;
+                        const arrow = (shubetsu.includes('3連複') || rawType.includes('3連複') || shubetsu.includes('馬連') || rawType.includes('馬連')) ? ' ― ' : ' → ';
+                        bettingEyesText = `${{pad(h1Num)}}${{arrow}}${{pNums.join(', ')}}`;
+                        if (shubetsu.includes('3連単') || rawType.includes('3連単')) {{
+                            combs = P * (P - 1);
+                        }} else if (shubetsu.includes('3連複') || rawType.includes('3連複')) {{
+                            combs = Math.floor((P * (P - 1)) / 2);
+                        }} else {{
+                            combs = P;
+                        }}
+                    }}
+                }} else if (typeSub.includes('BOX') || rawType.includes('BOX')) {{
+                    const allBox = [pad(h1Num), ...pNums].sort();
+                    bettingEyesText = allBox.join(', ') + ' BOX';
+                    if (shubetsu.includes('3連単') || rawType.includes('3連単')) {{
+                        combs = allBox.length * (allBox.length - 1) * (allBox.length - 2);
+                    }} else if (shubetsu.includes('3連複') || rawType.includes('3連複')) {{
+                        combs = Math.floor((allBox.length * (allBox.length - 1) * (allBox.length - 2)) / 6);
+                    }} else {{
+                        combs = Math.floor((allBox.length * (allBox.length - 1)) / 2);
+                    }}
                 }} else if (shubetsu === '単勝' || rawType === '単勝') {{
                     bettingEyesText = `${{pad(h1Num)}}`;
                     combs = 1;
-                }} else if (typeSub.includes('BOX') || rawType.includes('BOX')) {{
-                    const allBox = [pad(h1Num), ...pNums];
-                    bettingEyesText = allBox.join(', ');
-                    combs = (shubetsu.includes('3連') ? (allBox.length * (allBox.length - 1) * (allBox.length - 2)) / 6 : (allBox.length * (allBox.length - 1)) / 2) || 1;
+                }} else if (shubetsu === '複勝' || rawType === '複勝') {{
+                    bettingEyesText = `${{pad(h1Num)}}`;
+                    combs = 1;
                 }} else {{
                     bettingEyesText = `${{pad(h1Num)}}` + (pNums.length > 0 ? ` → ${{pNums.join(', ')}}` : '');
                     combs = Math.max(1, pNums.length);
@@ -2804,11 +2843,13 @@ def generate_static_html():
                                 </div>
                                 <div class="bet-eyes-box">
                                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em;">Recommended Combination</div>
-                                    <div class="bet-eyes-text">${{item.bettingEyesText}}</div>
+                                    <div class="bet-eyes-text">${{item.rawType.includes('2通り') ? item.bettingEyesText.replace(', ', '<br>') : item.bettingEyesText}}</div>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
                                     <div style="color: #94a3b8;">
-                                        軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong> (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
+                                        ${{item.axis1Num && item.axis2Num ? `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番, ${{String(item.axis2Num).padStart(2, '0')}}番</strong>` : `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong>`}}
+                                        ${{item.partnerNums && item.partnerNums.length > 0 ? ` | 相手: <strong>${{item.partnerNums.map(n => String(n).padStart(2, '0')).join(', ')}}</strong>` : ''}}
+                                        (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
                                     </div>
                                     <div>
                                         ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>
@@ -2816,9 +2857,9 @@ def generate_static_html():
                                 </div>
                                 <div class="bet-result-details"></div>
                                 <div style="margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
-                                    <button class="ipat-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
-                                    <button class="umaca-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showUmaca(this)">🟣 UMACA</button>
-                                    <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{s.axis_count || 1}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
+                                    <button class="ipat-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{item.axis2Num ? 2 : (s.axis_count || 1)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showIpat(this)">🟢 即PAT</button>
+                                    <button class="umaca-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{item.axis2Num ? 2 : (s.axis_count || 1)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showUmaca(this)">🟣 UMACA</button>
+                                    <button class="smappy-btn" data-eyes="${{item.bettingEyesText}}" data-type="${{item.rawType}}" data-round="${{raceData.round}}" data-axis="${{item.axis2Num ? 2 : (s.axis_count || 1)}}" data-place="${{raceData.place}}" data-weekday="${{raceData.weekday}}" onclick="event.stopPropagation(); showSmappy(this)">📌 スマッピー</button>
                                 </div>
                             </div>
                         `;
@@ -3143,7 +3184,9 @@ def generate_static_html():
                 const axisCount = parsedAxes.length;
                 const partnersCount = parsedPartners.length;
                 
-                if (normType.includes("単勝") || normType.includes("複勝")) {{
+                if (normType.includes("2通り")) {{
+                    eyesCount = 2;
+                }} else if (normType.includes("単勝") || normType.includes("複勝")) {{
                     eyesCount = 1;
                 }} else if (normType.includes("BOX")) {{
                     const n = eyesText.split(',').length;
@@ -3177,7 +3220,16 @@ def generate_static_html():
                     const predictedSet = eyesText.split(/[→↔,]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
-                    if (baseType === "単勝") {{
+                    if (normType.includes("2通り")) {{
+                        const m = eyesText.match(/\d+/g);
+                        if (m && m.length >= 3 && winNums.length >= 3) {{
+                            const a1 = String(parseInt(m[0]));
+                            const a2 = String(parseInt(m[1]));
+                            const a3 = String(parseInt(m[2]));
+                            isHit = (winNums[0] === a1 && winNums[1] === a2 && winNums[2] === a3) ||
+                                    (winNums[0] === a2 && winNums[1] === a1 && winNums[2] === a3);
+                        }}
+                    }} else if (baseType === "単勝") {{
                         isHit = (predictedSet[0] === winNums[0]);
                     }} else if (baseType === "複勝") {{
                         isHit = winNums.some(n => predictedSet.includes(n));
@@ -3286,6 +3338,15 @@ def generate_static_html():
 
         function parseSmappyEyes(text, stratType) {{
             text = text.trim();
+            if (stratType.includes('2通り')) {{
+                var matches = text.match(/\d+/g);
+                if (matches && matches.length >= 3) {{
+                    var h1 = parseInt(matches[0]);
+                    var h2 = parseInt(matches[1]);
+                    var h3 = parseInt(matches[2]);
+                    return {{axes: [h1, h2], partners: [h3]}};
+                }}
+            }}
             if (stratType.includes('BOX')) {{
                 var clean = text.replace(/BOX/gi, '').trim();
                 var all = clean.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
