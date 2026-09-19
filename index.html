@@ -1592,6 +1592,37 @@
         }
 
         function evaluateKelly2Strategies(raceData, raceId) {
+            // --- 0. サーバ側で Kelly2.ipynb と同一ロジックにより算出した買い目がある場合はそれを採用 ---
+            //      (v13モデルスコアCSVが取得できた日のみ。それ以外の日は従来の近似ロジックを使う)
+            if (raceData && raceData.kelly2 && Array.isArray(raceData.kelly2.bets)
+                && raceData.kelly2.bets.length > 0) {
+                const jikuSet = new Set();
+                const partnerSet = new Set();
+                const validStrategies = raceData.kelly2.bets.map(b => {
+                    if (b.axis1Num) jikuSet.add(String(b.axis1Num));
+                    if (b.axis2Num) jikuSet.add(String(b.axis2Num));
+                    (b.partnerNums || []).forEach(n => partnerSet.add(String(n)));
+                    return {
+                        rawType: b.rawType,
+                        model: b.model,
+                        strategyId: b.strategy_id,
+                        s: { axis_count: b.axis2Num ? 2 : 1 },
+                        combs: b.combs,
+                        cost: b.cost,
+                        unit: b.unit,
+                        bettingEyesText: b.bettingEyesText,
+                        axis1Num: b.axis1Num,
+                        axis2Num: b.axis2Num,
+                        partnerNums: b.partnerNums || [],
+                        roi: b.roi,
+                        hitRate: b.hitRate,
+                        h1Info: b.h1Info,
+                        h1PopRank: b.h1PopRank
+                    };
+                });
+                return { validStrategies, jikuSet, partnerSet, horseConf: {}, popRanks: {}, source: 'Kelly2.ipynb' };
+            }
+
             if (!raceData || !raceData.horses || raceData.horses.length < 5 || !raceData.strategies) {
                 return { validStrategies: [], jikuSet: new Set(), partnerSet: new Set(), horseConf: {}, popRanks: {} };
             }
@@ -1876,8 +1907,10 @@
                     s2.partnerNums.forEach(n => partnerSet.add(String(n)));
                 }
 
-                // Action > 0 (見送りSKIP以外) を PICKUP 2 の対象とする
-                const isPickup = s2.is_pickup === true || (s2.action_id > 0);
+                // PICKUP 2 の対象: サーバ側で生成した買い目(lines)がある、または
+                // action_id > 0 (見送りSKIP以外) の場合
+                const isPickup = !!s2.lines && s2.lines.length > 0
+                    || s2.is_pickup === true || (s2.action_id > 0);
                 return {
                     validStrategies: isPickup ? [s2] : [],
                     isPickup: isPickup,
@@ -1927,7 +1960,7 @@
             let html = `
                 <div style="text-align: center; margin-bottom: 20px; position: relative;">
                     <div style="font-size: 0.8rem; color: ${currentActiveRecTab === 'strat2' ? '#fb923c' : '#4ade80'}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
-                        ${currentActiveRecTab === 'strat2' ? 'Strategy 2 / Common Rules' : 'Kelly2 AI Strategy'}
+                        ${currentActiveRecTab === 'strat2' ? 'Kelly3 Portfolio (Kelly3.ipynb)' : 'Kelly2 (Kelly2.ipynb)'}
                     </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${raceId}', true)" 
@@ -1942,7 +1975,7 @@
                         🎯 戦略1 (Kelly2)${strat1List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${strat1List.length})</span>` : ''}
                     </button>
                     <button class="rec-tab-btn strat2 ${currentActiveRecTab === 'strat2' ? 'active' : ''}" onclick="switchRecTab('${raceId}', 'strat2')">
-                        🚀 戦略2 (Kelly3 強化学習)${strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(推奨)</span>` : ''}
+                        🚀 戦略2 (Kelly3)${strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(推奨)</span>` : ''}
                     </button>
                 </div>
             `;
@@ -1997,7 +2030,7 @@
                     `;
                 }
             } else {
-                // 戦略2 (Kelly3 強化学習モデル / PICKUP 2)
+                // 戦略2 (Kelly3 / PICKUP 2): Kelly3.ipynb の中央値重視ポートフォリオ
                 const s2 = raceData.strat2;
                 if (s2) {
                     const isPickup = s2.is_pickup === true || (s2.action_id > 0);
@@ -2014,10 +2047,10 @@
                                 <div>
                                     <div style="font-weight: 900; color: #fb923c; font-size: 1.1rem;">
                                         ${s2.action_name}
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'v12 Ensemble RL'}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3'}</span>
                                     </div>
                                     <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
-                                        合計: <strong style="color: #4ade80;">${s2.combs}点 (${s2.cost.toLocaleString()}円)</strong> / 1.5倍掛け適用
+                                        合計: <strong style="color: #4ade80;">${s2.combs}点 (${s2.cost.toLocaleString()}円)</strong> / Kelly3.ipynb 中央値重視ポートフォリオ
                                     </div>
                                 </div>
                                 <div style="font-size: 0.7rem; color: #fb923c; font-weight: 700; background: rgba(249, 115, 22, 0.2); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(249, 115, 22, 0.4);">
@@ -2030,7 +2063,7 @@
                             const subColor = sub.type === 'SANRENPUKU' ? '#fbbf24' : '#fb923c';
                             const subBg = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.06)' : 'rgba(249, 115, 22, 0.06)';
                             const subBorder = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.3)' : 'rgba(249, 115, 22, 0.3)';
-                            const subLabel = sub.rawType.includes('3連複') ? '① 3連複' : '② 3連単';
+                            const subLabel = sub.bet_type_jp || sub.rawType.split('-')[0];
 
                             html += `
                                 <div class="strategy-item-modal" data-strategy-type="${sub.rawType}" style="border-left: 4px solid ${subColor}; margin-bottom: 14px;">
@@ -2076,7 +2109,7 @@
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                                     <div style="font-weight: 900; color: ${actionBadgeColor}; font-size: 1.1rem;">
                                         ${s2.rawType} 
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'v12 Ensemble RL'}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3'}</span>
                                         <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${s2.combs}点 (${s2.cost.toLocaleString()}円)</span>
                                     </div>
                                     <div style="font-size: 0.7rem; color: ${actionBadgeColor}; font-weight: 700; background: ${actionBadgeBg}; padding: 3px 10px; border-radius: 4px; border: 1px solid ${actionBadgeColor}50;">
@@ -2085,7 +2118,7 @@
                                 </div>
                                 <div class="bet-eyes-box" style="border-color: ${actionBadgeColor}60; background: ${actionBadgeBg};">
                                     <div style="font-size: 0.7rem; color: ${actionBadgeColor}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
-                                        Kelly3 推奨買い目 (Action ${s2.action_id}: ${s2.action_name})
+                                        Kelly3 推奨買い目: ${s2.action_name}
                                     </div>
                                     <div class="bet-eyes-text" style="color: #fff; font-size: 1.05rem;">${s2.bettingEyesText || '買い目なし'}</div>
                                 </div>
@@ -2094,7 +2127,7 @@
                                         ${jikuDisp}${jikuDisp && partnerDisp ? ' | ' : ''}${partnerDisp}
                                     </div>
                                     <div style="color: #94a3b8;">
-                                        1.5倍掛けスケーリング適用
+                                        Kelly3 中央値重視ポートフォリオ (Kelly3.ipynb)
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
@@ -2111,7 +2144,7 @@
                         <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                             <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
                             <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Kelly3 Recommendation</div>
-                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 強化学習モデルの推論データがありません</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 (Kelly3.ipynb) の買い目データがありません</div>
                         </div>
                     `;
                 }
@@ -2306,6 +2339,28 @@
                 }
                 const axisCount = parsedAxes.length;
                 const partnersCount = parsedPartners.length;
+
+                // Kelly3 ポートフォリオ表示用の券種も扱う
+                if (normType.includes("フォーメーション") && eyesText.includes("→")) {
+                    // 軸1頭 → 2着候補 → 3着候補 (3連単)
+                    const stages = eyesText.split("→").map(s =>
+                        s.split(",").map(t => String(t).trim().replace(/^0+/, "")).filter(Boolean)
+                    );
+                    if (stages.length === 3 && stages[1].length > 0 && stages[2].length > 0) {
+                        eyesCount = stages[1].length * stages[2].length
+                            - stages[1].filter(v => stages[2].includes(v)).length;
+                        parsedAxes = stages[0];
+                        parsedPartners = [];
+                    }
+                } else if (normType.includes("折り返し")) {
+                    // 馬単折り返し (a  b)  2点
+                    const parts = eyesText.split("↔");
+                    parsedAxes = parts[0].split(",").map(s => String(s).trim().replace(/^0+/, "")).filter(Boolean);
+                    parsedPartners = parts[1].split(",").map(s => String(s).trim().replace(/^0+/, "")).filter(Boolean);
+                    eyesCount = parts.length === 2 ? 2 : partnersCount;
+                } else if (normType.includes("単勝") || normType.includes("複勝")) {
+                    eyesCount = 1;
+                }
                 
                 if (normType.includes("2通り")) {
                     eyesCount = 2;
