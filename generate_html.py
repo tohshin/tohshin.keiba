@@ -4485,15 +4485,14 @@ def generate_static_html():
         logger.info(f"Starting Git update process for {repo_dir}...")
         
         # 1. git add
-        # インデックス作成に時間がかかる場合があるため、明示的に指定
-        # data.json は巨大なため Git 管理から除外（既存ファイルも後ほど削除）
-        subprocess.run(["git", "add", "index.html", "generate_html.py", "sw.js", "jsons/meta.json", "jsons/tansho_data.json"], cwd=repo_dir, check=True)
-        # 日次JSONも追加
-        subprocess.run(["git", "add", "jsons/data_*.json"], cwd=repo_dir, check=True)
+        files_to_add = ["index.html", "generate_html.py", "sw.js", "jsons/meta.json", "jsons/tansho_data.json"]
+        import glob
+        files_to_add.extend(glob.glob("jsons/data_*.json"))
+        subprocess.run(["git", "add"] + files_to_add, cwd=repo_dir, check=True)
         
-        # 2. git commit (変更がある場合のみ)
-        status = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, capture_output=True, text=True)
-        if status.stdout.strip():
+        # 2. git commit (ステージされた変更がある場合のみ)
+        has_staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo_dir).returncode != 0
+        if has_staged:
             subprocess.run(["git", "commit", "-m", "Auto-update race data and HTML (Fixed Corruption)"], cwd=repo_dir, check=True)
             logger.info("Successfully committed changes.")
             
