@@ -361,7 +361,7 @@ async function main() {
                    });
 
       var hasLogoHeader = !!document.querySelector(".logoHeader, #logoHeader, [class*='logoHeader'], [id*='logoHeader']");
-      var isTopScreen = (regBtn || hasLogoHeader) && !isVenueScreen && !isRaceScreen && !isSikiScreen && !isHouScreen && !isHorseScreen && !isAmountScreen && !isConfirmScreen;
+      var isTopScreen = !isNoticeScreen && (regBtn || hasLogoHeader || typeof ToQRBet === "function" || typeof ToSPBet === "function") && !isVenueScreen && !isRaceScreen && !isSikiScreen && !isHouScreen && !isHorseScreen && !isAmountScreen && !isConfirmScreen;
 
       // ステップ名の決定
       var detectedStep = "";
@@ -675,21 +675,18 @@ async function main() {
         return { status: "VENUE_CLICKED" };
       }
 
-      // 9. TOP画面（<a class="ico_regular ui-link">通常投票</a> をクリックして競馬場名へ遷移）
+      // 9. TOP画面（通常投票へ遷移）
       if (isTopScreen) {
-        dg("📋 【TOP画面】 通常投票 (<a class='ico_regular ui-link'>) をタップ中...");
-        if (regBtn) {
+        dg("📋 【TOP画面】 通常投票へ進みます...");
+        if (typeof ToQRBet === "function") {
+          try { ToQRBet(); } catch(e) {}
+        } else if (typeof ToSPBet === "function") {
+          try { ToSPBet(0); } catch(e) {}
+        } else if (regBtn) {
           trigger(regBtn);
-        } else {
-          if (typeof ToSPBet === "function") {
-            try { ToSPBet(0); } catch(e) {}
-          }
-          if (typeof ToQRBet === "function") {
-            try { ToQRBet(); } catch(e) {}
-          }
         }
 
-        st.actionCooldown = Date.now() + 1000;
+        st.actionCooldown = Date.now() + 1200;
         return { status: "TOP_CLICKED" };
       }
 
