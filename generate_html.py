@@ -3557,7 +3557,7 @@ def generate_static_html():
                     var h1 = parseInt(matches[0]);
                     var h2 = parseInt(matches[1]);
                     var h3 = parseInt(matches[2]);
-                    return {{axes: [h1, h2], partners: [h3]}};
+                    return {{axes: [h1, h2], partners: [h3], is2Touri: true}};
                 }}
             }}
             if (stratType.includes('BOX')) {{
@@ -3711,7 +3711,7 @@ def generate_static_html():
             `;
             btn.parentElement.appendChild(popup);
 
-            window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners}};
+            window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri}};
             
             var fixedLink = document.getElementById('smappy-fixed-bml-link');
             if (fixedLink) {{
@@ -3744,17 +3744,38 @@ def generate_static_html():
             var p = window._smappyParsed;
             var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
 
-            var rawSteps = [v, p.round, p.siki];
-            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
-            if (!simple && p.hou) rawSteps.push(p.hou);
-            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
-            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+            var payload;
+            if (p.is2Touri && p.axes && p.axes.length >= 2 && p.partners && p.partners.length >= 1) {{
+                var h1 = String(p.axes[0]);
+                var h2 = String(p.axes[1]);
+                var h3 = String(p.partners[0]);
+                payload = {{
+                    bets: [
+                        {{
+                            steps: [v, p.round, p.siki, p.hou, h1, h2, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }},
+                        {{
+                            steps: [v, p.round, p.siki, p.hou, h2, h1, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }}
+                    ]
+                }};
+            }} else {{
+                var rawSteps = [v, p.round, p.siki];
+                var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+                if (!simple && p.hou) rawSteps.push(p.hou);
+                (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+                (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
 
-            var payload = {{
-                steps: rawSteps,
-                venueName: placeName,
-                weekday: p.weekday || ""
-            }};
+                payload = {{
+                    steps: rawSteps,
+                    venueName: placeName,
+                    weekday: p.weekday || ""
+                }};
+            }}
 
             var jsonStr = JSON.stringify(payload);
             var t = document.createElement('textarea');
@@ -3870,6 +3891,7 @@ def generate_static_html():
                 hou: hou,
                 axes: parsed.axes,
                 partners: parsed.partners,
+                is2Touri: parsed.is2Touri,
                 isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
@@ -3901,27 +3923,69 @@ def generate_static_html():
             var ratio = unitVal / baseU;
             var totalVal = Math.round((p.baseTotal || unitVal) * ratio);
 
-            var rawSteps = [v, p.round, p.siki];
-            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
-            if (!simple && p.hou) rawSteps.push(p.hou);
-            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
-            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+            var payload;
+            if (p.is2Touri && p.axes && p.axes.length >= 2 && p.partners && p.partners.length >= 1) {{
+                var h1 = p.axes[0];
+                var h2 = p.axes[1];
+                var h3 = p.partners[0];
+                var bet1 = {{
+                    steps: [v, p.round, p.siki, p.hou, String(h1), String(h2), String(h3)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: [h1, h2],
+                    partners: [h3],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                var bet2 = {{
+                    steps: [v, p.round, p.siki, p.hou, String(h2), String(h1), String(h3)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: [h2, h1],
+                    partners: [h3],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                payload = {{
+                    bets: [bet1, bet2],
+                    unitAmount: unitVal,
+                    totalAmount: totalVal
+                }};
+            }} else {{
+                var rawSteps = [v, p.round, p.siki];
+                var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+                if (!simple && p.hou) rawSteps.push(p.hou);
+                (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+                (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
 
-            var payload = {{
-                steps: rawSteps,
-                venueName: placeName,
-                placeName: placeName,
-                round: p.round,
-                raceNo: p.round,
-                siki: p.siki,
-                hou: p.hou,
-                axes: p.axes || [],
-                partners: p.partners || [],
-                isMulti: p.isMulti || false,
-                weekday: p.weekday || "",
-                unitAmount: unitVal,
-                totalAmount: totalVal
-            }};
+                payload = {{
+                    steps: rawSteps,
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: p.axes || [],
+                    partners: p.partners || [],
+                    isMulti: p.isMulti || false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: totalVal
+                }};
+            }}
 
             var jsonStr = JSON.stringify(payload);
 
@@ -4044,6 +4108,7 @@ def generate_static_html():
                 hou: hou,
                 axes: parsed.axes,
                 partners: parsed.partners,
+                is2Touri: parsed.is2Touri,
                 isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
@@ -4075,27 +4140,69 @@ def generate_static_html():
             var ratio = unitVal / baseU;
             var totalVal = Math.round((p.baseTotal || unitVal) * ratio);
 
-            var rawSteps = [v, p.round, p.siki];
-            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
-            if (!simple && p.hou) rawSteps.push(p.hou);
-            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
-            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+            var payload;
+            if (p.is2Touri && p.axes && p.axes.length >= 2 && p.partners && p.partners.length >= 1) {{
+                var h1 = p.axes[0];
+                var h2 = p.axes[1];
+                var h3 = p.partners[0];
+                var bet1 = {{
+                    steps: [v, p.round, p.siki, p.hou, String(h1), String(h2), String(h3)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: [h1, h2],
+                    partners: [h3],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                var bet2 = {{
+                    steps: [v, p.round, p.siki, p.hou, String(h2), String(h1), String(h3)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: [h2, h1],
+                    partners: [h3],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                payload = {{
+                    bets: [bet1, bet2],
+                    unitAmount: unitVal,
+                    totalAmount: totalVal
+                }};
+            }} else {{
+                var rawSteps = [v, p.round, p.siki];
+                var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+                if (!simple && p.hou) rawSteps.push(p.hou);
+                (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+                (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
 
-            var payload = {{
-                steps: rawSteps,
-                venueName: placeName,
-                placeName: placeName,
-                round: p.round,
-                raceNo: p.round,
-                siki: p.siki,
-                hou: p.hou,
-                axes: p.axes || [],
-                partners: p.partners || [],
-                isMulti: p.isMulti || false,
-                weekday: p.weekday || "",
-                unitAmount: unitVal,
-                totalAmount: totalVal
-            }};
+                payload = {{
+                    steps: rawSteps,
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: p.hou,
+                    axes: p.axes || [],
+                    partners: p.partners || [],
+                    isMulti: p.isMulti || false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: totalVal
+                }};
+            }}
 
             var jsonStr = JSON.stringify(payload);
 
@@ -4134,17 +4241,38 @@ def generate_static_html():
             var p = window._smappyParsed;
             var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
 
-            var rawSteps = [v, p.round, p.siki];
-            var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
-            if (!simple && p.hou) rawSteps.push(p.hou);
-            (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
-            (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
+            var payload;
+            if (p.is2Touri && p.axes && p.axes.length >= 2 && p.partners && p.partners.length >= 1) {{
+                var h1 = String(p.axes[0]);
+                var h2 = String(p.axes[1]);
+                var h3 = String(p.partners[0]);
+                payload = {{
+                    bets: [
+                        {{
+                            steps: [v, p.round, p.siki, p.hou, h1, h2, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }},
+                        {{
+                            steps: [v, p.round, p.siki, p.hou, h2, h1, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }}
+                    ]
+                }};
+            }} else {{
+                var rawSteps = [v, p.round, p.siki];
+                var simple = (p.siki === '1' || p.siki === '2' || p.siki === '9');
+                if (!simple && p.hou) rawSteps.push(p.hou);
+                (p.axes || []).forEach(function(a) {{ rawSteps.push(String(a)); }});
+                (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
 
-            var payload = {{
-                steps: rawSteps,
-                venueName: placeName,
-                weekday: p.weekday || ""
-            }};
+                payload = {{
+                    steps: rawSteps,
+                    venueName: placeName,
+                    weekday: p.weekday || ""
+                }};
+            }}
 
             var jsonStr = JSON.stringify(payload);
 
