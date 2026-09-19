@@ -2364,12 +2364,33 @@ def generate_static_html():
             console.log("[DEBUG] checkAuth called");
             const input = document.getElementById('auth-pw');
             const pw = (input ? input.value : "").trim();
+            const errDiv = document.getElementById('login-error');
+            
             if (pw === 'tohshin20') {{
                 console.log("[DEBUG] Password correct, initializing app...");
                 try {{
                     localStorage.setItem('keiba_auth_time', new Date().getTime());
                 }} catch (e) {{
                     console.warn("localStorage is not available:", e);
+                }}
+                
+                const isLocal = window.location.protocol === 'file:';
+                if (isLocal) {{
+                    if (errDiv) {{
+                        errDiv.style.display = 'block';
+                        errDiv.style.color = '#fbbf24';
+                        errDiv.style.fontSize = '0.8rem';
+                        errDiv.style.lineHeight = '1.5';
+                        errDiv.style.textAlign = 'left';
+                        errDiv.style.marginTop = '12px';
+                        errDiv.innerHTML = `
+                            パスワードは正しいですが、ファイルを直接開いているため（file://）ブラウザのセキュリティでデータ読み込みがブロックされます。<br><br>
+                            <strong>【解決手順】</strong><br>
+                            1. ターミナルで <code>python -m http.server 8000</code> を実行<br>
+                            2. ブラウザで <a href="http://localhost:8000" target="_blank" style="color: #4ade80; text-decoration: underline;">http://localhost:8000</a> を開く
+                        `;
+                    }}
+                    return;
                 }}
                 
                 // オーバーレイを完全に削除（Safariのdisplay:flex優先バグ等を回避）
@@ -2379,7 +2400,11 @@ def generate_static_html():
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
-                document.getElementById('login-error').style.display = 'block';
+                if (errDiv) {{
+                    errDiv.style.display = 'block';
+                    errDiv.style.color = '#ef4444';
+                    errDiv.innerText = 'パスワードが違います (Invalid password)';
+                }}
             }}
         }}
 
@@ -2400,14 +2425,27 @@ def generate_static_html():
                 console.warn("localStorage is not available for auth check:", e);
             }}
             
-            if (isAuthenticated) {{
+            const isLocal = window.location.protocol === 'file:';
+            if (isAuthenticated && !isLocal) {{
                 const overlay = document.getElementById('auth-overlay');
                 if (overlay) overlay.remove();
                 document.getElementById('app-content').style.display = 'block';
                 loadData();
             }} else {{
                 // 認証が必要な場合
-                document.getElementById('auth-overlay').style.display = 'flex';
+                const overlay = document.getElementById('auth-overlay');
+                if (overlay) overlay.style.display = 'flex';
+                if (isLocal) {{
+                    const errDiv = document.getElementById('login-error');
+                    if (errDiv) {{
+                        errDiv.style.display = 'block';
+                        errDiv.style.color = '#fbbf24';
+                        errDiv.style.fontSize = '0.75rem';
+                        errDiv.style.lineHeight = '1.4';
+                        errDiv.style.marginTop = '10px';
+                        errDiv.innerHTML = `⚠️ file:// で開いているため画面上のログイン後はローカルサーバー (http://localhost:8000) が必要です`;
+                    }}
+                }}
             }}
         }};
 
