@@ -375,6 +375,16 @@ async function main() {
           var t = (a.innerText || a.textContent || "").trim();
           return t === "セット" || t.indexOf("セット") >= 0;
         });
+
+        // マルチ指定の反映（マルチチェックボックスは金額入力画面 #kin に存在）
+        if (isMulti) {
+          var mb = activePage.querySelector("#multi, input[name='multi'], input[type='checkbox'][id*='multi']") ||
+                   document.querySelector("#multi, input[name='multi'], input[type='checkbox'][id*='multi']");
+          if (mb && !mb.checked) {
+            trigger(mb);
+          }
+        }
+
         dg("💰 【金額入力】 1点 " + (hundreds * 100) + "円をセット中...");
         if (kinInput) {
           kinInput.value = String(hundreds);
@@ -400,73 +410,143 @@ async function main() {
         if (partners && partners.length > 0) allHorses = allHorses.concat(partners);
         if (allHorses.length === 0 && rawSteps.length > 3) allHorses = rawSteps.slice(3);
 
-        dg("🐎 【馬番選択】 " + title + " (" + allHorses.join(", ") + "番) を選択中...");
-
-        if (title.indexOf("相手") >= 0 && partners && partners.length > 0) {
-          partners.forEach(function(h) {
-            var hStr = String(parseInt(h));
-            var el = horseBtns.find(function(a) {
-              var t = (a.innerText || a.textContent || "").trim();
-              var dv = a.getAttribute("data-value") || "";
-              return t === hStr || dv === hStr;
-            });
-            if (el) trigger(el);
-            else if (typeof SelectHorse === "function") SelectHorse(hStr);
-          });
-          if (isMulti) {
-            var mb = activePage.querySelector("input[name='multi'], #multi, input[type='checkbox']");
-            if (mb && !mb.checked) mb.click();
-          }
-        } else {
-          var targetList = (axes && axes.length > 0) ? axes : allHorses;
-          targetList.forEach(function(h) {
-            var hStr = String(parseInt(h));
-            var el = horseBtns.find(function(a) {
-              var t = (a.innerText || a.textContent || "").trim();
-              var dv = a.getAttribute("data-value") || "";
-              return t === hStr || dv === hStr || t === ("0" + hStr);
-            });
-            if (el) trigger(el);
-            else if (typeof SelectHorse === "function") SelectHorse(hStr);
-          });
-
-          if (axes && axes.length > 0 && partners && partners.length > 0) {
-            var nextPartnerBtn = allLinks.find(function(a) {
-              var t = (a.innerText || a.textContent || "").trim();
-              return t.indexOf("相手") >= 0 || t.indexOf("次へ") >= 0;
-            });
-            if (nextPartnerBtn) {
-              trigger(nextPartnerBtn);
-              st.actionCooldown = Date.now() + 600;
-              return { status: "NEXT_PARTNER" };
-            }
-          }
+        function matchHorse(el, h) {
+          if (!el) return false;
+          var t = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+          var hStr = String(parseInt(h, 10));
+          var p1 = new RegExp("^0*" + hStr + "(?:\\s|$|[^0-9])");
+          if (p1.test(t)) return true;
+          var dv = el.getAttribute("data-value") || el.getAttribute("data-horse") || el.getAttribute("id") || "";
+          if (dv === hStr || dv === ("0" + hStr) || dv === "horse_" + hStr) return true;
+          return false;
         }
 
-        st.actionCooldown = Date.now() + 800;
-        return { status: "HORSE_CLICKED" };
+        dg("🐎 【馬番選択】 " + (title || "馬番") + " を選択中...");
+
+        // A. 相手選択画面（タイトルに「相手」が含まれる場合）
+        if (title.indexOf("相手") >= 0) {
+          var unselectedPartners = (partners && partners.length > 0) ? partners : allHorses;
+          unselectedPartners.forEach(function(h) {
+            var el = horseBtns.find(function(a) { return matchHorse(a, h); });
+            if (!el) {
+              var docLinks = Array.from(document.querySelectorAll("a, button, li.ui-btn"));
+              el = docLinks.find(function(a) { return matchHorse(a, h); });
+            }
+            if (el && !el.classList.contains("selected")) {
+              trigger(el);
+            } else if (!el && typeof SelectHorse === "function") {
+              SelectHorse(String(parseInt(h, 10)));
+            }
+          });
+
+          // 相手選択完了後、金額入力画面へ遷移するボタンをタップ
+          var toKinBtn = allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            var href = a.getAttribute("href") || "";
+            return t.indexOf("金額入力") >= 0 || href.indexOf("#kin") >= 0;
+          }) || Array.from(document.querySelectorAll("a, button")).find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            var href = a.getAttribute("href") || "";
+            return t.indexOf("金額入力") >= 0 || href.indexOf("#kin") >= 0;
+          });
+
+          if (toKinBtn) {
+            trigger(toKinBtn);
+            st.actionCooldown = Date.now() + 800;
+            return { status: "TO_KIN" };
+          }
+
+          st.actionCooldown = Date.now() + 800;
+          return { status: "PARTNERS_SELECTED" };
+        } else {
+          // B. 軸馬または通常/ボックスの馬番選択（1着軸画面など）
+          var targetList = (axes && axes.length > 0) ? axes : allHorses;
+          targetList.forEach(function(h) {
+            var el = horseBtns.find(function(a) { return matchHorse(a, h); });
+            if (!el) {
+              var docLinks = Array.from(document.querySelectorAll("a, button, li.ui-btn"));
+              el = docLinks.find(function(a) { return matchHorse(a, h); });
+            }
+            if (el) {
+              trigger(el);
+            } else if (typeof SelectHorse === "function") {
+              SelectHorse(String(parseInt(h, 10)));
+            }
+          });
+
+          // ボックスまたは通常で「金額入力画面へ」がある場合
+          var toKinBtn2 = allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            var href = a.getAttribute("href") || "";
+            return t.indexOf("金額入力") >= 0 || href.indexOf("#kin") >= 0;
+          });
+          if (toKinBtn2) {
+            trigger(toKinBtn2);
+            st.actionCooldown = Date.now() + 800;
+            return { status: "TO_KIN" };
+          }
+
+          st.actionCooldown = Date.now() + 800;
+          return { status: "HORSE_CLICKED" };
+        }
       }
 
       // 5. 方式選択画面
       if (isHouScreen) {
-        var hName = "通常";
-        if (houCode === "1" || houCode === "box") hName = "ボックス";
-        else if (houCode === "2" || houCode === "nagashi" || houCode === "multi") hName = "ながし";
+        var isBox = (houCode === "1" || houCode === "box" || houCode === "2");
+        var isNagashi = (!isBox && partners && partners.length > 0) || 
+                        houCode === "nagashi" || houCode === "multi" || 
+                        houCode === "3" || houCode === "6" || houCode === "7";
 
-        dg("📐 【方式選択】 「" + hName + "」を選択中...");
-        var matchedHou = allLinks.find(function(a) {
-          return (a.innerText || a.textContent || "").trim().indexOf(hName) >= 0;
-        });
-        if (!matchedHou) {
-          var docLinks = Array.from(document.querySelectorAll("a, button, li.ui-btn, [role='button']"));
-          matchedHou = docLinks.find(function(a) {
-            return (a.innerText || a.textContent || "").trim().indexOf(hName) >= 0;
+        var targetLabels = [];
+        if (isBox) {
+          targetLabels = ["ボックス", "BOX"];
+        } else if (isNagashi) {
+          var numAxes = (axes && axes.length) ? axes.length : 1;
+          if (sikiCode === "8") { // 3連単
+            if (numAxes >= 2) {
+              targetLabels = ["1･2着ながし", "1・2着ながし", "軸2頭ながし", "ながし"];
+            } else {
+              targetLabels = ["1着ながし", "軸1頭ながし", "ながし"];
+            }
+          } else if (sikiCode === "7") { // 3連複
+            if (numAxes >= 2) {
+              targetLabels = ["軸2頭ながし", "1･2着ながし", "ながし"];
+            } else {
+              targetLabels = ["軸1頭ながし", "1着ながし", "ながし"];
+            }
+          } else if (sikiCode === "6") { // 馬単
+            targetLabels = ["1着ながし", "ながし"];
+          } else { // 馬連、ワイド、枠連
+            targetLabels = ["ながし", "軸1頭ながし"];
+          }
+        } else {
+          targetLabels = ["通常"];
+        }
+
+        dg("📐 【方式選択】 「" + targetLabels[0] + "」を選択中...");
+
+        function matchHou(el) {
+          if (!el) return false;
+          var t = (el.innerText || el.textContent || "").trim();
+          return targetLabels.some(function(lbl) {
+            return t === lbl || t.indexOf(lbl) >= 0;
           });
         }
-        if (matchedHou) trigger(matchedHou);
 
-        st.actionCooldown = Date.now() + 800;
-        return { status: "HOU_CLICKED" };
+        var matchedHou = allLinks.find(matchHou);
+        if (!matchedHou) {
+          var docLinks = Array.from(document.querySelectorAll("a, button, li.ui-btn, [role='button']"));
+          matchedHou = docLinks.find(matchHou);
+        }
+        if (matchedHou) {
+          trigger(matchedHou);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "HOU_CLICKED" };
+        } else {
+          dg("📐 【方式選択】 「" + targetLabels[0] + "」を探しています...");
+          return { status: "HOU_SEARCHING" };
+        }
       }
 
       // 6. 式別選択画面
@@ -484,10 +564,11 @@ async function main() {
             return targets.some(function(tgt) { return t.indexOf(tgt) >= 0; });
           });
         }
-        if (matchedSiki) trigger(matchedSiki);
-
-        st.actionCooldown = Date.now() + 800;
-        return { status: "SIKI_CLICKED" };
+        if (matchedSiki) {
+          trigger(matchedSiki);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "SIKI_CLICKED" };
+        }
       }
 
       // 7. レース選択画面
