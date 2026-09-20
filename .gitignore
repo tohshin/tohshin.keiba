@@ -1,2 +1,4 @@
 .agents
 deploy_tmp/
+src/
+tmp/

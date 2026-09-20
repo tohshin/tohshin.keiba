@@ -36,14 +36,32 @@ async function main() {
     return;
   }
 
-  const { steps, venueName, placeName, weekday, unitAmount, totalAmount, round, raceNo, siki, hou, axes, partners, isMulti, resetLogin } = params;
-  const targetVenue = venueName || placeName || "";
-  const targetRace = String(round || raceNo || (steps && steps[1]) || "1").replace(/[^0-9]/g, "");
-  const targetSiki = String(siki || (steps && steps[2]) || "1");
-  const targetHou = String(hou || (steps && steps[3]) || "0");
-  const uAmount = parseInt(unitAmount) || 100;
-  const hundreds = Math.floor(uAmount / 100);
-  const tAmount = parseInt(totalAmount) || uAmount;
+  // [改修点1] 入力JSONの正規化
+  // {bets:[{venueName,weekday,steps,...}]} 形式と 旧形式 {steps,venueName,...} の両方に対応
+  let bets = [];
+  if (params) {
+    if (params.bets && Array.isArray(params.bets)) {
+      bets = params.bets;
+    } else if (params.steps || params.venueName || params.placeName) {
+      bets = [params];
+    }
+  }
+
+  if (bets.length === 0) {
+    let a = new Alert();
+    a.title = "買い目データが見つかりません";
+    a.message = "予想サイト上の「UMACA」ボタンから実行してください。";
+    a.addAction("OK");
+    await a.present();
+    Script.complete();
+    return;
+  }
+
+  const resetLogin = params.resetLogin || (bets[0] && bets[0].resetLogin);
+  const grandTotalAmount = bets.reduce((sum, b) => {
+    let tot = parseInt(b.totalAmount) || parseInt(b.unitAmount) || 100;
+    return sum + tot;
+  }, 0);
 
   if (resetLogin) {
     if (Keychain.contains("umaca_card_no")) Keychain.remove("umaca_card_no");
@@ -99,16 +117,36 @@ async function main() {
     var cardNo = ${JSON.stringify(cardNo)};
     var birthDay = ${JSON.stringify(birthDay)};
     var passNo = ${JSON.stringify(passNo)};
-    var venue = ${JSON.stringify(targetVenue)};
-    var raceNum = ${JSON.stringify(targetRace)};
-    var sikiCode = ${JSON.stringify(targetSiki)};
-    var houCode = ${JSON.stringify(targetHou)};
-    var axes = ${JSON.stringify(axes || [])};
-    var partners = ${JSON.stringify(partners || [])};
-    var rawSteps = ${JSON.stringify(steps || [])};
-    var hundreds = ${hundreds};
-    var totalAmount = ${tAmount};
-    var isMulti = ${Boolean(isMulti)};
+    var bets = ${JSON.stringify(bets)};
+    var grandTotal = ${grandTotalAmount};
+
+    // 状態管理用グローバル変数（ページ遷移しても再初期化しつつ保持）
+    if (!window._umacaState) {
+      window._umacaState = {
+        betIndex: 0,
+        lastStepName: "",
+        loginAttemptCount: 0,
+        actionCooldown: 0
+      };
+    }
+    var st = window._umacaState;
+
+    if (st.betIndex >= bets.length) {
+      st.betIndex = bets.length - 1;
+    }
+
+    var curBet = bets[st.betIndex] || bets[0];
+    var venue = curBet.venueName || curBet.placeName || "";
+    var raceNum = String(curBet.round || curBet.raceNo || (curBet.steps && curBet.steps[1]) || "1").replace(/[^0-9]/g, "");
+    var sikiCode = String(curBet.siki || (curBet.steps && curBet.steps[2]) || "1");
+    var houCode = String(curBet.hou || (curBet.steps && curBet.steps[3]) || "0");
+    var axes = curBet.axes || [];
+    var partners = curBet.partners || [];
+    var rawSteps = curBet.steps || [];
+    var uAmount = parseInt(curBet.unitAmount) || 100;
+    var hundreds = Math.floor(uAmount / 100);
+    var totalAmount = parseInt(curBet.totalAmount) || uAmount;
+    var isMulti = Boolean(curBet.isMulti);
 
     var sikiMap = {
       "1": ["単勝"],
@@ -129,7 +167,9 @@ async function main() {
         x.style = "position:fixed;top:0;left:0;width:100%;z-index:2147483647;background:" + (col || "rgba(147,51,234,0.95)") + ";color:#ffffff;font-size:12px;font-weight:bold;padding:9px 12px;pointer-events:none;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,0.35);line-height:1.4;";
         if (document.body) document.body.appendChild(x);
       }
-      x.innerText = m;
+      var k = (st.betIndex || 0) + 1;
+      var n = bets.length;
+      x.innerText = "[" + k + "/" + n + "件目] " + m;
       if (col) x.style.background = col;
     }
 
@@ -196,14 +236,7 @@ async function main() {
       }
     }
 
-    // 状態管理用グローバル変数（ページ遷移しても再初期化しつつ保持）
-    if (!window._umacaState) {
-      window._umacaState = {
-        lastStepName: "",
-        loginAttemptCount: 0,
-        actionCooldown: 0
-      };
-    }
+    // 状態管理は最上部で初期化済み
     var st = window._umacaState;
 
     if (Date.now() < st.actionCooldown) {
@@ -255,6 +288,8 @@ async function main() {
         }
       }
 
+      var isNoticeScreen = !!(forceInfoCb || title.indexOf("お知らせ") >= 0);
+
       // A. ログイン画面
       var inps = Array.from(document.querySelectorAll("input"));
       var elC = document.getElementById("cardno") || document.querySelector("input[name='c']") || inps.find(i => (i.name||"").toLowerCase().indexOf("card") >= 0 || (i.placeholder||"").indexOf("カード") >= 0);
@@ -303,8 +338,8 @@ async function main() {
         return { status: "LOGIN_SUBMITTED" };
       }
 
-      // ログインエラー検出
-      if (bodyText.indexOf("エラー") >= 0 && (bodyText.indexOf("カード番号") >= 0 || bodyText.indexOf("暗証番号") >= 0)) {
+      // ログインエラー検出（ログインフォームが存在する画面でのみ判定）
+      if ((elC || elB || elP) && bodyText.indexOf("エラー") >= 0 && (bodyText.indexOf("カード番号") >= 0 || bodyText.indexOf("暗証番号") >= 0)) {
         dg("❌ ログイン情報に誤りがあります", "rgba(239,68,68,0.95)");
         return { status: "LOGIN_ERROR" };
       }
@@ -383,13 +418,13 @@ async function main() {
 
       // 1. 最終確認画面
       if (isConfirmScreen) {
-        dg("✅ 【最終確認】 暗証番号と金額を入力中...");
+        dg("✅ 【最終確認】 暗証番号と合計金額を入力中...");
         for (var j = 0; j < textInputs.length; j++) {
           var inp = textInputs[j];
           var iid = (inp.id || "").toLowerCase();
           var iname = (inp.name || "").toLowerCase();
           if (iid.indexOf("pass") < 0 && iname.indexOf("pass") < 0) {
-            inp.value = String(totalAmount);
+            inp.value = String(grandTotal);
             if (inp.onchange) inp.onchange();
             if (inp.oninput) inp.oninput();
             break;
@@ -401,21 +436,48 @@ async function main() {
           if (passInput.oninput) passInput.oninput();
         }
 
-        dg("🎉 【セット完了】 内容を確認し【QR作成】ボタンを押してください！", "rgba(16,185,129,0.95)");
+        dg("🎉 【全" + bets.length + "件セット完了】 内容を確認し【QR作成】ボタンを押してください！", "rgba(16,185,129,0.95)");
         return { status: "DONE" };
       }
 
-      // 2. 金額入力セット後の確認画面への送信ボタン
+      // 2. 金額入力セット後の確認画面または次件への遷移ボタン
       var toSendBtn = allLinks.find(function(a) {
         var t = (a.innerText || a.textContent || "").trim();
         return t === "入力終了" || t === "投票確認" || t.indexOf("入力終了") >= 0 || t.indexOf("投票確認") >= 0;
       });
-      if (toSendBtn && (bodyText.indexOf("投票リスト") >= 0 || bodyText.indexOf("セット完了") >= 0)) {
-        dg("📑 【投票確認へ】 確認画面へ進みます...");
-        if (typeof ToSend === "function") ToSend();
-        else trigger(toSendBtn);
-        st.actionCooldown = Date.now() + 1200;
-        return { status: "TO_SEND" };
+      var isVoteListScreen = (bodyText.indexOf("投票リスト") >= 0 || bodyText.indexOf("セット完了") >= 0 || (activePage && activePage.id === "toui") || !!document.getElementById("toui"));
+
+      if (isVoteListScreen) {
+        if (st.betIndex + 1 < bets.length) {
+          // 次の買い目がある場合 -> 次の買い目へ進む
+          dg("🏇 次の買い目（" + (st.betIndex + 2) + "/" + bets.length + "件目）へ進みます...");
+          var nextJyoBtn = document.querySelector("#fromjyo_top a, #fromjyo_under a") ||
+                           allLinks.find(function(a) {
+                             var t = (a.innerText || a.textContent || "").trim();
+                             return t.indexOf("場名から") >= 0 || t.indexOf("競馬場") >= 0;
+                           });
+          if (nextJyoBtn) {
+            trigger(nextJyoBtn);
+          } else {
+            var regBtnAlt = document.querySelector("a.ico_regular, a[class*='ico_regular']") ||
+                            allLinks.find(function(a) { return (a.innerText || "").indexOf("通常投票") >= 0; });
+            if (regBtnAlt) trigger(regBtnAlt);
+            else if (typeof ToQRBet === "function") ToQRBet();
+            else if (typeof ToSPBet === "function") ToSPBet(0);
+          }
+          st.betIndex++;
+          st.actionCooldown = Date.now() + 1200;
+          return { status: "NEXT_BET_TRIGGERED" };
+        } else {
+          // 全買い目完了時、確認画面へ進む
+          if (toSendBtn) {
+            dg("📑 【全件セット完了】 投票確認画面へ進みます...");
+            if (typeof ToSend === "function") ToSend();
+            else trigger(toSendBtn);
+            st.actionCooldown = Date.now() + 1200;
+            return { status: "TO_SEND" };
+          }
+        }
       }
 
       // 3. 金額入力画面
@@ -703,8 +765,9 @@ async function main() {
   // 5. 外側（Scriptable側）から定期注入・実行監視ループ（ページ遷移で絶対に死なない）
   let isDone = false;
   let loopStart = Date.now();
+  let maxTimeoutMs = Math.max(60000, bets.length * 40000);
 
-  while (!isDone && (Date.now() - loopStart < 60000)) {
+  while (!isDone && (Date.now() - loopStart < maxTimeoutMs)) {
     try {
       let res = await wv.evaluateJavaScript(automationScript, false);
       if (res && res.status === "DONE") {
