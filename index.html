@@ -871,6 +871,193 @@
             background: #334155;
             color: #fff;
         }
+        /* --- PICKUP Summary Panel --- */
+        .pickup-summary-panel {
+            background: linear-gradient(165deg, #1e293b, #0f172a);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 16px;
+            margin-bottom: 18px;
+            overflow: hidden;
+        }
+        .pickup-summary-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .pickup-summary-title {
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pickup-summary-count-badge {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.35);
+            border-radius: 999px;
+            padding: 1px 9px;
+            font-size: 0.75rem;
+            font-weight: 800;
+        }
+        #pickup-summary-chevron {
+            transition: transform 0.25s ease;
+            color: #94a3b8;
+        }
+        .pickup-summary-body {
+            padding: 0 16px 16px 16px;
+        }
+        .pickup-summary-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .pickup-summary-toolbar button.btn-toggle-all {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-bulk-smappy {
+            margin-left: auto;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            color: #fff;
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .pickup-summary-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+        .pickup-summary-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+        .pickup-summary-item input.pickup-check {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            accent-color: #10b981;
+            cursor: pointer;
+        }
+        .pickup-summary-item-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .pickup-summary-item-top {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+        .pickup-summary-tag {
+            font-size: 0.65rem;
+            font-weight: 900;
+            padding: 1px 7px;
+            border-radius: 5px;
+            border: 1px solid;
+            letter-spacing: 0.04em;
+        }
+        .pickup-summary-race {
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #e2e8f0;
+        }
+        .pickup-summary-type {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+        .pickup-summary-eyes {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #fff;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        /* --- Smappy Bulk-Vote Queue Modal --- */
+        .smappy-queue-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1100;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+            padding: 16px;
+        }
+        .smappy-queue-popup.smappy-popup {
+            margin-top: 0;
+            width: 100%;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .smappy-queue-progress {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #cbd5e1;
+        }
+        .smappy-queue-nav {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .smappy-queue-nav:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+        .smappy-queue-eyes {
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.08);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 10px;
+            padding: 8px;
+            margin-bottom: 12px;
+        }
         .step-box {
             background: rgba(255, 255, 255, 0.03);
             border-radius: 10px;
@@ -960,6 +1147,29 @@
                 <option value="Transformer">Transformer</option>
                 <option value="TabNet">TabNet</option>
             </select>
+        </div>
+
+        <div class="pickup-summary-panel">
+            <div class="pickup-summary-header" onclick="togglePickupSummaryPanel()">
+                <div class="pickup-summary-title">
+                    📌 選択日のPICKUP馬券一覧
+                    <span id="pickup-summary-count" class="pickup-summary-count-badge">0</span>
+                </div>
+                <svg id="pickup-summary-chevron" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div id="pickup-summary-body" class="pickup-summary-body">
+                <div class="pickup-summary-toolbar">
+                    <button type="button" class="btn-toggle-all" onclick="togglePickupCheckAll(true)">☑ 全選択</button>
+                    <button type="button" class="btn-toggle-all" onclick="togglePickupCheckAll(false)">☐ 全解除</button>
+                    <span style="align-self:center; font-size:0.72rem; color:var(--text-muted); font-weight:800;">選択中 <span id="pickup-selected-count">0</span> 件 →</span>
+                    <button type="button" class="btn-bulk-smappy" onclick="startBulkVote('smappy')">📌 スマッピー投票</button>
+                    <button type="button" class="btn-bulk-smappy" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="startBulkVote('ipat')">🟢 即PAT投票</button>
+                    <button type="button" class="btn-bulk-smappy" style="background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);" onclick="startBulkVote('umaca')">🟣 UMACA投票</button>
+                </div>
+                <div id="pickup-summary-list" class="pickup-summary-list"></div>
+            </div>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: -12px; margin-bottom: 20px;">
@@ -1627,6 +1837,305 @@
                     bar.style.width = bar.getAttribute('data-target');
                 });
             }, 50);
+
+            renderPickupSummary();
+        }
+
+        // ==========================================================================
+        // PICKUP 一括表示 & スマッピー一括投票 (選択日の PICKUP / PICKUP2 買い目をまとめて表示)
+        // ==========================================================================
+        let pickupSummaryItems = [];
+        let pickupSummaryCollapsed = false;
+
+        function togglePickupSummaryPanel() {
+            pickupSummaryCollapsed = !pickupSummaryCollapsed;
+            const body = document.getElementById('pickup-summary-body');
+            const chev = document.getElementById('pickup-summary-chevron');
+            if (body) body.style.display = pickupSummaryCollapsed ? 'none' : 'block';
+            if (chev) chev.style.transform = pickupSummaryCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+
+        function renderPickupSummary() {
+            const listEl = document.getElementById('pickup-summary-list');
+            if (!listEl) return;
+
+            const fDate = document.getElementById('filter-date') ? document.getElementById('filter-date').value : 'ALL';
+            pickupSummaryItems = [];
+
+            const sortedRaces = Object.values(currentData).sort((a, b) => {
+                const timeA = a.start_time || "00:00";
+                const timeB = b.start_time || "00:00";
+                if (timeA !== timeB) return timeA.localeCompare(timeB);
+                const roundA = parseInt(a.round) || 0;
+                const roundB = parseInt(b.round) || 0;
+                if (roundA !== roundB) return roundA - roundB;
+                return (a.place || "").localeCompare(b.place || "");
+            });
+
+            sortedRaces.forEach(raceData => {
+                if (fDate !== 'ALL' && raceData.date !== fDate) return;
+                const raceId = raceData.race_id;
+                const raceTitle = `${raceData.place || ''}${raceData.round || ''}R ${raceData.start_time || ''}`.trim() || raceData.title;
+
+                // PICKUP (戦略1 / Kelly2)
+                const kellyResult = evaluateKelly2Strategies(raceData, raceId);
+                (kellyResult.validStrategies || []).forEach(item => {
+                    if (!item.bettingEyesText) return;
+                    pickupSummaryItems.push({
+                        raceId: raceId,
+                        raceTitle: raceTitle,
+                        tag: 'PICKUP',
+                        tagColor: '#4ade80',
+                        rawType: item.rawType,
+                        bettingEyesText: item.bettingEyesText,
+                        round: raceData.round,
+                        place: raceData.place,
+                        weekday: raceData.weekday,
+                        axisCount: item.axis2Num ? 2 : 1
+                    });
+                });
+
+                // PICKUP 2 (戦略2 / Kelly3)
+                const strat2Result = evaluateStrategy2(raceData, raceId);
+                (strat2Result.validStrategies || []).forEach(s2 => {
+                    if (s2.sub_items && s2.sub_items.length > 0) {
+                        s2.sub_items.forEach(sub => {
+                            if (!sub.bettingEyesText) return;
+                            pickupSummaryItems.push({
+                                raceId: raceId,
+                                raceTitle: raceTitle,
+                                tag: 'PICKUP 2',
+                                tagColor: '#fb923c',
+                                rawType: sub.rawType,
+                                bettingEyesText: sub.bettingEyesText,
+                                round: raceData.round,
+                                place: raceData.place,
+                                weekday: raceData.weekday,
+                                axisCount: sub.axis2Num ? 2 : (sub.axis1Num ? 1 : 0)
+                            });
+                        });
+                    } else if (s2.bettingEyesText) {
+                        pickupSummaryItems.push({
+                            raceId: raceId,
+                            raceTitle: raceTitle,
+                            tag: 'PICKUP 2',
+                            tagColor: '#fb923c',
+                            rawType: s2.rawType,
+                            bettingEyesText: s2.bettingEyesText,
+                            round: raceData.round,
+                            place: raceData.place,
+                            weekday: raceData.weekday,
+                            axisCount: s2.axis2Num ? 2 : 1
+                        });
+                    }
+                });
+            });
+
+            if (pickupSummaryItems.length === 0) {
+                listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">この日付の PICKUP 馬券はありません</div>`;
+            } else {
+                listEl.innerHTML = pickupSummaryItems.map((it, idx) => `
+                    <label class="pickup-summary-item">
+                        <input type="checkbox" class="pickup-check" data-idx="${idx}" onchange="updatePickupSelectedCount()">
+                        <div class="pickup-summary-item-main">
+                            <div class="pickup-summary-item-top">
+                                <span class="pickup-summary-tag" style="color: ${it.tagColor}; border-color: ${it.tagColor}55; background: ${it.tagColor}18;">${it.tag}</span>
+                                <span class="pickup-summary-race">${it.raceTitle}</span>
+                                <span class="pickup-summary-type">${it.rawType}</span>
+                            </div>
+                            <div class="pickup-summary-eyes">${it.bettingEyesText}</div>
+                        </div>
+                        <div style="display:flex; gap:4px; flex-shrink:0;">
+                            <button type="button" class="smappy-btn" style="padding: 7px 9px;" title="スマッピー投票" onclick="event.preventDefault(); event.stopPropagation(); startSingleVote(${idx}, 'smappy');">📌</button>
+                            <button type="button" class="ipat-btn" style="padding: 7px 9px;" title="即PAT投票" onclick="event.preventDefault(); event.stopPropagation(); startSingleVote(${idx}, 'ipat');">🟢</button>
+                            <button type="button" class="umaca-btn" style="padding: 7px 9px;" title="UMACA投票" onclick="event.preventDefault(); event.stopPropagation(); startSingleVote(${idx}, 'umaca');">🟣</button>
+                        </div>
+                    </label>
+                `).join('');
+            }
+
+            const countEl = document.getElementById('pickup-summary-count');
+            if (countEl) countEl.textContent = pickupSummaryItems.length;
+            updatePickupSelectedCount();
+        }
+
+        function togglePickupCheckAll(state) {
+            document.querySelectorAll('.pickup-check').forEach(cb => { cb.checked = state; });
+            updatePickupSelectedCount();
+        }
+
+        function updatePickupSelectedCount() {
+            const n = document.querySelectorAll('.pickup-check:checked').length;
+            const el = document.getElementById('pickup-selected-count');
+            if (el) el.textContent = n;
+        }
+
+        // serviceType: 'smappy' | 'ipat' | 'umaca'
+        // ロジックは共通。呼び出す Scriptable の scriptName（URLの scriptName= 部分）と
+        // 付随ペイロード（金額など）だけがサービスごとに変わる。
+        function startBulkVote(serviceType) {
+            const idxs = Array.from(document.querySelectorAll('.pickup-check:checked')).map(cb => parseInt(cb.getAttribute('data-idx')));
+            if (idxs.length === 0) {
+                alert('投票する買い目にチェックを入れてください');
+                return;
+            }
+            startBetQueue(idxs, serviceType);
+        }
+
+        function startSingleVote(idx, serviceType) {
+            startBetQueue([idx], serviceType);
+        }
+
+        let _betQueueItems = [];
+        let _betQueueIdx = 0;
+        let _betQueueType = 'smappy';
+
+        function startBetQueue(idxs, serviceType) {
+            _betQueueItems = idxs.map(i => pickupSummaryItems[i]).filter(Boolean);
+            _betQueueIdx = 0;
+            _betQueueType = serviceType || 'smappy';
+            if (_betQueueItems.length === 0) return;
+            renderBetQueueModal();
+        }
+
+        function renderBetQueueModal() {
+            const prevModal = document.getElementById('bet-queue-modal');
+            if (prevModal) prevModal.remove();
+
+            const item = _betQueueItems[_betQueueIdx];
+            if (!item) return;
+
+            const svc = _betQueueType;
+            const siki = getSmappySiki(item.rawType);
+            const hou = getSmappyHou(item.rawType, item.axisCount || 1);
+            const parsed = parseSmappyEyes(item.bettingEyesText, item.rawType);
+
+            const vCodes = { "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" };
+            let todayPlaces = [];
+            for (const k in currentData) {
+                const p = currentData[k].place;
+                if (!todayPlaces.includes(p)) todayPlaces.push(p);
+            }
+            todayPlaces.sort((a, b) => (vCodes[a] || "99") - (vCodes[b] || "99"));
+            let vIdx = todayPlaces.indexOf(item.place);
+            if (vIdx < 0) vIdx = 0;
+
+            const venueSelectId = svc === 'ipat' ? 'ipat-venue' : (svc === 'umaca' ? 'umaca-venue' : 'smappy-venue');
+
+            let bodyHtml;
+            if (svc === 'ipat' || svc === 'umaca') {
+                window[svc === 'ipat' ? '_ipatPlaces' : '_umacaPlaces'] = todayPlaces;
+                const color = svc === 'ipat' ? '#10b981' : '#c084fc';
+                const grad = svc === 'ipat' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #a855f7, #7c3aed)';
+                const svcLabel = svc === 'ipat' ? '即PAT' : 'UMACA';
+                const unitId = svc + '-unit-amount';
+                const totalId = svc + '-total-disp';
+                const updateFn = svc === 'ipat' ? 'updateIpatTotal' : 'updateUmacaTotal';
+                const launchFn = svc === 'ipat' ? 'launchIpatScriptable' : 'launchUmacaScriptable';
+                bodyHtml = `
+                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
+                        <input type="number" id="${unitId}" value="100" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="${updateFn}()">
+                        <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
+                        <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
+                            合計: <strong id="${totalId}" style="color: ${color};">100円</strong>
+                        </span>
+                    </div>
+                    <button onclick="${launchFn}()" style="width: 100%; padding: 13px; background: ${grad}; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 6px;">
+                        🚀 ${svcLabel}で自動投票を実行
+                    </button>
+                    <div style="font-size: 0.62rem; color: #94a3b8; text-align: center; line-height: 1.4;">
+                        ※ 最終確認画面（金額・暗証番号入力済）で停止します。内容を確認して【投票】を押してください。
+                    </div>
+                `;
+            } else {
+                bodyHtml = `
+                    <div class="smappy-tabs">
+                        <div id="tab-ios" class="smappy-tab active" onclick="switchSmappyTab('ios')">📱 iPhone (Scriptable)</div>
+                        <div id="tab-pc" class="smappy-tab" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
+                    </div>
+                    <div id="panel-pc" style="display: none;">
+                        <button onclick="copySmappyPayload()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 10px;">
+                            📋 買い目をコピーしてJRAへ
+                        </button>
+                    </div>
+                    <div id="panel-ios" style="display: block;">
+                        <button onclick="launchSmappyScriptable()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 10px;">
+                            🚀 Scriptableで投票を起動
+                        </button>
+                    </div>
+                `;
+            }
+
+            const modal = document.createElement('div');
+            modal.id = 'bet-queue-modal';
+            modal.className = 'smappy-queue-modal-overlay';
+            modal.onclick = (e) => { if (e.target === modal) closeBetQueue(); };
+            modal.innerHTML = `
+                <div class="smappy-popup smappy-queue-popup" onclick="event.stopPropagation()">
+                    <div class="smappy-queue-progress">
+                        <button type="button" class="smappy-queue-nav" onclick="betQueuePrev()" ${_betQueueIdx === 0 ? 'disabled' : ''}>◀ 前へ</button>
+                        <span>${_betQueueIdx + 1} / ${_betQueueItems.length}</span>
+                        <button type="button" class="smappy-queue-nav" onclick="betQueueNext()">${_betQueueIdx === _betQueueItems.length - 1 ? '完了 ✕' : '次へ ▶'}</button>
+                    </div>
+                    <div style="text-align:center; font-size:0.78rem; font-weight:800; color:#cbd5e1; margin-bottom:4px;">${item.raceTitle} ${item.rawType}</div>
+                    <div class="smappy-queue-eyes">${item.bettingEyesText}</div>
+
+                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">会場判定:</label>
+                        <select id="${venueSelectId}" style="flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem;">
+                            <option value="0" ${vIdx==0?'selected':''}>0 (1場目: ${todayPlaces[0] || '?'})</option>
+                            <option value="1" ${vIdx==1?'selected':''}>1 (2場目: ${todayPlaces[1] || '?'})</option>
+                            <option value="2" ${vIdx==2?'selected':''}>2 (3場目: ${todayPlaces[2] || '?'})</option>
+                        </select>
+                    </div>
+
+                    ${bodyHtml}
+
+                    <div style="text-align:center; margin-top: 6px;">
+                        <button type="button" onclick="closeBetQueue()" style="background:none; border:none; color:var(--text-muted); font-size:0.72rem; cursor:pointer; text-decoration:underline;">キューを閉じる</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            if (svc === 'ipat') {
+                window._ipatParsed = { placeName: item.place, weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri, isMulti: (item.rawType || "").indexOf('マルチ') >= 0, baseUnit: 100, baseTotal: 100 };
+            } else if (svc === 'umaca') {
+                window._umacaParsed = { placeName: item.place, weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri, isMulti: (item.rawType || "").indexOf('マルチ') >= 0, baseUnit: 100, baseTotal: 100 };
+            } else {
+                window._smappyPlaces = todayPlaces;
+                window._smappyParsed = { weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri };
+                const venueEl = document.getElementById('smappy-venue');
+                const updateBml = () => {
+                    const v = venueEl.value;
+                    const placeName = todayPlaces[v] || "";
+                    window._smappyBml = genSmappyBml(v, placeName, item.weekday, item.round, siki, hou, parsed.axes, parsed.partners);
+                };
+                venueEl.addEventListener('change', updateBml);
+                updateBml();
+            }
+        }
+
+        function betQueueNext() {
+            if (_betQueueIdx < _betQueueItems.length - 1) {
+                _betQueueIdx++;
+                renderBetQueueModal();
+            } else {
+                closeBetQueue();
+            }
+        }
+
+        function betQueuePrev() {
+            if (_betQueueIdx > 0) {
+                _betQueueIdx--;
+                renderBetQueueModal();
+            }
+        }
+
+        function closeBetQueue() {
+            const modal = document.getElementById('bet-queue-modal');
+            if (modal) modal.remove();
         }
 
         function evaluateKelly2Strategies(raceData, raceId) {
@@ -2489,12 +2998,12 @@
                 payload = {
                     bets: [
                         {
-                            steps: [v, p.round, p.siki, p.hou, h1, h2, h3],
+                            steps: [v, p.round, p.siki, "0", h1, h2, h3],
                             venueName: placeName,
                             weekday: p.weekday || ""
                         },
                         {
-                            steps: [v, p.round, p.siki, p.hou, h2, h1, h3],
+                            steps: [v, p.round, p.siki, "0", h2, h1, h3],
                             venueName: placeName,
                             weekday: p.weekday || ""
                         }
@@ -2666,13 +3175,13 @@
                 var h2 = p.axes[1];
                 var h3 = p.partners[0];
                 var bet1 = {
-                    steps: [v, p.round, p.siki, p.hou, String(h1), String(h2), String(h3)],
+                    steps: [v, p.round, p.siki, "0", String(h1), String(h2), String(h3)],
                     venueName: placeName,
                     placeName: placeName,
                     round: p.round,
                     raceNo: p.round,
                     siki: p.siki,
-                    hou: p.hou,
+                    hou: "0",
                     axes: [h1, h2],
                     partners: [h3],
                     isMulti: false,
@@ -2681,13 +3190,13 @@
                     totalAmount: unitVal
                 };
                 var bet2 = {
-                    steps: [v, p.round, p.siki, p.hou, String(h2), String(h1), String(h3)],
+                    steps: [v, p.round, p.siki, "0", String(h2), String(h1), String(h3)],
                     venueName: placeName,
                     placeName: placeName,
                     round: p.round,
                     raceNo: p.round,
                     siki: p.siki,
-                    hou: p.hou,
+                    hou: "0",
                     axes: [h2, h1],
                     partners: [h3],
                     isMulti: false,
@@ -2883,13 +3392,13 @@
                 var h2 = p.axes[1];
                 var h3 = p.partners[0];
                 var bet1 = {
-                    steps: [v, p.round, p.siki, p.hou, String(h1), String(h2), String(h3)],
+                    steps: [v, p.round, p.siki, "0", String(h1), String(h2), String(h3)],
                     venueName: placeName,
                     placeName: placeName,
                     round: p.round,
                     raceNo: p.round,
                     siki: p.siki,
-                    hou: p.hou,
+                    hou: "0",
                     axes: [h1, h2],
                     partners: [h3],
                     isMulti: false,
@@ -2898,13 +3407,13 @@
                     totalAmount: unitVal
                 };
                 var bet2 = {
-                    steps: [v, p.round, p.siki, p.hou, String(h2), String(h1), String(h3)],
+                    steps: [v, p.round, p.siki, "0", String(h2), String(h1), String(h3)],
                     venueName: placeName,
                     placeName: placeName,
                     round: p.round,
                     raceNo: p.round,
                     siki: p.siki,
-                    hou: p.hou,
+                    hou: "0",
                     axes: [h2, h1],
                     partners: [h3],
                     isMulti: false,
@@ -2986,12 +3495,12 @@
                 payload = {
                     bets: [
                         {
-                            steps: [v, p.round, p.siki, p.hou, h1, h2, h3],
+                            steps: [v, p.round, p.siki, "0", h1, h2, h3],
                             venueName: placeName,
                             weekday: p.weekday || ""
                         },
                         {
-                            steps: [v, p.round, p.siki, p.hou, h2, h1, h3],
+                            steps: [v, p.round, p.siki, "0", h2, h1, h3],
                             venueName: placeName,
                             weekday: p.weekday || ""
                         }
