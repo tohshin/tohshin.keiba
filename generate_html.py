@@ -4529,7 +4529,14 @@ def generate_static_html():
             }} catch(e) {{}}
 
             var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("即PAT") + "&data=" + encodeURIComponent(jsonStr);
-            window.location.href = scriptableUrl;
+            // window.location.href だと scriptable:// を解釈できない環境で画面が真っ白になるため
+            // <a> タグをクリックする方式で現在ページを維持したまま起動する
+            var aTag = document.createElement('a');
+            aTag.href = scriptableUrl;
+            aTag.style.display = 'none';
+            document.body.appendChild(aTag);
+            aTag.click();
+            setTimeout(function() {{ document.body.removeChild(aTag); }}, 1000);
         }}
 
         function copyIpatAppCode() {{
@@ -4746,7 +4753,12 @@ def generate_static_html():
             }} catch(e) {{}}
 
             var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("UMACA") + "&data=" + encodeURIComponent(jsonStr);
-            window.location.href = scriptableUrl;
+            var aTag = document.createElement('a');
+            aTag.href = scriptableUrl;
+            aTag.style.display = 'none';
+            document.body.appendChild(aTag);
+            aTag.click();
+            setTimeout(function() {{ document.body.removeChild(aTag); }}, 1000);
         }}
 
         function copyUmacaAppCode() {{
@@ -4818,7 +4830,12 @@ def generate_static_html():
 
             // Scriptable URLスキームを起動
             var scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent("スマッピー") + "&data=" + encodeURIComponent(jsonStr);
-            window.location.href = scriptableUrl;
+            var aTag = document.createElement('a');
+            aTag.href = scriptableUrl;
+            aTag.style.display = 'none';
+            document.body.appendChild(aTag);
+            aTag.click();
+            setTimeout(function() {{ document.body.removeChild(aTag); }}, 1000);
         }}
 
         function copyScriptableAppCode() {{
