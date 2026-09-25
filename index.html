@@ -1167,6 +1167,9 @@
                     <button type="button" class="btn-bulk-smappy" onclick="startBulkVote('smappy')">📌 スマッピー投票</button>
                     <button type="button" class="btn-bulk-smappy" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="startBulkVote('ipat')">🟢 即PAT投票</button>
                     <button type="button" class="btn-bulk-smappy" style="background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);" onclick="startBulkVote('umaca')">🟣 UMACA投票</button>
+                    <span style="align-self:center; font-size:0.72rem; color:var(--text-muted); font-weight:800; margin-left:4px;">1点:</span>
+                    <input type="number" id="global-unit-amount" value="100" step="100" min="100" title="全馬券の1点金額" style="width:68px; padding:4px 6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; font-size:0.75rem; text-align:right; font-weight:800;" oninput="window._globalUnitAmount = parseInt(this.value)||100;">
+                    <span style="align-self:center; font-size:0.72rem; color:var(--text-muted);">円</span>
                 </div>
                 <div id="pickup-summary-list" class="pickup-summary-list"></div>
             </div>
@@ -1990,6 +1993,19 @@
         let _betQueueIdx = 0;
         let _betQueueType = 'smappy';
 
+        // ツールバー・モーダル間で1点金額を同期する
+        function syncGlobalUnitAmount() {
+            const v = window._globalUnitAmount || 100;
+            // ツールバーの入力欄に反映
+            const gInp = document.getElementById('global-unit-amount');
+            if (gInp && parseInt(gInp.value) !== v) gInp.value = v;
+            // 開いているモーダルの入力欄にも反映
+            ['ipat-unit-amount', 'umaca-unit-amount', 'smappy-unit-amount'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el && parseInt(el.value) !== v) el.value = v;
+            });
+        }
+
         function startBetQueue(idxs, serviceType) {
             _betQueueItems = idxs.map(i => pickupSummaryItems[i]).filter(Boolean);
             _betQueueIdx = 0;
@@ -2032,13 +2048,14 @@
                 const totalId = svc + '-total-disp';
                 const updateFn = svc === 'ipat' ? 'updateIpatTotal' : 'updateUmacaTotal';
                 const launchFn = svc === 'ipat' ? 'launchIpatScriptable' : 'launchUmacaScriptable';
+                const _initUnit = window._globalUnitAmount || 100;
                 bodyHtml = `
                     <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                         <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
-                        <input type="number" id="${unitId}" value="100" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="${updateFn}()">
+                        <input type="number" id="${unitId}" value="${_initUnit}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="window._globalUnitAmount=parseInt(this.value)||100; syncGlobalUnitAmount(); ${updateFn}();">
                         <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
                         <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
-                            合計: <strong id="${totalId}" style="color: ${color};">100円</strong>
+                            合計: <strong id="${totalId}" style="color: ${color};">${_initUnit}円</strong>
                         </span>
                     </div>
                     <button onclick="${launchFn}()" style="width: 100%; padding: 13px; background: ${grad}; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 6px;">
@@ -3055,8 +3072,8 @@
             var type = btn.getAttribute('data-type');
             var round = btn.getAttribute('data-round');
             var axisCount = parseInt(btn.getAttribute('data-axis')) || 1;
-            var unitAmount = parseInt(btn.getAttribute('data-unit')) || 100;
-            var totalAmount = parseInt(btn.getAttribute('data-total')) || 100;
+            var unitAmount = parseInt(btn.getAttribute('data-unit')) || window._globalUnitAmount || 100;
+            var totalAmount = parseInt(btn.getAttribute('data-total')) || unitAmount;
             if (!eyes || eyes === '--') { alert('買い目がありません'); return; }
 
             var siki = getSmappySiki(type);
@@ -3094,7 +3111,7 @@
 
                 <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                     <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
-                    <input type="number" id="ipat-unit-amount" value="${unitAmount}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="updateIpatTotal()">
+                    <input type="number" id="ipat-unit-amount" value="${unitAmount}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="window._globalUnitAmount=parseInt(this.value)||100; syncGlobalUnitAmount(); updateIpatTotal();">
                     <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
                     <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
                         合計: <strong id="ipat-total-disp" style="color: #4ade80;">${totalAmount.toLocaleString()}円</strong>
@@ -3278,8 +3295,8 @@
             var type = btn.getAttribute('data-type');
             var round = btn.getAttribute('data-round');
             var axisCount = parseInt(btn.getAttribute('data-axis')) || 1;
-            var unitAmount = parseInt(btn.getAttribute('data-unit')) || 100;
-            var totalAmount = parseInt(btn.getAttribute('data-total')) || 100;
+            var unitAmount = parseInt(btn.getAttribute('data-unit')) || window._globalUnitAmount || 100;
+            var totalAmount = parseInt(btn.getAttribute('data-total')) || unitAmount;
             if (!eyes || eyes === '--') { alert('買い目がありません'); return; }
 
             var siki = getSmappySiki(type);
@@ -3318,7 +3335,7 @@
 
                 <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                     <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
-                    <input type="number" id="umaca-unit-amount" value="${unitAmount}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="updateUmacaTotal()">
+                    <input type="number" id="umaca-unit-amount" value="${unitAmount}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="window._globalUnitAmount=parseInt(this.value)||100; syncGlobalUnitAmount(); updateUmacaTotal();">
                     <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
                     <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
                         合計: <strong id="umaca-total-disp" style="color: #c084fc;">${totalAmount.toLocaleString()}円</strong>
