@@ -3257,9 +3257,124 @@ def generate_static_html():
             if (el) el.textContent = n;
         }}
 
+        function calcBetPoints(siki, hou, axes, partners, isMulti) {{
+            axes = axes || [];
+            partners = partners || [];
+            const nA = axes.length;
+            const nP = partners.length;
+            if (siki === '1' || siki === '2') return 1;
+            if (siki === '3' || siki === '4' || siki === '5') {{
+                if (hou === '1' || hou === 'box') {{
+                    const allH = nA + nP;
+                    return (allH * (allH - 1)) / 2;
+                }}
+                return nP;
+            }}
+            if (siki === '6') {{
+                if (hou === '1' || hou === 'box') {{
+                    const allH = nA + nP;
+                    return allH * (allH - 1);
+                }}
+                return isMulti ? (nP * 2) : nP;
+            }}
+            if (siki === '7') {{
+                if (hou === '1' || hou === 'box') {{
+                    const allH = nA + nP;
+                    return Math.floor((allH * (allH - 1) * (allH - 2)) / 6);
+                }}
+                if (nA >= 2) return nP;
+                return Math.floor((nP * (nP - 1)) / 2);
+            }}
+            if (siki === '8') {{
+                if (hou === '1' || hou === 'box') {{
+                    const allH = nA + nP;
+                    return allH * (allH - 1) * (allH - 2);
+                }}
+                if (nA >= 2) {{
+                    return isMulti ? (nP * 6) : nP;
+                }}
+                return isMulti ? (nP * (nP - 1) * 3) : (nP * (nP - 1));
+            }}
+            return 1;
+        }}
+
+        function convertItemToBets(item, unitVal, todayPlaces) {{
+            const siki = getSmappySiki(item.rawType);
+            const hou = getSmappyHou(item.rawType, item.axisCount || 1);
+            const parsed = parseSmappyEyes(item.bettingEyesText, item.rawType);
+            const isMulti = (item.rawType || "").indexOf('マルチ') >= 0;
+            const placeName = item.place;
+            const weekday = item.weekday || "";
+            const round = item.round;
+            let vIdx = todayPlaces.indexOf(placeName);
+            if (vIdx < 0) vIdx = 0;
+            const vStr = String(vIdx);
+
+            if (parsed.is2Touri && parsed.axes && parsed.axes.length >= 2 && parsed.partners && parsed.partners.length >= 1) {{
+                const h1 = String(parsed.axes[0]);
+                const h2 = String(parsed.axes[1]);
+                const h3 = String(parsed.partners[0]);
+                return [
+                    {{
+                        steps: [vStr, round, siki, "0", h1, h2, h3],
+                        venueName: placeName,
+                        placeName: placeName,
+                        round: round,
+                        raceNo: round,
+                        siki: siki,
+                        hou: "0",
+                        axes: [h1, h2],
+                        partners: [h3],
+                        isMulti: false,
+                        weekday: weekday,
+                        unitAmount: unitVal,
+                        totalAmount: unitVal
+                    }},
+                    {{
+                        steps: [vStr, round, siki, "0", h2, h1, h3],
+                        venueName: placeName,
+                        placeName: placeName,
+                        round: round,
+                        raceNo: round,
+                        siki: siki,
+                        hou: "0",
+                        axes: [h2, h1],
+                        partners: [h3],
+                        isMulti: false,
+                        weekday: weekday,
+                        unitAmount: unitVal,
+                        totalAmount: unitVal
+                    }}
+                ];
+            }} else {{
+                const rawSteps = [vStr, round, siki];
+                const simple = (siki === '1' || siki === '2' || siki === '9');
+                if (!simple && hou) rawSteps.push(hou);
+                (parsed.axes || []).forEach(a => rawSteps.push(String(a)));
+                (parsed.partners || []).forEach(pt => rawSteps.push(String(pt)));
+
+                const pts = calcBetPoints(siki, hou, parsed.axes, parsed.partners, isMulti);
+                const tot = Math.max(1, pts) * unitVal;
+
+                return [{{
+                    steps: rawSteps,
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: round,
+                    raceNo: round,
+                    siki: siki,
+                    hou: hou,
+                    axes: (parsed.axes || []).map(String),
+                    partners: (parsed.partners || []).map(String),
+                    isMulti: isMulti,
+                    weekday: weekday,
+                    unitAmount: unitVal,
+                    totalAmount: tot
+                }}];
+            }}
+        }}
+
         // serviceType: 'smappy' | 'ipat' | 'umaca'
-        // ロジックは共通。呼び出す Scriptable の scriptName（URLの scriptName= 部分）と
-        // 付随ペイロード（金額など）だけがサービスごとに変わる。
         function startBulkVote(serviceType) {{
             const idxs = Array.from(document.querySelectorAll('.pickup-check:checked')).map(cb => parseInt(cb.getAttribute('data-idx')));
             if (idxs.length === 0) {{
@@ -3274,16 +3389,12 @@ def generate_static_html():
         }}
 
         let _betQueueItems = [];
-        let _betQueueIdx = 0;
         let _betQueueType = 'smappy';
 
-        // ツールバー・モーダル間で1点金額を同期する
         function syncGlobalUnitAmount() {{
             const v = window._globalUnitAmount || 100;
-            // ツールバーの入力欄に反映
             const gInp = document.getElementById('global-unit-amount');
             if (gInp && parseInt(gInp.value) !== v) gInp.value = v;
-            // 開いているモーダルの入力欄にも反映
             ['ipat-unit-amount', 'umaca-unit-amount', 'smappy-unit-amount'].forEach(function(id) {{
                 const el = document.getElementById(id);
                 if (el && parseInt(el.value) !== v) el.value = v;
@@ -3292,23 +3403,43 @@ def generate_static_html():
 
         function startBetQueue(idxs, serviceType) {{
             _betQueueItems = idxs.map(i => pickupSummaryItems[i]).filter(Boolean);
-            _betQueueIdx = 0;
             _betQueueType = serviceType || 'smappy';
             if (_betQueueItems.length === 0) return;
             renderBetQueueModal();
         }}
 
-        function renderBetQueueModal() {{
-            const prevModal = document.getElementById('bet-queue-modal');
-            if (prevModal) prevModal.remove();
-
-            const item = _betQueueItems[_betQueueIdx];
-            if (!item) return;
-
+        function updateModalTotal() {{
             const svc = _betQueueType;
-            const siki = getSmappySiki(item.rawType);
-            const hou = getSmappyHou(item.rawType, item.axisCount || 1);
-            const parsed = parseSmappyEyes(item.bettingEyesText, item.rawType);
+            const unitInp = document.getElementById(svc + '-unit-amount');
+            const u = unitInp ? (parseInt(unitInp.value) || 100) : 100;
+            window._globalUnitAmount = u;
+            syncGlobalUnitAmount();
+
+            let grandTotal = 0;
+            _betQueueItems.forEach(it => {{
+                const siki = getSmappySiki(it.rawType);
+                const hou = getSmappyHou(it.rawType, it.axisCount || 1);
+                const parsed = parseSmappyEyes(it.bettingEyesText, it.rawType);
+                const isMulti = (it.rawType || "").indexOf('マルチ') >= 0;
+                let pts = 1;
+                if (parsed.is2Touri) pts = 2;
+                else pts = calcBetPoints(siki, hou, parsed.axes, parsed.partners, isMulti);
+                grandTotal += Math.max(1, pts) * u;
+            }});
+
+            const dispEl = document.getElementById(svc + '-total-disp');
+            if (dispEl) dispEl.innerText = grandTotal.toLocaleString() + '円';
+        }}
+
+        function launchBulkVote(serviceType) {{
+            const items = _betQueueItems && _betQueueItems.length > 0 ? _betQueueItems : [];
+            if (items.length === 0) {{
+                alert('投票する買い目がありません');
+                return;
+            }}
+
+            const unitInp = document.getElementById(serviceType + '-unit-amount') || document.getElementById('global-unit-amount');
+            const unitVal = unitInp ? (parseInt(unitInp.value) || 100) : (window._globalUnitAmount || 100);
 
             const vCodes = {{ "札幌":"01","函館":"02","福島":"03","新潟":"04","東京":"05","中山":"06","中京":"07","京都":"08","阪神":"09","小倉":"10" }};
             let todayPlaces = [];
@@ -3317,121 +3448,130 @@ def generate_static_html():
                 if (!todayPlaces.includes(p)) todayPlaces.push(p);
             }}
             todayPlaces.sort((a, b) => (vCodes[a] || "99") - (vCodes[b] || "99"));
-            let vIdx = todayPlaces.indexOf(item.place);
-            if (vIdx < 0) vIdx = 0;
 
-            const venueSelectId = svc === 'ipat' ? 'ipat-venue' : (svc === 'umaca' ? 'umaca-venue' : 'smappy-venue');
+            let allBets = [];
+            let grandTotal = 0;
 
-            let bodyHtml;
-            if (svc === 'ipat' || svc === 'umaca') {{
-                window[svc === 'ipat' ? '_ipatPlaces' : '_umacaPlaces'] = todayPlaces;
-                const color = svc === 'ipat' ? '#10b981' : '#c084fc';
-                const grad = svc === 'ipat' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #a855f7, #7c3aed)';
-                const svcLabel = svc === 'ipat' ? '即PAT' : 'UMACA';
-                const unitId = svc + '-unit-amount';
-                const totalId = svc + '-total-disp';
-                const updateFn = svc === 'ipat' ? 'updateIpatTotal' : 'updateUmacaTotal';
-                const launchFn = svc === 'ipat' ? 'launchIpatScriptable' : 'launchUmacaScriptable';
-                const _initUnit = window._globalUnitAmount || 100;
-                bodyHtml = `
-                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                        <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
-                        <input type="number" id="${{unitId}}" value="${{_initUnit}}" step="100" min="100" style="width: 80px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem; text-align: right;" oninput="window._globalUnitAmount=parseInt(this.value)||100; syncGlobalUnitAmount(); ${{updateFn}}();">
-                        <span style="font-size: 0.75rem; color: #cbd5e1;">円</span>
-                        <span style="flex: 1; text-align: right; font-size: 0.75rem; color: #94a3b8;">
-                            合計: <strong id="${{totalId}}" style="color: ${{color}};">${{_initUnit}}円</strong>
-                        </span>
-                    </div>
-                    <button onclick="${{launchFn}}()" style="width: 100%; padding: 13px; background: ${{grad}}; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 6px;">
-                        🚀 ${{svcLabel}}で自動投票を実行
-                    </button>
-                    <div style="font-size: 0.62rem; color: #94a3b8; text-align: center; line-height: 1.4;">
-                        ※ 最終確認画面（金額・暗証番号入力済）で停止します。内容を確認して【投票】を押してください。
+            items.forEach(it => {{
+                const bList = convertItemToBets(it, unitVal, todayPlaces);
+                bList.forEach(b => {{
+                    allBets.push(b);
+                    grandTotal += (b.totalAmount || unitVal);
+                }});
+            }});
+
+            const payload = {{
+                bets: allBets,
+                unitAmount: unitVal,
+                totalAmount: grandTotal
+            }};
+
+            const jsonStr = JSON.stringify(payload);
+
+            try {{
+                const t = document.createElement('textarea');
+                t.value = jsonStr;
+                document.body.appendChild(t);
+                t.select();
+                document.execCommand('copy');
+                document.body.removeChild(t);
+            }} catch(e) {{}}
+
+            const scriptName = serviceType === 'ipat' ? '即PAT' : (serviceType === 'umaca' ? 'UMACA' : 'スマッピー');
+            const scriptableUrl = "scriptable:///run?scriptName=" + encodeURIComponent(scriptName) + "&data=" + encodeURIComponent(jsonStr);
+            const aTag = document.createElement('a');
+            aTag.href = scriptableUrl;
+            aTag.style.display = 'none';
+            document.body.appendChild(aTag);
+            aTag.click();
+            setTimeout(function() {{ document.body.removeChild(aTag); }}, 1000);
+        }}
+
+        function renderBetQueueModal() {{
+            const prevModal = document.getElementById('bet-queue-modal');
+            if (prevModal) prevModal.remove();
+
+            const items = _betQueueItems;
+            if (!items || items.length === 0) return;
+
+            const svc = _betQueueType;
+            const _initUnit = window._globalUnitAmount || 100;
+            const color = svc === 'ipat' ? '#10b981' : (svc === 'umaca' ? '#c084fc' : '#38bdf8');
+            const grad = svc === 'ipat' ? 'linear-gradient(135deg, #10b981, #059669)' : (svc === 'umaca' ? 'linear-gradient(135deg, #a855f7, #7c3aed)' : 'linear-gradient(135deg, #0284c7, #0369a1)');
+            const svcLabel = svc === 'ipat' ? '即PAT' : (svc === 'umaca' ? 'UMACA' : 'スマッピー');
+            const unitId = svc + '-unit-amount';
+            const totalId = svc + '-total-disp';
+
+            let grandTotal = 0;
+            const itemsListHtml = items.map((it, idx) => {{
+                const siki = getSmappySiki(it.rawType);
+                const hou = getSmappyHou(it.rawType, it.axisCount || 1);
+                const parsed = parseSmappyEyes(it.bettingEyesText, it.rawType);
+                const isMulti = (it.rawType || "").indexOf('マルチ') >= 0;
+                let pts = 1;
+                if (parsed.is2Touri) pts = 2;
+                else pts = calcBetPoints(siki, hou, parsed.axes, parsed.partners, isMulti);
+                const subTot = Math.max(1, pts) * _initUnit;
+                grandTotal += subTot;
+
+                return `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; margin-bottom: 4px; font-size: 0.72rem;">
+                        <div>
+                            <span style="font-weight: 800; color: #f1f5f9; margin-right: 6px;">${{it.raceTitle}}</span>
+                            <span style="color: #94a3b8; font-size: 0.68rem; margin-right: 6px;">${{it.rawType}}</span>
+                            <span style="color: #38bdf8; font-weight: 700;">${{it.bettingEyesText}}</span>
+                        </div>
+                        <div style="text-align: right; color: #cbd5e1; font-weight: 700; white-space: nowrap; margin-left: 8px;">
+                            ${{pts}}点
+                        </div>
                     </div>
                 `;
-            }} else {{
-                bodyHtml = `
-                    <div class="smappy-tabs">
-                        <div id="tab-ios" class="smappy-tab active" onclick="switchSmappyTab('ios')">📱 iPhone (Scriptable)</div>
-                        <div id="tab-pc" class="smappy-tab" onclick="switchSmappyTab('pc')">💻 PC / Android</div>
-                    </div>
-                    <div id="panel-pc" style="display: none;">
-                        <button onclick="copySmappyPayload()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 10px;">
-                            📋 買い目をコピーしてJRAへ
-                        </button>
-                    </div>
-                    <div id="panel-ios" style="display: block;">
-                        <button onclick="launchSmappyScriptable()" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer; margin-bottom: 10px;">
-                            🚀 Scriptableで投票を起動
-                        </button>
-                    </div>
-                `;
-            }}
+            }}).join('');
 
             const modal = document.createElement('div');
             modal.id = 'bet-queue-modal';
             modal.className = 'smappy-queue-modal-overlay';
             modal.onclick = (e) => {{ if (e.target === modal) closeBetQueue(); }};
             modal.innerHTML = `
-                <div class="smappy-popup smappy-queue-popup" onclick="event.stopPropagation()">
-                    <div class="smappy-queue-progress">
-                        <button type="button" class="smappy-queue-nav" onclick="betQueuePrev()" ${{_betQueueIdx === 0 ? 'disabled' : ''}}>◀ 前へ</button>
-                        <span>${{_betQueueIdx + 1}} / ${{_betQueueItems.length}}</span>
-                        <button type="button" class="smappy-queue-nav" onclick="betQueueNext()">${{_betQueueIdx === _betQueueItems.length - 1 ? '完了 ✕' : '次へ ▶'}}</button>
-                    </div>
-                    <div style="text-align:center; font-size:0.78rem; font-weight:800; color:#cbd5e1; margin-bottom:4px;">${{item.raceTitle}} ${{item.rawType}}</div>
-                    <div class="smappy-queue-eyes">${{item.bettingEyesText}}</div>
-
-                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                        <label style="font-size: 0.7rem; color: var(--text-muted); font-weight: 800;">会場判定:</label>
-                        <select id="${{venueSelectId}}" style="flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 0.75rem;">
-                            <option value="0" ${{vIdx==0?'selected':''}}>0 (1場目: ${{todayPlaces[0] || '?'}})</option>
-                            <option value="1" ${{vIdx==1?'selected':''}}>1 (2場目: ${{todayPlaces[1] || '?'}})</option>
-                            <option value="2" ${{vIdx==2?'selected':''}}>2 (3場目: ${{todayPlaces[2] || '?'}})</option>
-                        </select>
+                <div class="smappy-popup smappy-queue-popup" onclick="event.stopPropagation()" style="max-width: 420px; width: 92%;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+                        <span style="font-weight: 800; font-size: 0.95rem; color: ${{color}};">
+                            🚀 ${{svcLabel}} 一括自動投票
+                        </span>
+                        <span style="font-size: 0.72rem; color: #94a3b8; font-weight: 700;">
+                            選択中: <strong style="color: #fff;">${{items.length}}件</strong>
+                        </span>
                     </div>
 
-                    ${{bodyHtml}}
+                    <div style="max-height: 150px; overflow-y: auto; margin-bottom: 12px; padding-right: 4px;">
+                        ${{itemsListHtml}}
+                    </div>
 
-                    <div style="text-align:center; margin-top: 6px;">
-                        <button type="button" onclick="closeBetQueue()" style="background:none; border:none; color:var(--text-muted); font-size:0.72rem; cursor:pointer; text-decoration:underline;">キューを閉じる</button>
+                    <div style="margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 800;">1点金額:</label>
+                            <input type="number" id="${{unitId}}" value="${{_initUnit}}" step="100" min="100" style="width: 75px; padding: 4px 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 6px; font-size: 0.78rem; text-align: right; font-weight: 700;" oninput="updateModalTotal();">
+                            <span style="font-size: 0.72rem; color: #cbd5e1;">円</span>
+                        </div>
+                        <div style="text-align: right; font-size: 0.75rem; color: #94a3b8;">
+                            合計: <strong id="${{totalId}}" style="color: ${{color}}; font-size: 1rem; font-weight: 800; margin-left: 4px;">${{grandTotal.toLocaleString()}}円</strong>
+                        </div>
+                    </div>
+
+                    <button onclick="launchBulkVote('${{svc}}')" style="width: 100%; padding: 13px; background: ${{grad}}; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.3); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        🚀 ${{svcLabel}}で一括投票を実行 (${{items.length}}件)
+                    </button>
+
+                    <div style="font-size: 0.62rem; color: #94a3b8; text-align: center; line-height: 1.4; margin-bottom: 10px;">
+                        ※ Scriptableが起動し全買い目を自動セットします。最終確認画面（金額入力済）で停止します。
+                    </div>
+
+                    <div style="text-align:center;">
+                        <button type="button" onclick="closeBetQueue()" style="background:none; border:none; color:var(--text-muted); font-size:0.72rem; cursor:pointer; text-decoration:underline;">閉じる</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
-
-            if (svc === 'ipat') {{
-                window._ipatParsed = {{ placeName: item.place, weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri, isMulti: (item.rawType || "").indexOf('マルチ') >= 0, baseUnit: 100, baseTotal: 100 }};
-            }} else if (svc === 'umaca') {{
-                window._umacaParsed = {{ placeName: item.place, weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri, isMulti: (item.rawType || "").indexOf('マルチ') >= 0, baseUnit: 100, baseTotal: 100 }};
-            }} else {{
-                window._smappyPlaces = todayPlaces;
-                window._smappyParsed = {{ weekday: item.weekday, round: item.round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri }};
-                const venueEl = document.getElementById('smappy-venue');
-                const updateBml = () => {{
-                    const v = venueEl.value;
-                    const placeName = todayPlaces[v] || "";
-                    window._smappyBml = genSmappyBml(v, placeName, item.weekday, item.round, siki, hou, parsed.axes, parsed.partners);
-                }};
-                venueEl.addEventListener('change', updateBml);
-                updateBml();
-            }}
-        }}
-
-        function betQueueNext() {{
-            if (_betQueueIdx < _betQueueItems.length - 1) {{
-                _betQueueIdx++;
-                renderBetQueueModal();
-            }} else {{
-                closeBetQueue();
-            }}
-        }}
-
-        function betQueuePrev() {{
-            if (_betQueueIdx > 0) {{
-                _betQueueIdx--;
-                renderBetQueueModal();
-            }}
         }}
 
         function closeBetQueue() {{
@@ -4801,6 +4941,7 @@ def generate_static_html():
             var placeName = (window._smappyPlaces && window._smappyPlaces[v]) || "";
 
             var payload;
+            var uVal = (window._globalUnitAmount || 100);
             if (p.is2Touri && p.axes && p.axes.length >= 2 && p.partners && p.partners.length >= 1) {{
                 var h1 = String(p.axes[0]);
                 var h2 = String(p.axes[1]);
@@ -4810,14 +4951,18 @@ def generate_static_html():
                         {{
                             steps: [v, p.round, p.siki, "0", h1, h2, h3],
                             venueName: placeName,
-                            weekday: p.weekday || ""
+                            weekday: p.weekday || "",
+                            unitAmount: uVal
                         }},
                         {{
                             steps: [v, p.round, p.siki, "0", h2, h1, h3],
                             venueName: placeName,
-                            weekday: p.weekday || ""
+                            weekday: p.weekday || "",
+                            unitAmount: uVal
                         }}
-                    ]
+                    ],
+                    unitAmount: uVal,
+                    totalAmount: uVal * 2
                 }};
             }} else {{
                 var rawSteps = [v, p.round, p.siki];
@@ -4827,9 +4972,14 @@ def generate_static_html():
                 (p.partners || []).forEach(function(pt) {{ rawSteps.push(String(pt)); }});
 
                 payload = {{
-                    steps: rawSteps,
-                    venueName: placeName,
-                    weekday: p.weekday || ""
+                    bets: [{{
+                        steps: rawSteps,
+                        venueName: placeName,
+                        weekday: p.weekday || "",
+                        unitAmount: uVal
+                    }}],
+                    unitAmount: uVal,
+                    totalAmount: uVal
                 }};
             }}
 
