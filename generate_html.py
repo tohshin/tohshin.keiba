@@ -150,11 +150,12 @@ def _kelly2_bet_specs(bt, nos):
                       'combs': 3, 'axis1': nos[0], 'axis2': None, 'partners': partners,
                       'eyes': f"{pad(nos[0])} - {', '.join(pad(x) for x in partners)}"})
     elif bt == '3連単-2通り' and len(nos) >= 3:
-        for order in ((nos[0], nos[1], nos[2]), (nos[1], nos[0], nos[2])):
-            specs.append({'code': 'SANRENTAN', 'sel_mode': 'NORMAL', 'multi': '',
-                          'nums_str': '-'.join(pad(x) for x in order), 'combs': 1,
-                          'axis1': order[0], 'axis2': order[1], 'partners': [order[2]],
-                          'eyes': ' → '.join(pad(x) for x in order)})
+        # サイト表示は「01 ↔ 12 → 04」の1エントリに統一
+        # 連携時は parseSmappyEyes で is2Touri=true として2通りに展開される
+        specs.append({'code': 'SANRENTAN', 'sel_mode': 'NORMAL', 'multi': '',
+                      'nums_str': f"{pad(nos[0])}-{pad(nos[1])}-{pad(nos[2])}", 'combs': 2,
+                      'axis1': nos[0], 'axis2': nos[1], 'partners': [nos[2]],
+                      'eyes': f"{pad(nos[0])} ↔ {pad(nos[1])} → {pad(nos[2])}"})
     elif bt == '3連単-3頭BOX' and len(nos) >= 3:
         box = sorted(nos[:3])
         specs.append({'code': 'SANRENTAN', 'sel_mode': 'BOX', 'multi': '',
@@ -3346,6 +3347,42 @@ def generate_static_html():
                         totalAmount: unitVal
                     }}
                 ];
+            }} else if (parsed.isOrikaeshi && parsed.axes && parsed.axes.length >= 2) {{
+                // 馬単-折り返し: 通常の2点買い目として展開
+                const fa = String(parsed.axes[0]);
+                const fb = String(parsed.axes[1]);
+                return [
+                    {{
+                        steps: [vStr, round, siki, "0", fa, fb],
+                        venueName: placeName,
+                        placeName: placeName,
+                        round: round,
+                        raceNo: round,
+                        siki: siki,
+                        hou: "0",
+                        axes: [fa],
+                        partners: [fb],
+                        isMulti: false,
+                        weekday: weekday,
+                        unitAmount: unitVal,
+                        totalAmount: unitVal
+                    }},
+                    {{
+                        steps: [vStr, round, siki, "0", fb, fa],
+                        venueName: placeName,
+                        placeName: placeName,
+                        round: round,
+                        raceNo: round,
+                        siki: siki,
+                        hou: "0",
+                        axes: [fb],
+                        partners: [fa],
+                        isMulti: false,
+                        weekday: weekday,
+                        unitAmount: unitVal,
+                        totalAmount: unitVal
+                    }}
+                ];
             }} else {{
                 const rawSteps = [vStr, round, siki];
                 const simple = (siki === '1' || siki === '2' || siki === '9');
@@ -3422,7 +3459,7 @@ def generate_static_html():
                 const parsed = parseSmappyEyes(it.bettingEyesText, it.rawType);
                 const isMulti = (it.rawType || "").indexOf('マルチ') >= 0;
                 let pts = 1;
-                if (parsed.is2Touri) pts = 2;
+                if (parsed.is2Touri || parsed.isOrikaeshi) pts = 2;
                 else pts = calcBetPoints(siki, hou, parsed.axes, parsed.partners, isMulti);
                 grandTotal += Math.max(1, pts) * u;
             }});
@@ -3509,7 +3546,7 @@ def generate_static_html():
                 const parsed = parseSmappyEyes(it.bettingEyesText, it.rawType);
                 const isMulti = (it.rawType || "").indexOf('マルチ') >= 0;
                 let pts = 1;
-                if (parsed.is2Touri) pts = 2;
+                if (parsed.is2Touri || parsed.isOrikaeshi) pts = 2;
                 else pts = calcBetPoints(siki, hou, parsed.axes, parsed.partners, isMulti);
                 const subTot = Math.max(1, pts) * _initUnit;
                 grandTotal += subTot;
@@ -4247,6 +4284,27 @@ def generate_static_html():
                     return {{axes: [h1, h2], partners: [h3], is2Touri: true}};
                 }}
             }}
+            // 「01 ↔ 12 → 04」形式: 3連単-2通り（↔と→の両方を含む新表示形式）
+            if (text.indexOf(' ↔ ') >= 0 && (text.indexOf(' → ') >= 0 || text.indexOf('→') >= 0)) {{
+                var arrowIdx = text.indexOf(' → ');
+                if (arrowIdx < 0) arrowIdx = text.indexOf('→');
+                var leftPart = text.slice(0, arrowIdx).trim(); // 「01 ↔ 12」
+                var rightPart = text.slice(arrowIdx).replace(/^\s*→\s*/, '').trim(); // 「04」
+                var axNums = leftPart.split(' ↔ ').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
+                var h3 = parseInt(rightPart.replace(/[^0-9]/g, ''));
+                if (axNums.length >= 2 && !isNaN(h3)) {{
+                    return {{axes: axNums, partners: [h3], is2Touri: true}};
+                }}
+            }}
+            // 「05 ↔ 10」形式: 馬単-折り返し（↔のみ、→なし）
+            if ((text.indexOf(' ↔ ') >= 0 || text.indexOf('↔') >= 0) && text.indexOf('→') < 0) {{
+                var nums = text.match(/\d+/g);
+                if (nums && nums.length === 2) {{
+                    var fa = parseInt(nums[0]);
+                    var fb = parseInt(nums[1]);
+                    return {{axes: [fa, fb], partners: [], isOrikaeshi: true}};
+                }}
+            }}
             if (stratType.includes('BOX')) {{
                 var clean = text.replace(/BOX/gi, '').trim();
                 var all = clean.split(',').map(function(s){{ return parseInt(s.trim()); }}).filter(function(n){{ return !isNaN(n); }});
@@ -4398,7 +4456,7 @@ def generate_static_html():
             `;
             btn.parentElement.appendChild(popup);
 
-            window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri}};
+            window._smappyParsed = {{weekday: weekday, round: round, siki: siki, hou: hou, axes: parsed.axes, partners: parsed.partners, is2Touri: parsed.is2Touri, isOrikaeshi: parsed.isOrikaeshi}};
             
             var fixedLink = document.getElementById('smappy-fixed-bml-link');
             if (fixedLink) {{
@@ -4445,6 +4503,24 @@ def generate_static_html():
                         }},
                         {{
                             steps: [v, p.round, p.siki, "0", h2, h1, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }}
+                    ]
+                }};
+            }} else if (p.isOrikaeshi && p.axes && p.axes.length >= 2) {{
+                // 馬単-折り返し: 通常の2点買い目として展開
+                var fa = String(p.axes[0]);
+                var fb = String(p.axes[1]);
+                payload = {{
+                    bets: [
+                        {{
+                            steps: [v, p.round, p.siki, "0", fa, fb],
+                            venueName: placeName,
+                            weekday: p.weekday || ""
+                        }},
+                        {{
+                            steps: [v, p.round, p.siki, "0", fb, fa],
                             venueName: placeName,
                             weekday: p.weekday || ""
                         }}
@@ -4579,6 +4655,7 @@ def generate_static_html():
                 axes: parsed.axes,
                 partners: parsed.partners,
                 is2Touri: parsed.is2Touri,
+                isOrikaeshi: parsed.isOrikaeshi,
                 isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
@@ -4803,6 +4880,7 @@ def generate_static_html():
                 axes: parsed.axes,
                 partners: parsed.partners,
                 is2Touri: parsed.is2Touri,
+                isOrikaeshi: parsed.isOrikaeshi,
                 isMulti: (type || "").indexOf('マルチ') >= 0,
                 baseUnit: unitAmount,
                 baseTotal: totalAmount
@@ -4871,6 +4949,45 @@ def generate_static_html():
                 }};
                 payload = {{
                     bets: [bet1, bet2],
+                    unitAmount: unitVal,
+                    totalAmount: totalVal
+                }};
+            }} else if (p.isOrikaeshi && p.axes && p.axes.length >= 2) {{
+                // 馬単-折り返し: 通常の2点買い目として展開
+                var fa = p.axes[0];
+                var fb = p.axes[1];
+                var betA = {{
+                    steps: [v, p.round, p.siki, "0", String(fa), String(fb)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: "0",
+                    axes: [fa],
+                    partners: [fb],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                var betB = {{
+                    steps: [v, p.round, p.siki, "0", String(fb), String(fa)],
+                    venueName: placeName,
+                    placeName: placeName,
+                    round: p.round,
+                    raceNo: p.round,
+                    siki: p.siki,
+                    hou: "0",
+                    axes: [fb],
+                    partners: [fa],
+                    isMulti: false,
+                    weekday: p.weekday || "",
+                    unitAmount: unitVal,
+                    totalAmount: unitVal
+                }};
+                payload = {{
+                    bets: [betA, betB],
                     unitAmount: unitVal,
                     totalAmount: totalVal
                 }};
@@ -4956,6 +5073,28 @@ def generate_static_html():
                         }},
                         {{
                             steps: [v, p.round, p.siki, "0", h2, h1, h3],
+                            venueName: placeName,
+                            weekday: p.weekday || "",
+                            unitAmount: uVal
+                        }}
+                    ],
+                    unitAmount: uVal,
+                    totalAmount: uVal * 2
+                }};
+            }} else if (p.isOrikaeshi && p.axes && p.axes.length >= 2) {{
+                // 馬単-折り返し: 通常の2点買い目として展開
+                var fa = String(p.axes[0]);
+                var fb = String(p.axes[1]);
+                payload = {{
+                    bets: [
+                        {{
+                            steps: [v, p.round, p.siki, "0", fa, fb],
+                            venueName: placeName,
+                            weekday: p.weekday || "",
+                            unitAmount: uVal
+                        }},
+                        {{
+                            steps: [v, p.round, p.siki, "0", fb, fa],
                             venueName: placeName,
                             weekday: p.weekday || "",
                             unitAmount: uVal
