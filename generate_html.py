@@ -62,6 +62,9 @@ KELLY_BET_CODE_JP = {
 KELLY_ORDERED_BET_CODES = {'UMATAN', 'SANRENTAN'}
 # 合意度表示に使う主要4モデル (Kelly2.ipynb / 画面の「4モデル平均」と同じ)
 KELLY_CONF_MODELS = ['LightGBM', 'CatBoost', 'RandomForest', 'TabNet']
+# Kelly2.ipynb の race_meta が持つキー (これ以外では戦略/EXCLUDE判定しない)
+KELLY2_META_KEYS = ('venue_name', 'venue_code', 'class_cat', 'track_type',
+                    'venue_track', 'class_venue', 'class_venue_track')
 
 
 def _softmax_np(x):
@@ -267,9 +270,12 @@ def build_kelly2_bets_for_day(day, races_of_day):
     # レースメタ (サイトの JSON より。Kelly2.ipynb の race_meta と同じキー構成)
     meta_by_race = {}
     for rid, r_info in races_of_day.items():
-        meta = dict(r_info.get('meta') or {})
+        # Kelly2.ipynb の race_meta と同じキーのみ使用 (class_track / dist_track /
+        # track_ground 等のサイト独自キーでマッチさせると本家に無い買い目が出る)
+        _full_meta = dict(r_info.get('meta') or {})
         rid_str = str(rid)
-        meta.setdefault('venue_code', rid_str[4:6] if len(rid_str) >= 6 else '')
+        _full_meta.setdefault('venue_code', rid_str[4:6] if len(rid_str) >= 6 else '')
+        meta = {k: _full_meta[k] for k in KELLY2_META_KEYS if k in _full_meta}
         meta_by_race[rid_str] = meta
 
     candidates = []
@@ -288,9 +294,8 @@ def build_kelly2_bets_for_day(day, races_of_day):
         for r_code, group in df.groupby('racecode'):
             r_code = str(r_code)
             s_r12 = (r_code[:4] + r_code[8:16]) if len(r_code) == 16 else r_code
-            meta = meta_by_race.get(s_r12)
-            if not meta:
-                continue
+            # 本家同様、メタが無くても cat_col == 'all' の戦略はマッチさせる
+            meta = meta_by_race.get(s_r12, {})
             # 条件マッチ (Kelly2.ipynb Cell3 と同一)
             if cat_col == 'all':
                 matched = True
