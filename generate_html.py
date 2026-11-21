@@ -10,18 +10,17 @@ import subprocess
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Kelly3 v12 強化学習モジュールのインポート
+# Kelly3 v12 強化学習ハイブリッドモジュールのインポート (kelly3_auto_runner.py 準拠)
 if r"C:\Users\kyoui\keiba" not in sys.path:
     sys.path.append(r"C:\Users\kyoui\keiba")
 
 try:
-    # Kelly3 の買い目は強化学習(DQN)推論ではなく Kelly3.ipynb の
-    # 「中央値重視・堅牢ポートフォリオ」(generate_smart_balanced_bets) を使用する。
     from modules.rl_betting import (
-        generate_smart_balanced_bets, VENUE_MAP, VENUE_NAME_MAP
+        load_rl_agent, extract_static_features, get_kelly3_state,
+        predict_action, generate_rl_bet_lines, ACTIONS, VENUE_MAP, VENUE_NAME_MAP
     )
     rl_agent_available = True
-    logger.info("Successfully loaded modules.rl_betting (Kelly3 portfolio)")
+    logger.info("Successfully loaded modules.rl_betting (Kelly3 RL Hybrid)")
 except Exception as e:
     logger.warning(f"Could not load modules.rl_betting: {e}")
     rl_agent_available = False
@@ -41,15 +40,28 @@ PLACE_DICT_CHUOH = {
 REVERSE_PLACE_DICT = {v: k for k, v in PLACE_DICT_CHUOH.items()}
 
 # ==========================================================================
-# Kelly2 / Kelly3 本家ノートブック準拠の買い目生成
+# Kelly2 / Kelly3 本家準拠の買い目生成
 #  - PICKUP     : Kelly2.ipynb (winning_strategies_v13.csv + TCSV\v13 モデルスコア + 単勝オッズ)
-#  - PICKUP 2   : Kelly3.ipynb (中央値重視・堅牢ポートフォリオ generate_smart_balanced_bets)
+#  - PICKUP 2   : kelly3_auto_runner.py (Double DQN + CQL 並行ハイブリッド: 現行x5 + 3連系x1)
 # ==========================================================================
 KELLY_CONFIG_DIR = r"C:\Users\kyoui\keiba\config"
 KELLY_STRATEGIES_V13_CSV = os.path.join(KELLY_CONFIG_DIR, "winning_strategies_v13.csv")
 KELLY_TCSV_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV"
 KELLY_TCSV_V13_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v13"
 KELLY_TANSHO_DB_URL = "postgresql://postgres:zatenn@localhost/postgres"
+
+# Kelly3 強化学習ハイブリッド定数 (kelly3_auto_runner.py と同一デフォルト)
+KELLY3_BASE_MODEL = r"C:\Users\kyoui\keiba\models\rl\rl_agent_kelly3_rebuilt_v12.pth"
+KELLY3_SANREN_MODEL = r"C:\Users\kyoui\keiba\models\rl\rl_agent_kelly3_stop5000_sanren_cap100k_v12.pth"
+KELLY3_BASE_ACTIONS = [0, 15, 18, 19, 20, 21]
+KELLY3_SANREN_ACTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 22, 23, 24, 25]
+KELLY3_BASE_MULT = 5
+KELLY3_SANREN_MULT = 1
+KELLY3_BASE_LANE_STOP = 1 * KELLY3_BASE_MULT          # +5円 (100円基準 +1円)
+KELLY3_SANREN_LANE_STOP = 5000 * KELLY3_SANREN_MULT   # +5,000円
+KELLY3_MAX_BUDGET = 50000
+KELLY3_AGREE_MODELS = ['Ensemble', 'LightGBM', 'CatBoost', 'XGBoost', 'TabNet']
+_KELLY3_MODELS_CACHE = None
 KELLY_TRACK_MAPPING = {
     '01': 'SAPPORO', '02': 'HAKODATE', '03': 'FUKUSHIMA', '04': 'NIIGATA', '05': 'TOKYO',
     '06': 'NAKAYAMA', '07': 'CHUKYO', '08': 'KYOTO', '09': 'HANSHIN', '10': 'KOKURA'
@@ -417,22 +429,325 @@ def _load_kelly3_score_df(day):
     return df_scores, model_names
 
 
-def build_kelly3_portfolio_for_day(day, races_of_day):
-    """Kelly3.ipynb (Cell4) の「中央値重視・堅牢ポートフォリオ」と同一ロジックで
-    当日の買い目を生成し、画面表示用の strat2 (sub_items 付き) を返す。
-    - モデルスコア : TCSV 直下の {model}_raw_{day}.csv / Ensemble_{day}.csv
-    - オッズ/人気  : DB(odds1_tansho)
-    - 買い目決定   : modules.rl_betting.generate_smart_balanced_bets (Kelly3 本家ロジック)
-    """
+def _load_kelly3_models():
+    """Kelly3 強化学習ハイブリッド用モデル (ベース + 3連系) をロードしてキャッシュする。"""
+    global _KELLY3_MODELS_CACHE
+    if _KELLY3_MODELS_CACHE is not None:
+        return _KELLY3_MODELS_CACHE
     if not rl_agent_available:
-        logger.warning("Kelly3: modules.rl_betting が利用できないためポートフォリオ生成をスキップ")
+        return None
+    try:
+        net_base, device = load_rl_agent(KELLY3_BASE_MODEL)
+        net_sanren = None
+        if os.path.exists(KELLY3_SANREN_MODEL):
+            net_sanren, _ = load_rl_agent(KELLY3_SANREN_MODEL, device=device)
+        else:
+            logger.warning(f"Kelly3: 3連系モデル未検出 ({KELLY3_SANREN_MODEL}) -> ベース単体で動作")
+        _KELLY3_MODELS_CACHE = (net_base, net_sanren, device)
+        logger.info(f"Kelly3 RL Hybrid models loaded (device={device}, sanren={net_sanren is not None})")
+        return _KELLY3_MODELS_CACHE
+    except Exception as e:
+        logger.warning(f"Kelly3: RLモデルロード失敗: {e}")
+        return None
+
+
+def _load_haraimodoshi_map(day):
+    """DB (haraimodoshi) から確定済み払戻金マップを取得する (kelly3_auto_runner.py 準拠)。
+    開催前でデータが無い場合は空 dict を返す。"""
+    try:
+        from sqlalchemy import create_engine
+        engine = create_engine(KELLY_TANSHO_DB_URL)
+        nen = str(day)[:4]
+        df = pd.read_sql(f"SELECT * FROM haraimodoshi WHERE kaisai_nen = '{nen}';", engine)
+        if df.empty:
+            return {}
+
+        def _ci(v):
+            if pd.isna(v):
+                return None
+            s = str(v).strip()
+            return int(s) if s.isdigit() else None
+
+        p_map = {}
+        for _, r in df.iterrows():
+            rid = (
+                str(r['kaisai_nen'])
+                + str(r['keibajo_code']).zfill(2)
+                + str(r['kaisai_kaiji']).zfill(2)
+                + str(r['kaisai_nichiji']).zfill(2)
+                + str(r['race_bango']).zfill(2)
+            )
+            p_dict = {k: {} for k in ('tansho', 'fukusho', 'umaren', 'wide', 'umatan', 'sanrenpuku', 'sanrentan')}
+            for i in range(1, 4):
+                u, amt = _ci(r.get(f'tansho{i}_umaban')), _ci(r.get(f'tansho{i}_haraimodoshikin'))
+                if u and amt:
+                    p_dict['tansho'][u] = float(amt)
+            for i in range(1, 6):
+                u, amt = _ci(r.get(f'fukusho{i}_umaban')), _ci(r.get(f'fukusho{i}_haraimodoshikin'))
+                if u and amt:
+                    p_dict['fukusho'][u] = float(amt)
+            for i in range(1, 4):
+                u1, u2, amt = _ci(r.get(f'umaren{i}_kumiban1')), _ci(r.get(f'umaren{i}_kumiban2')), _ci(r.get(f'umaren{i}_haraimodoshikin'))
+                if u1 and u2 and amt:
+                    p_dict['umaren'][tuple(sorted([u1, u2]))] = float(amt)
+            for i in range(1, 8):
+                u1, u2, amt = _ci(r.get(f'wide{i}_kumiban1')), _ci(r.get(f'wide{i}_kumiban2')), _ci(r.get(f'wide{i}_haraimodoshikin'))
+                if u1 and u2 and amt:
+                    p_dict['wide'][tuple(sorted([u1, u2]))] = float(amt)
+            for i in range(1, 7):
+                u1, u2, amt = _ci(r.get(f'umatan{i}_kumiban1')), _ci(r.get(f'umatan{i}_kumiban2')), _ci(r.get(f'umatan{i}_haraimodoshikin'))
+                if u1 and u2 and amt:
+                    p_dict['umatan'][(u1, u2)] = float(amt)
+            for i in range(1, 4):
+                u1, u2, u3, amt = _ci(r.get(f'sanrenpuku{i}_kumiban1')), _ci(r.get(f'sanrenpuku{i}_kumiban2')), _ci(r.get(f'sanrenpuku{i}_kumiban3')), _ci(r.get(f'sanrenpuku{i}_haraimodoshikin'))
+                if u1 and u2 and u3 and amt:
+                    p_dict['sanrenpuku'][tuple(sorted([u1, u2, u3]))] = float(amt)
+            for i in range(1, 7):
+                u1, u2, u3, amt = _ci(r.get(f'sanrentan{i}_kumiban1')), _ci(r.get(f'sanrentan{i}_kumiban2')), _ci(r.get(f'sanrentan{i}_kumiban3')), _ci(r.get(f'sanrentan{i}_haraimodoshikin'))
+                if u1 and u2 and u3 and amt:
+                    p_dict['sanrentan'][(u1, u2, u3)] = float(amt)
+            p_map[rid] = p_dict
+        return p_map
+    except Exception as e:
+        logger.warning(f"Kelly3: haraimodoshi load failed for {day}: {e}")
         return {}
+
+
+def _calc_kelly3_line_payout(line, race_payout):
+    """ipatgo形式の1買い目行に対する払戻額と結果確定フラグを返す。"""
+    if not race_payout:
+        return 0.0, False
+    parts = line.split(',')
+    if len(parts) < 8:
+        return 0.0, False
+    btype = parts[3].strip()
+    comb_str = parts[6].strip()
+    amt = float(parts[7].strip()) if parts[7].strip().isdigit() else 100.0
+    scale = amt / 100.0
+    payout = 0.0
+    has_result = False
+
+    if btype in ('TANSYO', 'TANSHO'):
+        u1 = int(comb_str)
+        if u1 in race_payout['tansho']:
+            payout = race_payout['tansho'][u1] * scale
+        has_result = len(race_payout['tansho']) > 0
+    elif btype in ('FUKUSYO', 'FUKUSHO'):
+        u1 = int(comb_str)
+        if u1 in race_payout['fukusho']:
+            payout = race_payout['fukusho'][u1] * scale
+        has_result = len(race_payout['fukusho']) > 0
+    elif btype == 'UMAREN':
+        c = comb_str.replace('-', '')
+        tup = tuple(sorted([int(c[:2]), int(c[2:4])]))
+        if tup in race_payout['umaren']:
+            payout = race_payout['umaren'][tup] * scale
+        has_result = len(race_payout['umaren']) > 0
+    elif btype == 'UMATAN':
+        c = comb_str.replace('-', '')
+        tup = (int(c[:2]), int(c[2:4]))
+        if tup in race_payout['umatan']:
+            payout = race_payout['umatan'][tup] * scale
+        has_result = len(race_payout['umatan']) > 0
+    elif btype == 'WIDE':
+        c = comb_str.replace('-', '')
+        tup = tuple(sorted([int(c[:2]), int(c[2:4])]))
+        if tup in race_payout['wide']:
+            payout = race_payout['wide'][tup] * scale
+        has_result = len(race_payout['wide']) > 0
+    elif btype == 'SANRENPUKU':
+        c = comb_str.replace('-', '')
+        tup = tuple(sorted([int(c[:2]), int(c[2:4]), int(c[4:6])]))
+        if tup in race_payout['sanrenpuku']:
+            payout = race_payout['sanrenpuku'][tup] * scale
+        has_result = len(race_payout['sanrenpuku']) > 0
+    elif btype == 'SANRENTAN':
+        c = comb_str.replace('-', '')
+        tup = (int(c[:2]), int(c[2:4]), int(c[4:6]))
+        if tup in race_payout['sanrentan']:
+            payout = race_payout['sanrentan'][tup] * scale
+        has_result = len(race_payout['sanrentan']) > 0
+    return payout, has_result
+
+
+def _kelly3_action_to_sub_item(action_id, h_list, combs, cost, mult, agent_key):
+    """RLアクションIDと順位リストから画面表示・投票連携用の sub_item を構築する。"""
+    act = ACTIONS[action_id]
+    mode = act.get('mode', '')
+    code = act.get('type', '')
+    jp = KELLY_BET_CODE_JP.get(code, code)
+    u = [int(h[0]) for h in h_list]
+    pad = lambda n: f"{int(n):02d}"
+    unit = 100 * mult
+    agent_label = f"現行 (x{mult}: {unit}円/点)" if agent_key == 'base' else f"3連系 (x{mult}: {unit}円/点)"
+
+    axis1 = axis2 = None
+    partners = []
+    eyes = ''
+    raw_type = jp
+
+    if mode == 'tansho_1':
+        axis1 = u[0]
+        eyes = pad(u[0])
+        raw_type = '単勝-1点'
+    elif mode == 'tansho_2':
+        partners = sorted(u[:2])
+        eyes = ', '.join(pad(x) for x in partners)
+        raw_type = '単勝-2点'
+    elif mode == 'umaren_1':
+        axis1, partners = u[0], [u[1]]
+        eyes = f"{pad(u[0])} - {pad(u[1])}"
+        raw_type = '馬連-1点'
+    elif mode == 'umaren_3':
+        axis1 = u[0]
+        partners = sorted(u[1:min(4, len(u))])
+        eyes = f"{pad(axis1)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = f"馬連-1頭軸{len(partners)}頭ながし"
+    elif mode == 'umatan_1':
+        axis1, partners = u[0], [u[1]]
+        eyes = f"{pad(u[0])} → {pad(u[1])}"
+        raw_type = '馬単-1点'
+    elif mode == 'umatan_3':
+        axis1 = u[0]
+        partners = sorted(u[1:min(4, len(u))])
+        eyes = f"{pad(axis1)} → {', '.join(pad(x) for x in partners)}"
+        raw_type = f"馬単-1頭軸{len(partners)}頭ながし"
+    elif mode == 'wide_box3':
+        partners = sorted(u[:min(3, len(u))])
+        eyes = f"{', '.join(pad(x) for x in partners)} BOX"
+        raw_type = f"ワイド-{len(partners)}頭BOX"
+    elif mode == 'sanrenpuku_2jiku_3p':
+        axis1, axis2 = u[0], u[1]
+        partners = sorted(u[2:5])
+        eyes = f"{pad(axis1)}, {pad(axis2)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連複-2頭軸3頭ながし'
+    elif mode == 'sanrenpuku_2jiku_5p':
+        axis1, axis2 = u[0], u[1]
+        partners = sorted(u[2:min(7, len(u))])
+        eyes = f"{pad(axis1)}, {pad(axis2)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = f"3連複-2頭軸{len(partners)}頭ながし"
+    elif mode == 'sanrenpuku_1jiku_3p':
+        axis1 = u[0]
+        partners = sorted(u[1:4])
+        eyes = f"{pad(axis1)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連複-1頭軸3頭ながし'
+    elif mode == 'sanrenpuku_1jiku_4p':
+        axis1 = u[0]
+        partners = sorted(u[1:min(5, len(u))])
+        eyes = f"{pad(axis1)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = f"3連複-1頭軸{len(partners)}頭ながし"
+    elif mode == 'sanrenpuku_1jiku_5p':
+        axis1 = u[0]
+        partners = sorted(u[1:min(6, len(u))])
+        eyes = f"{pad(axis1)} - {', '.join(pad(x) for x in partners)}"
+        raw_type = f"3連複-1頭軸{len(partners)}頭ながし"
+    elif mode == 'sanrenpuku_box4':
+        partners = sorted(u[:min(4, len(u))])
+        eyes = f"{', '.join(pad(x) for x in partners)} BOX"
+        raw_type = f"3連複-{len(partners)}頭BOX"
+    elif mode == 'sanrenpuku_box5':
+        partners = sorted(u[:min(5, len(u))])
+        eyes = f"{', '.join(pad(x) for x in partners)} BOX"
+        raw_type = f"3連複-{len(partners)}頭BOX"
+    elif mode == 'sanrentan_2way':
+        axis1, axis2, partners = u[0], u[1], [u[2]]
+        eyes = f"{pad(u[0])} ↔ {pad(u[1])} → {pad(u[2])}"
+        raw_type = '3連単-2通り'
+    elif mode == 'sanrentan_box3':
+        partners = sorted(u[:3])
+        eyes = f"{', '.join(pad(x) for x in partners)} BOX"
+        raw_type = '3連単-3頭BOX'
+    elif mode == 'sanrentan_box4':
+        partners = sorted(u[:min(4, len(u))])
+        eyes = f"{', '.join(pad(x) for x in partners)} BOX"
+        raw_type = f"3連単-{len(partners)}頭BOX"
+    elif mode == 'sanrentan_form6':
+        axis1 = u[0]
+        s2 = sorted(u[1:3])
+        s3 = sorted(u[1:5])
+        partners = s3
+        eyes = f"{pad(axis1)} → {', '.join(pad(x) for x in s2)} → {', '.join(pad(x) for x in s3)}"
+        raw_type = '3連単-フォーメーション'
+    elif mode == 'sanrentan_form8':
+        axis1, axis2 = u[0], u[1]
+        s12 = sorted([u[0], u[1]])
+        s3 = sorted(u[2:min(6, len(u))])
+        partners = s3
+        eyes = f"{', '.join(pad(x) for x in s12)} → {', '.join(pad(x) for x in s12)} → {', '.join(pad(x) for x in s3)}"
+        raw_type = '3連単-フォーメーション'
+    elif mode == 'sanrentan_form12':
+        axis1 = u[0]
+        s2 = sorted(u[1:4])
+        s3 = sorted(u[1:min(6, len(u))])
+        partners = s3
+        eyes = f"{pad(axis1)} → {', '.join(pad(x) for x in s2)} → {', '.join(pad(x) for x in s3)}"
+        raw_type = '3連単-フォーメーション'
+    elif mode == 'sanrentan_2jiku_multi3':
+        axis1, axis2 = u[0], u[1]
+        partners = sorted(u[2:min(5, len(u))])
+        eyes = f"{pad(axis1)}, {pad(axis2)} ↔ {', '.join(pad(x) for x in partners)}"
+        raw_type = f"3連単-2頭軸{len(partners)}頭マルチ"
+    elif mode == 'sanrentan_1jiku_multi3':
+        axis1 = u[0]
+        partners = sorted(u[1:4])
+        eyes = f"{pad(axis1)} ↔ {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連単-1頭軸3頭マルチ'
+    elif mode == 'sanrentan_1jiku_multi4':
+        axis1 = u[0]
+        partners = sorted(u[1:5])
+        eyes = f"{pad(axis1)} ↔ {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連単-1頭軸4頭マルチ'
+    elif mode == 'sanrentan_1jiku_3p':
+        axis1 = u[0]
+        partners = sorted(u[1:4])
+        eyes = f"{pad(axis1)} → {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連単-1頭軸3頭流し'
+    elif mode == 'sanrentan_1jiku_4p':
+        axis1 = u[0]
+        partners = sorted(u[1:5])
+        eyes = f"{pad(axis1)} → {', '.join(pad(x) for x in partners)}"
+        raw_type = '3連単-1頭軸4頭流し'
+    else:
+        partners = sorted(u[:min(4, len(u))])
+        eyes = ', '.join(pad(x) for x in partners)
+        raw_type = act.get('name', jp)
+
+    return {
+        'type': code,
+        'rawType': raw_type,
+        'bet_type_jp': jp,
+        'action_id': int(action_id),
+        'action_name': act.get('name', raw_type),
+        'agent': agent_key,
+        'agent_label': agent_label,
+        'unit': int(unit),
+        'combs': int(combs),
+        'cost': int(cost),
+        'bettingEyesText': eyes,
+        'axis1Num': axis1,
+        'axis2Num': axis2,
+        'partnerNums': partners,
+    }
+
+
+def build_kelly3_portfolio_for_day(day, races_of_day):
+    """kelly3_auto_runner.py と同一ロジック (Double DQN + CQL 並行ハイブリッド) で
+    当日の買い目を生成し、画面表示用の strat2 (sub_items 付き) を返す。
+    - ベースモデル (現行): rl_agent_kelly3_rebuilt_v12.pth / 堅実6アクション / 500円/点 / 利確+5円
+    - 3連系モデル        : rl_agent_kelly3_stop5000_sanren_cap100k_v12.pth / 3連系19アクション / 100円/点 / 利確+5,000円
+    - 1日上限投資予算    : 50,000円 安全ガード
+    """
+    models_bundle = _load_kelly3_models()
+    if models_bundle is None:
+        logger.warning("Kelly3: RLモデルが利用できないため生成をスキップ")
+        return {}
+    net_base, net_sanren, device = models_bundle
 
     loaded = _load_kelly3_score_df(day)
     if loaded is None:
         logger.warning(f"Kelly3: no score CSV for {day} -> PICKUP 2 は生成しません")
         return {}
-    df_scores, models = loaded
+    df_scores, score_models = loaded
 
     # --- オッズ・人気 (DB) ---
     odds_df = _load_tansho_odds_df(day)
@@ -447,203 +762,241 @@ def build_kelly3_portfolio_for_day(day, races_of_day):
             int(row['ninki']) if pd.notnull(row['ninki']) else 99,
         )
 
-    # --- レースごとの Ensemble 順位・z_score を集計 (Kelly3.ipynb Cell4 と同一) ---
+    # --- レースごとの Ensemble 順位・z_score・EV を集計 (kelly3_auto_runner.py と同一) ---
     race_ranks = {}
     all_model_ranks = {}
     for rid, group in df_scores.groupby('race_id'):
-        all_model_ranks[rid] = {}
-        for m in models:
+        rid_str = str(rid)
+        all_model_ranks[rid_str] = {}
+        for m in score_models:
             if m in group.columns:
-                all_model_ranks[rid][m] = group.sort_values(m, ascending=False)['horse_num'].tolist()
+                all_model_ranks[rid_str][m] = group.sort_values(m, ascending=False)['horse_num'].tolist()
         if 'Ensemble' not in group.columns:
             continue
         sorted_ens = group.sort_values('Ensemble', ascending=False)
-        s_vals = sorted_ens['Ensemble'].values
+        s_vals = sorted_ens['Ensemble'].values.astype(float)
         std_val = s_vals.std() if len(s_vals) > 1 and s_vals.std() > 0 else 1.0
         z_scores = (s_vals - s_vals.mean()) / std_val
+        ex = np.exp((z_scores - z_scores.max()) * 1.5)
+        probs = ex / (ex.sum() + 1e-12)
         r_list = []
         for i, (_, row) in enumerate(sorted_ens.iterrows()):
             h_num = int(row['horse_num'])
-            o_val, n_val = odds_map.get((str(rid), h_num), (5.0, 99))
-            r_list.append((h_num, float(row['Ensemble']), float(z_scores[i]), 1.0, o_val, n_val))
-        race_ranks[str(rid)] = r_list
+            o_val, n_val = odds_map.get((rid_str, h_num), (5.0, 99))
+            ev_val = float(probs[i] * o_val)
+            r_list.append((h_num, float(s_vals[i]), float(z_scores[i]), ev_val, o_val, n_val))
+        race_ranks[rid_str] = r_list
 
-    # --- レーン割り当て (Kelly3.ipynb: 発走時刻順 mod3) ---
-    sorted_rids = sorted(races_of_day.keys(),
-                         key=lambda x: (races_of_day[x].get('start_time', '99:99'), x))
-    lane_info = {}
-    for idx, rid in enumerate(sorted_rids):
-        lane = 'Lane_A' if idx % 3 == 0 else ('Lane_B' if idx % 3 == 1 else 'Lane_C')
-        lane_jp = 'レーンA' if idx % 3 == 0 else ('レーンB' if idx % 3 == 1 else 'レーンC')
-        lane_info[str(rid)] = (lane, lane_jp)
+    # --- 発走時刻順ソート & mod3 レーン割り当て (kelly3_auto_runner.py と同一) ---
+    lane_names = ['Lane_A', 'Lane_B', 'Lane_C']
+    lane_names_jp = ['レーンA', 'レーンB', 'レーンC']
+    sorted_rids = sorted(
+        [str(rid) for rid in races_of_day.keys() if str(rid) in race_ranks and len(race_ranks[str(rid)]) >= 4],
+        key=lambda x: (races_of_day[x].get('start_time', '99:99'), x),
+    )
+    if not sorted_rids:
+        return {}
+
+    races_list = []
+    for idx, rid_str in enumerate(sorted_rids):
+        r_info = races_of_day[rid_str]
+        meta = dict(r_info.get('meta') or {})
+        round_val = str(r_info.get('round', '1'))
+        race_num = int(round_val) if round_val.isdigit() else (int(rid_str[10:12]) if len(rid_str) >= 12 and rid_str[10:12].isdigit() else 1)
+        meta['race_num'] = race_num
+        meta['track_name'] = meta.get('track_name') or KELLY_TRACK_MAPPING.get(rid_str[4:6], 'UNKNOWN')
+        meta.setdefault('track_type', '芝')
+        meta.setdefault('class_cat', 'その他')
+        meta.setdefault('course_len', 1600.0)
+        meta.setdefault('n_horses', len(race_ranks[rid_str]))
+
+        lid = idx % 3
+        m_ranks = {k: v for k, v in all_model_ranks.get(rid_str, {}).items() if k in KELLY3_AGREE_MODELS}
+        static_feat = extract_static_features(meta, [h[:5] for h in race_ranks[rid_str]], m_ranks)
+        races_list.append({
+            'race_id': rid_str,
+            'time': r_info.get('start_time', '99:99'),
+            'lane_id': lid,
+            'lane': lane_names[lid],
+            'lane_jp': lane_names_jp[lid],
+            'meta': meta,
+            'h_list': race_ranks[rid_str],
+            'static': static_feat,
+        })
+
+    # 払戻金マップ (確定済みレースがあれば勝ち逃げ判定に反映、開催前は空)
+    p_map = _load_haraimodoshi_map(day)
+
+    lane_totals = [sum(1 for r in races_list if r['lane_id'] == lid) for lid in range(3)]
+    lane_idx = [0, 0, 0]
+    base_stopped = [False, False, False]
+    sanren_stopped = [False, False, False]
+    purchased_history = []
+    total_spent_today = 0
+
+    # 発走時刻バケット作成
+    time_order_keys = []
+    time_buckets = {}
+    for r in races_list:
+        t = r['time']
+        if t not in time_buckets:
+            time_order_keys.append(t)
+            time_buckets[t] = []
+        time_buckets[t].append(r)
 
     result = {}
-    for rid, r_info in races_of_day.items():
-        rid_str = str(rid)
-        h_list = race_ranks.get(rid_str)
-        if not h_list or len(h_list) < 4:
-            continue
-        meta = r_info.get('meta') or {}
-        track_name = meta.get('track_name') or KELLY_TRACK_MAPPING.get(rid_str[4:6], 'UNKNOWN')
-        round_val = str(r_info.get('round', '1'))
-        race_num = int(round_val) if round_val.isdigit() else 1
+    for r_time in time_order_keys:
+        g_races = time_buckets[r_time]
 
-        top1, top2 = h_list[0], h_list[1]
-        top1_pop = top1[5] if len(top1) > 5 and top1[5] < 99 else 1
-        top1_odds = top1[4]
-        score_gap = top1[1] - top2[1]
+        # エージェント×レーン別収支集計 & 勝ち逃げ判定
+        b_spents, b_rets, b_has_pay = [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [False, False, False]
+        s_spents, s_rets, s_has_pay = [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [False, False, False]
+        for b in purchased_history:
+            lid_b = b['lane_id']
+            rid_b = str(b['race_id'])
+            pval, hres = _calc_kelly3_line_payout(b['line'], p_map.get(rid_b)) if rid_b in p_map else (0.0, False)
+            if b['agent'] == 'sanren':
+                s_spents[lid_b] += b['cost']
+                s_rets[lid_b] += pval
+                if hres:
+                    s_has_pay[lid_b] = True
+            else:
+                b_spents[lid_b] += b['cost']
+                b_rets[lid_b] += pval
+                if hres:
+                    b_has_pay[lid_b] = True
 
-        lines, combs, cost, act_name = generate_smart_balanced_bets(
-            str(day), track_name, race_num, [h[:5] for h in h_list],
-            top1_pop=top1_pop, score_gap=score_gap, top1_odds=top1_odds
-        )
-        if not lines:
-            continue
+        for lid_c in range(3):
+            if not base_stopped[lid_c] and b_has_pay[lid_c]:
+                if (b_rets[lid_c] - b_spents[lid_c]) >= KELLY3_BASE_LANE_STOP:
+                    base_stopped[lid_c] = True
+            if not sanren_stopped[lid_c] and s_has_pay[lid_c]:
+                if (s_rets[lid_c] - s_spents[lid_c]) >= KELLY3_SANREN_LANE_STOP:
+                    sanren_stopped[lid_c] = True
 
-        # 券種ごとに集約して sub_items を作る
-        grouped = {}
-        order = []
-        for ln in lines:
-            parts = ln.split(',')
-            if len(parts) < 8:
+        b_tot_spent, b_tot_ret = sum(b_spents), sum(b_rets)
+        s_tot_spent, s_tot_ret = sum(s_spents), sum(s_rets)
+        bucket_bets = []
+
+        for r in g_races:
+            lid = r['lane_id']
+            r_idx_in_lane = lane_idx[lid]
+            lane_idx[lid] += 1
+            m_info = r['meta']
+            rid_str = r['race_id']
+            h_list = r['h_list']
+
+            if total_spent_today >= KELLY3_MAX_BUDGET:
                 continue
-            code = parts[3]
-            nums = [int(x) for x in re.findall(r'\d{2}', parts[6])]
-            amount = int(parts[7]) if parts[7].isdigit() else 100
-            if not nums:
+
+            sub_items = []
+            race_lines = []
+            act_names = []
+
+            # 1) 現行ベースモデル (500円/点, 利確+5円)
+            if not base_stopped[lid]:
+                st_b = get_kelly3_state(
+                    KELLY3_MAX_BUDGET - b_tot_spent,
+                    float(b_tot_spent),
+                    float(b_tot_ret),
+                    b_spents,
+                    b_rets,
+                    base_stopped,
+                    lid,
+                    r_idx_in_lane,
+                    lane_totals[lid],
+                    r['static'],
+                )
+                act_b = predict_action(net_base, st_b, device, allowed_actions=KELLY3_BASE_ACTIONS)
+                lines_b, combs_b, raw_cost_b, act_name_b = generate_rl_bet_lines(
+                    str(day), m_info['track_name'], m_info['race_num'], [h[:5] for h in h_list], act_b
+                )
+                scaled_cost_b = raw_cost_b * KELLY3_BASE_MULT
+                if (act_b != 0 and lines_b
+                        and total_spent_today + sum(x['cost'] for x in bucket_bets) + scaled_cost_b <= KELLY3_MAX_BUDGET):
+                    scaled_lines_b = []
+                    for ln in lines_b:
+                        parts = ln.split(',')
+                        l_cost = (int(parts[-1]) if parts[-1].isdigit() else 100) * KELLY3_BASE_MULT
+                        parts[-1] = str(l_cost)
+                        s_line = ','.join(parts)
+                        scaled_lines_b.append(s_line)
+                        bucket_bets.append({
+                            'race_id': rid_str, 'lane_id': lid, 'agent': 'base',
+                            'cost': l_cost, 'line': s_line,
+                        })
+                    race_lines.extend(scaled_lines_b)
+                    act_names.append(f"現行(x{KELLY3_BASE_MULT}): {act_name_b}")
+                    sub_items.append(_kelly3_action_to_sub_item(
+                        act_b, h_list, combs_b, scaled_cost_b, KELLY3_BASE_MULT, 'base'
+                    ))
+
+            # 2) 3連系モデル (100円/点, 利確+5,000円)
+            if net_sanren is not None and not sanren_stopped[lid]:
+                st_s = get_kelly3_state(
+                    KELLY3_MAX_BUDGET - s_tot_spent,
+                    float(s_tot_spent),
+                    float(s_tot_ret),
+                    s_spents,
+                    s_rets,
+                    sanren_stopped,
+                    lid,
+                    r_idx_in_lane,
+                    lane_totals[lid],
+                    r['static'],
+                )
+                act_s = predict_action(net_sanren, st_s, device, allowed_actions=KELLY3_SANREN_ACTIONS)
+                lines_s, combs_s, raw_cost_s, act_name_s = generate_rl_bet_lines(
+                    str(day), m_info['track_name'], m_info['race_num'], [h[:5] for h in h_list], act_s
+                )
+                scaled_cost_s = raw_cost_s * KELLY3_SANREN_MULT
+                if (act_s != 0 and lines_s
+                        and total_spent_today + sum(x['cost'] for x in bucket_bets) + scaled_cost_s <= KELLY3_MAX_BUDGET):
+                    scaled_lines_s = []
+                    for ln in lines_s:
+                        parts = ln.split(',')
+                        l_cost = (int(parts[-1]) if parts[-1].isdigit() else 100) * KELLY3_SANREN_MULT
+                        parts[-1] = str(l_cost)
+                        s_line = ','.join(parts)
+                        scaled_lines_s.append(s_line)
+                        bucket_bets.append({
+                            'race_id': rid_str, 'lane_id': lid, 'agent': 'sanren',
+                            'cost': l_cost, 'line': s_line,
+                        })
+                    race_lines.extend(scaled_lines_s)
+                    act_names.append(f"3連系(x{KELLY3_SANREN_MULT}): {act_name_s}")
+                    sub_items.append(_kelly3_action_to_sub_item(
+                        act_s, h_list, combs_s, scaled_cost_s, KELLY3_SANREN_MULT, 'sanren'
+                    ))
+
+            if not sub_items:
                 continue
-            combo = tuple(nums) if code in KELLY_ORDERED_BET_CODES else tuple(sorted(nums))
-            if code not in grouped:
-                grouped[code] = {'combos': [], 'amounts': []}
-                order.append(code)
-            grouped[code]['combos'].append(combo)
-            grouped[code]['amounts'].append(amount)
 
-        sub_items = []
-        for code in order:
-            g = grouped[code]
-            uniq, seen_c = [], set()
-            for c in g['combos']:
-                if c not in seen_c:
-                    seen_c.add(c)
-                    uniq.append(c)
-            sub_items.append(_kelly3_sub_item(code, uniq, g['amounts']))
-        if not sub_items:
-            continue
+            result[rid_str] = {
+                'action_id': sub_items[0]['action_id'],
+                'action_name': ' + '.join(act_names),
+                'is_pickup': True,
+                'cost': int(sum(s['cost'] for s in sub_items)),
+                'combs': int(sum(s['combs'] for s in sub_items)),
+                'axis1Num': h_list[0][0],
+                'axis2Num': None,
+                'partnerNums': [h[0] for h in h_list[1:4]],
+                'bettingEyesText': ' / '.join(s['bettingEyesText'] for s in sub_items),
+                'rawType': 'Kelly3-RLハイブリッド',
+                'lines': race_lines,
+                'model': 'Kelly3 RL Hybrid (Double DQN+CQL)',
+                'sub_items': sub_items,
+                'lane': r['lane'],
+                'lane_jp': r['lane_jp'],
+                'top_horses': '-'.join(str(h[0]) for h in h_list[:4]),
+            }
 
-        lane, lane_jp = lane_info.get(rid_str, ('Lane_A', 'レーンA'))
-        result[rid_str] = {
-            'action_id': 1,
-            'action_name': f"Kelly3 {act_name}" if act_name else "Kelly3 中央値重視ポートフォリオ",
-            'is_pickup': True,
-            'cost': int(sum(s['cost'] for s in sub_items)),
-            'combs': int(sum(s['combs'] for s in sub_items)),
-            'axis1Num': top1[0],
-            'axis2Num': None,
-            'partnerNums': [h[0] for h in h_list[1:4]],
-            'bettingEyesText': ' / '.join(s['bettingEyesText'] for s in sub_items),
-            'rawType': 'Kelly3-ポートフォリオ',
-            'lines': lines,
-            'model': 'Kelly3 (中央値重視ポートフォリオ)',
-            'sub_items': sub_items,
-            'lane': lane,
-            'lane_jp': lane_jp,
-            'top_horses': '-'.join(str(h[0]) for h in h_list[:4]),
-        }
+        if bucket_bets:
+            total_spent_today += sum(x['cost'] for x in bucket_bets)
+            purchased_history.extend(bucket_bets)
 
-    logger.info(f"Kelly3: {len(result)} races with portfolio bets for {day}")
+    logger.info(f"Kelly3 RL Hybrid: {len(result)} races / total_spent={total_spent_today:,}円 for {day}")
     return result
-
-
-def _kelly3_sub_item(code, combos, amounts):
-    """券種ごとに集約した買い目を Web 表示用 sub_item に変換する。
-    combos : [(1,2,3), ...] 順序あり券種はそのままの順、順不同券種はソート済み
-    amounts: [100, 100, ...] 各点の購入金額"""
-    jp = KELLY_BET_CODE_JP.get(code, code)
-    ordered = code in KELLY_ORDERED_BET_CODES
-    pad = lambda n: f"{int(n):02d}"
-    total_amount = int(sum(int(a) for a in amounts))
-    n_combs = len(combos)
-    axis1 = axis2 = None
-    partners = []
-    eyes = ""
-    raw_type = jp
-
-    if ordered:
-        firsts = {c[0] for c in combos}
-        if (n_combs == 2 and len(combos[0]) == 2
-                and tuple(combos[1]) == (combos[0][1], combos[0][0])):
-            # 折り返し (a  b)
-            axis1, axis2 = combos[0][0], combos[0][1]
-            partners = [axis2]
-            eyes = f"{pad(axis1)} ↔ {pad(axis2)}"
-            raw_type = f"{jp}-折り返し"
-        elif len(firsts) == 1 and len(combos[0]) >= 3:
-            axis1 = combos[0][0]
-            s2 = list(dict.fromkeys(c[1] for c in combos))
-            s3 = list(dict.fromkeys(c[2] for c in combos))
-            if sorted(s2) == sorted(s3) and len(s2) >= 2:
-                # フォーメーション (軸1頭 → 2着候補 → 3着候補)
-                partners = sorted(s2)
-                eyes = (f"{pad(axis1)} → {', '.join(pad(x) for x in sorted(s2))}"
-                        f" → {', '.join(pad(x) for x in sorted(s3))}")
-                raw_type = f"{jp}-フォーメーション"
-            else:
-                partners = sorted(set(s2) | set(s3))
-                eyes = " / ".join("→".join(pad(x) for x in c) for c in combos)
-                raw_type = f"{jp}-1頭軸ながし"
-        elif len(firsts) == 2 and all(len(c) == 3 for c in combos):
-            axis1, axis2 = sorted(firsts)
-            partners = sorted({c[2] for c in combos})
-            eyes = " / ".join("→".join(pad(x) for x in c) for c in combos)
-            raw_type = f"{jp}-2頭軸ながし"
-        else:
-            partners = sorted({x for c in combos for x in c})
-            eyes = " / ".join("→".join(pad(x) for x in c) for c in combos)
-    else:
-        if len(combos) == 1 and len(combos[0]) == 1:
-            # 単勝/複勝などの 1点買い
-            axis1 = combos[0][0]
-            eyes = pad(axis1)
-            raw_type = f"{jp}-1点"
-        else:
-            common = set(combos[0])
-            for c in combos[1:]:
-                common &= set(c)
-            all_nums = sorted({x for c in combos for x in c})
-            if common and len(all_nums) > len(common):
-                axes = sorted(common)
-                others = [n for n in all_nums if n not in common]
-                axis1 = axes[0]
-                axis2 = axes[1] if len(axes) > 1 else None
-                partners = others
-                axes_txt = " - ".join(pad(x) for x in axes)
-                eyes = f"{axes_txt} - {', '.join(pad(x) for x in others)}"
-                raw_type = f"{jp}-{len(axes)}頭軸{len(others)}頭ながし"
-            elif common:
-                # 全点共通の組み合わせ (実質1点)
-                axes = sorted(common)
-                axis1 = axes[0]
-                axis2 = axes[1] if len(axes) > 1 else None
-                partners = []
-                eyes = " - ".join(pad(x) for x in axes)
-                raw_type = f"{jp}-1点"
-            else:
-                partners = all_nums
-                eyes = f"{', '.join(pad(x) for x in all_nums)} BOX"
-                raw_type = f"{jp}-{len(all_nums)}頭BOX"
-
-    return {
-        'type': code,
-        'rawType': raw_type,
-        'bet_type_jp': jp,
-        'combs': n_combs,
-        'cost': total_amount,
-        'bettingEyesText': eyes,
-        'axis1Num': axis1,
-        'axis2Num': axis2,
-        'partnerNums': partners,
-    }
 
 
 def generate_static_html():
@@ -1087,7 +1440,7 @@ def generate_static_html():
                             elif '障害' in r_trk: t_trk = '障害'
                             else: t_trk = 'その他'
 
-                            dist_val = f_row.get('distance', 0)
+                            dist_val = f_row.get('course_len', f_row.get('distance', 0))
                             try:
                                 dist_num = float(dist_val)
                             except:
@@ -3723,7 +4076,7 @@ def generate_static_html():
             let html = `
                 <div style="text-align: center; margin-bottom: 20px; position: relative;">
                     <div style="font-size: 0.8rem; color: ${{currentActiveRecTab === 'strat2' ? '#fb923c' : '#4ade80'}}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
-                        ${{currentActiveRecTab === 'strat2' ? 'Kelly3 Portfolio (Kelly3.ipynb)' : 'Kelly2 (Kelly2.ipynb)'}}
+                        ${{currentActiveRecTab === 'strat2' ? 'Kelly3 RL Hybrid (Double DQN+CQL)' : 'Kelly2 (Kelly2.ipynb)'}}
                     </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${{raceData.title}}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${{raceId}}', true)" 
@@ -3794,7 +4147,7 @@ def generate_static_html():
                     `;
                 }}
             }} else {{
-                // 戦略2 (Kelly3 / PICKUP 2): Kelly3.ipynb の中央値重視ポートフォリオ
+                // 戦略2 (Kelly3 / PICKUP 2): kelly3_auto_runner.py 強化学習ハイブリッド (現行x5 + 3連系x1)
                 const s2 = raceData.strat2;
                 if (s2) {{
                     const isPickup = s2.is_pickup === true || (s2.action_id > 0);
@@ -3809,12 +4162,12 @@ def generate_static_html():
                         html += `
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 12px 16px; background: rgba(249, 115, 22, 0.08); border-radius: 10px; border: 1px solid rgba(249, 115, 22, 0.25);">
                                 <div>
-                                    <div style="font-weight: 900; color: #fb923c; font-size: 1.1rem;">
+                                    <div style="font-weight: 900; color: #fb923c; font-size: 1.05rem;">
                                         ${{s2.action_name}}
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'Kelly3'}}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'Kelly3 RL Hybrid'}}</span>
                                     </div>
                                     <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
-                                        合計: <strong style="color: #4ade80;">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</strong> / Kelly3.ipynb 中央値重視ポートフォリオ
+                                        合計: <strong style="color: #4ade80;">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</strong> / ${{s2.lane_jp || ''}} (強化学習ハイブリッド: 現行500円・3連系100円)
                                     </div>
                                 </div>
                                 <div style="font-size: 0.7rem; color: #fb923c; font-weight: 700; background: rgba(249, 115, 22, 0.2); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(249, 115, 22, 0.4);">
@@ -3824,14 +4177,15 @@ def generate_static_html():
                         `;
 
                         s2.sub_items.forEach((sub, subIdx) => {{
-                            const subColor = sub.type === 'SANRENPUKU' ? '#fbbf24' : '#fb923c';
-                            const subBg = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.06)' : 'rgba(249, 115, 22, 0.06)';
-                            const subBorder = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.3)' : 'rgba(249, 115, 22, 0.3)';
-                            const subLabel = sub.bet_type_jp || sub.rawType.split('-')[0];
+                            const isSanren = sub.agent === 'sanren' || sub.type === 'SANRENPUKU' || sub.type === 'SANRENTAN';
+                            const subColor = isSanren ? '#fbbf24' : '#38bdf8';
+                            const subBg = isSanren ? 'rgba(251, 191, 36, 0.06)' : 'rgba(56, 189, 248, 0.06)';
+                            const subBorder = isSanren ? 'rgba(251, 191, 36, 0.3)' : 'rgba(56, 189, 248, 0.3)';
+                            const subLabel = sub.agent_label || sub.bet_type_jp || sub.rawType.split('-')[0];
 
                             html += `
-                                <div class="strategy-item-modal" data-strategy-type="${{sub.rawType}}" style="border-left: 4px solid ${{subColor}}; margin-bottom: 14px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <div class="strategy-item-modal" data-strategy-type="${{sub.rawType}}" data-unit="${{sub.unit || 100}}" style="border-left: 4px solid ${{subColor}}; margin-bottom: 14px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px;">
                                         <div style="font-weight: 900; color: ${{subColor}}; font-size: 1.05rem;">
                                             ${{sub.rawType}}
                                             <span style="font-size: 0.75rem; color: #4ade80; margin-left:8px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{sub.combs}}点 (${{sub.cost.toLocaleString()}}円)</span>
@@ -3873,7 +4227,7 @@ def generate_static_html():
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                                     <div style="font-weight: 900; color: ${{actionBadgeColor}}; font-size: 1.1rem;">
                                         ${{s2.rawType}} 
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'Kelly3'}}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{s2.model || 'Kelly3 RL Hybrid'}}</span>
                                         <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{s2.combs}}点 (${{s2.cost.toLocaleString()}}円)</span>
                                     </div>
                                     <div style="font-size: 0.7rem; color: ${{actionBadgeColor}}; font-weight: 700; background: ${{actionBadgeBg}}; padding: 3px 10px; border-radius: 4px; border: 1px solid ${{actionBadgeColor}}50;">
@@ -3891,7 +4245,7 @@ def generate_static_html():
                                         ${{jikuDisp}}${{jikuDisp && partnerDisp ? ' | ' : ''}}${{partnerDisp}}
                                     </div>
                                     <div style="color: #94a3b8;">
-                                        Kelly3 中央値重視ポートフォリオ (Kelly3.ipynb)
+                                        Kelly3 強化学習ハイブリッド (kelly3_auto_runner.py)
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
@@ -3908,7 +4262,7 @@ def generate_static_html():
                         <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                             <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
                             <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Kelly3 Recommendation</div>
-                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 (Kelly3.ipynb) の買い目データがありません</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 (強化学習ハイブリッド) は見送りまたは利確済です</div>
                         </div>
                     `;
                 }}
@@ -4104,15 +4458,23 @@ def generate_static_html():
                 const axisCount = parsedAxes.length;
                 const partnersCount = parsedPartners.length;
 
-                // Kelly3 ポートフォリオ表示用の券種も扱う
+                // Kelly3 ポートフォリオ/RLハイブリッド表示用の券種も扱う
+                let formationStages = null;
                 if (normType.includes("フォーメーション") && eyesText.includes("→")) {{
-                    // 軸1頭 → 2着候補 → 3着候補 (3連単)
+                    // 1着候補 → 2着候補 → 3着候補 (3連単フォーメーション)
                     const stages = eyesText.split("→").map(s =>
                         s.split(",").map(t => String(t).trim().replace(/^0+/, "")).filter(Boolean)
                     );
-                    if (stages.length === 3 && stages[1].length > 0 && stages[2].length > 0) {{
-                        eyesCount = stages[1].length * stages[2].length
-                            - stages[1].filter(v => stages[2].includes(v)).length;
+                    if (stages.length === 3 && stages[0].length > 0 && stages[1].length > 0 && stages[2].length > 0) {{
+                        formationStages = stages;
+                        let cnt = 0;
+                        stages[0].forEach(a => stages[1].forEach(b => {{
+                            if (b === a) return;
+                            stages[2].forEach(c => {{
+                                if (c !== a && c !== b) cnt++;
+                            }});
+                        }}));
+                        eyesCount = cnt;
                         parsedAxes = stages[0];
                         parsedPartners = [];
                     }}
@@ -4126,7 +4488,9 @@ def generate_static_html():
                     eyesCount = 1;
                 }}
                 
-                if (normType.includes("2通り")) {{
+                if (formationStages) {{
+                    // フォーメーション点数は上で計算済み
+                }} else if (normType.includes("2通り")) {{
                     eyesCount = 2;
                 }} else if (normType.includes("単勝") || normType.includes("複勝")) {{
                     eyesCount = 1;
@@ -4159,10 +4523,14 @@ def generate_static_html():
                 }}
 
                 if (winNums.length > 0) {{
-                    const predictedSet = eyesText.split(/[→↔,]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                    const predictedSet = eyesText.split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
-                    if (normType.includes("2通り")) {{
+                    if (formationStages && winNums.length >= 3) {{
+                        isHit = formationStages[0].includes(winNums[0])
+                            && formationStages[1].includes(winNums[1])
+                            && formationStages[2].includes(winNums[2]);
+                    }} else if (normType.includes("2通り")) {{
                         const m = eyesText.match(/\d+/g);
                         if (m && m.length >= 3 && winNums.length >= 3) {{
                             const a1 = String(parseInt(m[0]));
@@ -4222,13 +4590,17 @@ def generate_static_html():
                     }}
                 }}
 
-                const investment = eyesCount * 100;
+                const unitAmt = parseInt(item.getAttribute('data-unit') || '100', 10) || 100;
+                if (unitAmt !== 100 && totalPay > 0) {{
+                    totalPay = Math.round(totalPay * (unitAmt / 100));
+                }}
+                const investment = eyesCount * unitAmt;
                 const profit = totalPay - investment;
 
                 if (resultArea) {{
                     resultArea.innerHTML = `
                         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.85rem;">
-                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${{eyesCount}}点(${{investment}}円)</span></div>
+                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${{eyesCount}}点(${{investment.toLocaleString()}}円)</span></div>
                             <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fff; font-weight:700;">${{totalPay.toLocaleString()}}円</span></div>
                             <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${{profit >= 0 ? '#4ade80' : '#ef4444'}}; font-weight:800;">${{profit < 0 ? '-' : ''}}${{Math.abs(profit).toLocaleString()}}円</span></div>
                         </div>

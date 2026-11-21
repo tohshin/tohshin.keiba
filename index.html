@@ -2433,7 +2433,7 @@
             let html = `
                 <div style="text-align: center; margin-bottom: 20px; position: relative;">
                     <div style="font-size: 0.8rem; color: ${currentActiveRecTab === 'strat2' ? '#fb923c' : '#4ade80'}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
-                        ${currentActiveRecTab === 'strat2' ? 'Kelly3 Portfolio (Kelly3.ipynb)' : 'Kelly2 (Kelly2.ipynb)'}
+                        ${currentActiveRecTab === 'strat2' ? 'Kelly3 RL Hybrid (Double DQN+CQL)' : 'Kelly2 (Kelly2.ipynb)'}
                     </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${raceId}', true)" 
@@ -2504,7 +2504,7 @@
                     `;
                 }
             } else {
-                // 戦略2 (Kelly3 / PICKUP 2): Kelly3.ipynb の中央値重視ポートフォリオ
+                // 戦略2 (Kelly3 / PICKUP 2): kelly3_auto_runner.py 強化学習ハイブリッド (現行x5 + 3連系x1)
                 const s2 = raceData.strat2;
                 if (s2) {
                     const isPickup = s2.is_pickup === true || (s2.action_id > 0);
@@ -2519,12 +2519,12 @@
                         html += `
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 12px 16px; background: rgba(249, 115, 22, 0.08); border-radius: 10px; border: 1px solid rgba(249, 115, 22, 0.25);">
                                 <div>
-                                    <div style="font-weight: 900; color: #fb923c; font-size: 1.1rem;">
+                                    <div style="font-weight: 900; color: #fb923c; font-size: 1.05rem;">
                                         ${s2.action_name}
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3'}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3 RL Hybrid'}</span>
                                     </div>
                                     <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
-                                        合計: <strong style="color: #4ade80;">${s2.combs}点 (${s2.cost.toLocaleString()}円)</strong> / Kelly3.ipynb 中央値重視ポートフォリオ
+                                        合計: <strong style="color: #4ade80;">${s2.combs}点 (${s2.cost.toLocaleString()}円)</strong> / ${s2.lane_jp || ''} (強化学習ハイブリッド: 現行500円・3連系100円)
                                     </div>
                                 </div>
                                 <div style="font-size: 0.7rem; color: #fb923c; font-weight: 700; background: rgba(249, 115, 22, 0.2); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(249, 115, 22, 0.4);">
@@ -2534,14 +2534,15 @@
                         `;
 
                         s2.sub_items.forEach((sub, subIdx) => {
-                            const subColor = sub.type === 'SANRENPUKU' ? '#fbbf24' : '#fb923c';
-                            const subBg = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.06)' : 'rgba(249, 115, 22, 0.06)';
-                            const subBorder = sub.type === 'SANRENPUKU' ? 'rgba(251, 191, 36, 0.3)' : 'rgba(249, 115, 22, 0.3)';
-                            const subLabel = sub.bet_type_jp || sub.rawType.split('-')[0];
+                            const isSanren = sub.agent === 'sanren' || sub.type === 'SANRENPUKU' || sub.type === 'SANRENTAN';
+                            const subColor = isSanren ? '#fbbf24' : '#38bdf8';
+                            const subBg = isSanren ? 'rgba(251, 191, 36, 0.06)' : 'rgba(56, 189, 248, 0.06)';
+                            const subBorder = isSanren ? 'rgba(251, 191, 36, 0.3)' : 'rgba(56, 189, 248, 0.3)';
+                            const subLabel = sub.agent_label || sub.bet_type_jp || sub.rawType.split('-')[0];
 
                             html += `
-                                <div class="strategy-item-modal" data-strategy-type="${sub.rawType}" style="border-left: 4px solid ${subColor}; margin-bottom: 14px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <div class="strategy-item-modal" data-strategy-type="${sub.rawType}" data-unit="${sub.unit || 100}" style="border-left: 4px solid ${subColor}; margin-bottom: 14px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px;">
                                         <div style="font-weight: 900; color: ${subColor}; font-size: 1.05rem;">
                                             ${sub.rawType}
                                             <span style="font-size: 0.75rem; color: #4ade80; margin-left:8px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${sub.combs}点 (${sub.cost.toLocaleString()}円)</span>
@@ -2583,7 +2584,7 @@
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                                     <div style="font-weight: 900; color: ${actionBadgeColor}; font-size: 1.1rem;">
                                         ${s2.rawType} 
-                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3'}</span>
+                                        <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${s2.model || 'Kelly3 RL Hybrid'}</span>
                                         <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${s2.combs}点 (${s2.cost.toLocaleString()}円)</span>
                                     </div>
                                     <div style="font-size: 0.7rem; color: ${actionBadgeColor}; font-weight: 700; background: ${actionBadgeBg}; padding: 3px 10px; border-radius: 4px; border: 1px solid ${actionBadgeColor}50;">
@@ -2601,7 +2602,7 @@
                                         ${jikuDisp}${jikuDisp && partnerDisp ? ' | ' : ''}${partnerDisp}
                                     </div>
                                     <div style="color: #94a3b8;">
-                                        Kelly3 中央値重視ポートフォリオ (Kelly3.ipynb)
+                                        Kelly3 強化学習ハイブリッド (kelly3_auto_runner.py)
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
@@ -2618,7 +2619,7 @@
                         <div style="padding: 40px 20px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); color: var(--text-muted); margin-bottom: 20px;">
                             <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
                             <div style="font-size: 0.9rem; font-weight: 800; color: #fff; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">No Kelly3 Recommendation</div>
-                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 (Kelly3.ipynb) の買い目データがありません</div>
+                            <div style="font-weight: 700; font-size: 0.8rem;">Kelly3 (強化学習ハイブリッド) は見送りまたは利確済です</div>
                         </div>
                     `;
                 }
@@ -2814,15 +2815,23 @@
                 const axisCount = parsedAxes.length;
                 const partnersCount = parsedPartners.length;
 
-                // Kelly3 ポートフォリオ表示用の券種も扱う
+                // Kelly3 ポートフォリオ/RLハイブリッド表示用の券種も扱う
+                let formationStages = null;
                 if (normType.includes("フォーメーション") && eyesText.includes("→")) {
-                    // 軸1頭 → 2着候補 → 3着候補 (3連単)
+                    // 1着候補 → 2着候補 → 3着候補 (3連単フォーメーション)
                     const stages = eyesText.split("→").map(s =>
                         s.split(",").map(t => String(t).trim().replace(/^0+/, "")).filter(Boolean)
                     );
-                    if (stages.length === 3 && stages[1].length > 0 && stages[2].length > 0) {
-                        eyesCount = stages[1].length * stages[2].length
-                            - stages[1].filter(v => stages[2].includes(v)).length;
+                    if (stages.length === 3 && stages[0].length > 0 && stages[1].length > 0 && stages[2].length > 0) {
+                        formationStages = stages;
+                        let cnt = 0;
+                        stages[0].forEach(a => stages[1].forEach(b => {
+                            if (b === a) return;
+                            stages[2].forEach(c => {
+                                if (c !== a && c !== b) cnt++;
+                            });
+                        }));
+                        eyesCount = cnt;
                         parsedAxes = stages[0];
                         parsedPartners = [];
                     }
@@ -2836,7 +2845,9 @@
                     eyesCount = 1;
                 }
                 
-                if (normType.includes("2通り")) {
+                if (formationStages) {
+                    // フォーメーション点数は上で計算済み
+                } else if (normType.includes("2通り")) {
                     eyesCount = 2;
                 } else if (normType.includes("単勝") || normType.includes("複勝")) {
                     eyesCount = 1;
@@ -2869,10 +2880,14 @@
                 }
 
                 if (winNums.length > 0) {
-                    const predictedSet = eyesText.split(/[→↔,]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                    const predictedSet = eyesText.split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
-                    if (normType.includes("2通り")) {
+                    if (formationStages && winNums.length >= 3) {
+                        isHit = formationStages[0].includes(winNums[0])
+                            && formationStages[1].includes(winNums[1])
+                            && formationStages[2].includes(winNums[2]);
+                    } else if (normType.includes("2通り")) {
                         const m = eyesText.match(/\d+/g);
                         if (m && m.length >= 3 && winNums.length >= 3) {
                             const a1 = String(parseInt(m[0]));
@@ -2932,13 +2947,17 @@
                     }
                 }
 
-                const investment = eyesCount * 100;
+                const unitAmt = parseInt(item.getAttribute('data-unit') || '100', 10) || 100;
+                if (unitAmt !== 100 && totalPay > 0) {
+                    totalPay = Math.round(totalPay * (unitAmt / 100));
+                }
+                const investment = eyesCount * unitAmt;
                 const profit = totalPay - investment;
 
                 if (resultArea) {
                     resultArea.innerHTML = `
                         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 0.85rem;">
-                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}点(${investment}円)</span></div>
+                            <div><span style="color:var(--text-muted);">Bets:</span> <span style="color:#fff; font-weight:700;">${eyesCount}点(${investment.toLocaleString()}円)</span></div>
                             <div><span style="color:var(--text-muted);">Payout:</span> <span style="color:#fff; font-weight:700;">${totalPay.toLocaleString()}円</span></div>
                             <div><span style="color:var(--text-muted);">Profit:</span> <span style="color:${profit >= 0 ? '#4ade80' : '#ef4444'}; font-weight:800;">${profit < 0 ? '-' : ''}${Math.abs(profit).toLocaleString()}円</span></div>
                         </div>
