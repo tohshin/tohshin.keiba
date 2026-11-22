@@ -24577,45 +24577,51 @@
       "total_cost": 1100
     },
     "strat2": {
-      "action_id": 15,
-      "action_name": "現行(x5): 単勝-1位(1点)",
+      "action_id": 20,
+      "action_name": "現行(x5): 馬単-1頭軸3頭流し(1→2..4)(3点)",
       "is_pickup": true,
-      "cost": 500,
-      "combs": 1,
+      "cost": 1500,
+      "combs": 3,
       "axis1Num": 3,
       "axis2Num": null,
       "partnerNums": [
-        1,
         14,
-        11
+        11,
+        1
       ],
-      "bettingEyesText": "03",
+      "bettingEyesText": "03 → 14,11,01",
       "rawType": "Kelly3-RLハイブリッド",
       "lines": [
-        "20261122,TOKYO,11,TANSYO,NORMAL,,03,500"
+        "20261122,TOKYO,11,UMATAN,NORMAL,,03-14,500",
+        "20261122,TOKYO,11,UMATAN,NORMAL,,03-11,500",
+        "20261122,TOKYO,11,UMATAN,NORMAL,,03-01,500"
       ],
       "model": "Kelly3 RL Hybrid (Double DQN+CQL)",
       "sub_items": [
         {
-          "type": "TANSYO",
-          "rawType": "単勝-1点",
-          "bet_type_jp": "単勝",
-          "action_id": 15,
-          "action_name": "単勝-1位(1点)",
+          "type": "UMATAN",
+          "rawType": "馬単-1頭軸3頭流し",
+          "bet_type_jp": "馬単",
+          "action_id": 20,
+          "action_name": "馬単-1頭軸3頭流し(1→2..4)(3点)",
           "agent": "base",
           "agent_label": "現行 (x5: 500円/点)",
           "unit": 500,
-          "combs": 1,
-          "cost": 500,
-          "bettingEyesText": "03",
+          "combs": 3,
+          "cost": 1500,
+          "bettingEyesText": "03 → 14,11,01",
           "axis1Num": 3,
           "axis2Num": null,
-          "partnerNums": []
+          "partnerNums": [
+            14,
+            11,
+            1
+          ]
         }
       ],
       "lane": "Lane_C",
       "lane_jp": "レーンC",
-      "top_horses": "3-1-14-11"
+      "top_horses": "3-14-11-1"
     }
   },
   "202605050512": {
