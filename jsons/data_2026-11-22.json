@@ -22307,47 +22307,7 @@
       ],
       "total_cost": 1800
     },
-    "strat2": {
-      "action_id": 15,
-      "action_name": "現行(x5): 単勝-1位(1点)",
-      "is_pickup": true,
-      "cost": 500,
-      "combs": 1,
-      "axis1Num": 15,
-      "axis2Num": null,
-      "partnerNums": [
-        8,
-        5,
-        7
-      ],
-      "bettingEyesText": "15",
-      "rawType": "Kelly3-RLハイブリッド",
-      "lines": [
-        "20261122,TOKYO,10,TANSYO,NORMAL,,15,500"
-      ],
-      "model": "Kelly3 RL Hybrid (Double DQN+CQL)",
-      "sub_items": [
-        {
-          "type": "TANSYO",
-          "rawType": "単勝-1点",
-          "bet_type_jp": "単勝",
-          "action_id": 15,
-          "action_name": "単勝-1位(1点)",
-          "agent": "base",
-          "agent_label": "現行 (x5: 500円/点)",
-          "unit": 500,
-          "combs": 1,
-          "cost": 500,
-          "bettingEyesText": "15",
-          "axis1Num": 15,
-          "axis2Num": null,
-          "partnerNums": []
-        }
-      ],
-      "lane": "Lane_A",
-      "lane_jp": "レーンA",
-      "top_horses": "15-8-5-7"
-    }
+    "strat2": null
   },
   "202605050511": {
     "race_id": "202605050511",
