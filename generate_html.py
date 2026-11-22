@@ -54,11 +54,14 @@ REVERSE_PLACE_DICT = {v: k for k, v in PLACE_DICT_CHUOH.items()}
 # ==========================================================================
 KELLY_CONFIG_DIR = r"C:\Users\kyoui\keiba\config"
 KELLY_STRATEGIES_V13_CSV = os.path.join(KELLY_CONFIG_DIR, "winning_strategies_v13.csv")
-KELLY_TCSV_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV"
+KELLY_TCSV_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v12"
+KELLY_TCSV_FALLBACK_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV"
 KELLY_TCSV_V13_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v13"
 KELLY_TANSHO_DB_URL = "postgresql://postgres:zatenn@localhost/postgres"
 
 # Kelly2 7モデル市場残差アンサンブル定数 (Kelly2.ipynb と同一デフォルト)
+KELLY2_RESIDUAL_VERSION = "residual_v1"
+KELLY2_RECENT_RECALC_DAYS = 7  # 直近N日以内（および未来日）は毎回再計算、それ以前の生成済み過去日は既存JSONを再利用
 KELLY2_RESIDUAL_MODEL_DIR = r"C:\Users\kyoui\keiba\models\residual_v1"
 KELLY2_FEATURE_TMP_DIR = r"C:\Users\kyoui\keiba\data\tmp"
 KELLY2_STRATEGY_CONFIG = {
@@ -671,13 +674,13 @@ def build_kelly2_bets_for_day(day, races_of_day):
     for rid, bets in by_race.items():
         r_cost = sum(b['cost'] for b in bets)
         total_cost += r_cost
-        result[rid] = {'bets': bets, 'total_cost': r_cost}
+        result[rid] = {'bets': bets, 'total_cost': r_cost, 'version': KELLY2_RESIDUAL_VERSION}
     logger.info(f"Kelly2 (residual_v1): {len(deduped)} bets / {len(result)} races / total_cost={total_cost:,}円 for {day_str}")
     return result
 
 
 def _load_kelly3_score_df(day):
-    """Kelly3.ipynb (Cell4) と同一の TCSV 直下モデルスコアCSVを読み込み、
+    """TCSV\\v12 のモデルスコアCSV（無い場合は TCSV 直下にフォールバック）を読み込み、
     race_id / horse_num を付与した DataFrame を返す。
     Ensemble を優先し、無い場合は他モデルの平均で補完する。"""
     score_dfs = {}
@@ -685,7 +688,11 @@ def _load_kelly3_score_df(day):
         name = f"Ensemble_{day}.csv" if m == 'Ensemble' else f"{m}_raw_{day}.csv"
         fp = os.path.join(KELLY_TCSV_DIR, name)
         if not os.path.exists(fp):
-            continue
+            fp_fb = os.path.join(KELLY_TCSV_FALLBACK_DIR, name)
+            if os.path.exists(fp_fb):
+                fp = fp_fb
+            else:
+                continue
         try:
             df = pd.read_csv(fp)
         except Exception as e:
@@ -1812,8 +1819,39 @@ def generate_static_html():
         0: {1: "10:00", 2: "10:35", 3: "11:05", 4: "11:35", 5: "12:25", 6: "12:55", 7: "13:25", 8: "13:55", 9: "14:30", 10: "15:05", 11: "15:40", 12: "16:20"}
     }
 
-    # 各日付ごとに発走時刻を付与・タイトル更新
-    for d, d_races in dates_data.items():
+    # 各日付ごとに発走時刻を付与・タイトル更新 & PICKUP生成
+    jsons_dir = r"C:\Users\kyoui\tohshin_keiba\jsons"
+    recalc_cutoff_str = (datetime.now() - timedelta(days=KELLY2_RECENT_RECALC_DAYS)).strftime('%Y-%m-%d')
+    reused_dates = []
+    updated_dates = []
+
+    def _is_existing_residual_v1_json(json_path, expected_rids):
+        if not os.path.exists(json_path):
+            return False
+        try:
+            with open(json_path, "r", encoding="utf-8") as rf:
+                ex = json.load(rf)
+            if not isinstance(ex, dict) or not expected_rids.issubset(ex.keys()):
+                return False
+            for r_obj in ex.values():
+                k2 = r_obj.get('kelly2')
+                if isinstance(k2, dict):
+                    if k2.get('version') == KELLY2_RESIDUAL_VERSION:
+                        return True
+                    for b in (k2.get('bets') or []):
+                        if KELLY2_RESIDUAL_VERSION in str(b.get('model', '')):
+                            return True
+            return False
+        except Exception:
+            return False
+
+    for d, d_races in sorted(dates_data.items()):
+        out_json = os.path.join(jsons_dir, f"data_{d}.json")
+        # 直近N日より前の過去日で、すでに residual_v1 のJSONが存在する場合は再計算・書き出しをスキップ
+        if d < recalc_cutoff_str and _is_existing_residual_v1_json(out_json, set(d_races.keys())):
+            reused_dates.append(d)
+            continue
+
         place_codes = sorted(list(set(r_id[4:6] for r_id in d_races.keys() if len(r_id) >= 6)))
         num_places = len(place_codes)
         
@@ -1841,14 +1879,16 @@ def generate_static_html():
             r_info['title'] = f"{p_str}{rd_str}R {s_time}".strip()
 
         # ==================================================================
-        # PICKUP (戦略1) : Kelly2.ipynb と同一ロジックの買い目
-        # PICKUP 2 (戦略2): Kelly3.ipynb (中央値重視ポートフォリオ) の買い目
+        # PICKUP (戦略1) : Kelly2.ipynb (residual_v1) と同一ロジックの買い目
+        # PICKUP 2 (戦略2): Kelly3 (RLハイブリッド) の買い目
         # ==================================================================
         day_str = d.replace('-', '')
         kelly2_map = build_kelly2_bets_for_day(day_str, d_races)
         if kelly2_map is not None:
             for k_rid in d_races:
-                d_races[k_rid]['kelly2'] = kelly2_map.get(k_rid, {'bets': [], 'total_cost': 0})
+                d_races[k_rid]['kelly2'] = kelly2_map.get(
+                    k_rid, {'bets': [], 'total_cost': 0, 'version': KELLY2_RESIDUAL_VERSION}
+                )
 
         kelly3_map = build_kelly3_portfolio_for_day(day_str, d_races)
         if kelly3_map:
@@ -1856,17 +1896,20 @@ def generate_static_html():
                 if k_rid in d_races:
                     d_races[k_rid]['strat2'] = strat2_item
 
-    # 1. 各日付のデータを保存
-    jsons_dir = r"C:\Users\kyoui\tohshin_keiba\jsons"
-    for d, d_races in dates_data.items():
-        out_json = os.path.join(jsons_dir, f"data_{d}.json")
+        # 1. 再計算した日付のみ JSON を保存
         try:
             os.makedirs(os.path.dirname(out_json), exist_ok=True)
             with open(out_json, "w", encoding="utf-8") as f:
                 json.dump(d_races, f, ensure_ascii=False)
+            updated_dates.append(d)
             logger.info(f"Generated daily JSON: {out_json}")
         except Exception as e:
             logger.error(f"Failed to write daily JSON {out_json}: {e}")
+
+    logger.info(
+        f"Daily JSON summary (cutoff={recalc_cutoff_str}): "
+        f"reused={len(reused_dates)} past dates, updated={len(updated_dates)} dates"
+    )
 
     # 2. メタデータ（日付リスト）を保存
     # pickleフィルタにより dates_data は直近分のみの場合があるため、

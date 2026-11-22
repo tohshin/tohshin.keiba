@@ -3,29 +3,8 @@
 // icon-color: green; icon-glyph: horse;
 
 /**
- * JRAスマッピー自動入力スクリプト (for Scriptable)
- * 複数買い目の連続入力・状態機械対応版
- * 
- * 【主な改修点】
- * 1. 入力データ正規化: 新形式 {bets:[{venueName,weekday,steps}]} と 旧形式 {steps,venueName,weekday} を受付け
- * 2. 状態機械 (State Machine): BOOT / START / GOTO_JYO / RUN_BET / WAIT_USER / NEXT / DONE
- * 3. 買い目ごとのRUN_BET実行: 買い目ごとに25秒タイムアウト、steps完了後は WAIT_USER へ
- * 4. WAIT_USER待機: タイムアウトなし。ユーザーが馬番・金額を入力して投票一覧(#toui)へ進み、
- *    ul.voteList li の件数が増加したら次へ
- * 5. GOTO_JYO遷移: #fromjyo_top a（非表示なら #fromjyo_under a）をクリックして #jyo へ遷移
- * 6. ページ判定: id (#jyo,#race,#siki,#hou,#toui) を優先し、フォールバックは else if でテキスト判定
- * 7. 診断表示: 画面上部バーに「k/N件目 状態」と詳細をリアルタイム表示
- * 8. Scriptable制約準拠: WebView.evaluateJavaScript を1回呼び出し、内部ループで完結
- * 
- * 【動作確認手順】
- * (1) 単一買い目（旧形式互換）テスト:
- *     クリップボードに {"steps":["阪神","8","8","0"],"venueName":"阪神","weekday":"日"} をコピーしてScriptableで実行。
- *     場名・レース・式別・方式が選択され、馬番選択画面で手動入力待ち（WAIT_USER）になることを確認。
- * (2) 複数買い目テスト:
- *     クリップボードに {"bets":[{"venueName":"阪神","weekday":"日","steps":["阪神","8","8","0"]},{"venueName":"阪神","weekday":"日","steps":["阪神","3","1","0"]}]}
- *     をコピーしてScriptableで実行。
- *     1件目の選択完了後、馬番・金額を入力して「投票一覧へ」進むと、自動的に「場名から続けて入力」が押されて
- *     2件目のステップが自動実行されることを確認。
+ * JRA スマッピー 自動入力スクリプト (for Scriptable)
+ * 画面状態駆動型・複数買い目の一括連続入力・金額自動入力完全対応版
  */
 
 async function main() {
@@ -42,30 +21,23 @@ async function main() {
   if (rawData) {
     try {
       params = JSON.parse(rawData);
-    } catch (e) {
-      // JSONパース失敗
-    }
+    } catch (e) {}
   }
 
-  // [改修点1] 入力JSONの正規化
-  // {bets:[{venueName,weekday,steps}]} 形式と 旧形式 {steps,venueName,weekday} の両方に対応
+  // 入力JSONの正規化
   let bets = [];
   if (params) {
     if (params.bets && Array.isArray(params.bets)) {
       bets = params.bets;
-    } else if (params.steps) {
-      bets = [{
-        steps: params.steps,
-        venueName: params.venueName || "",
-        weekday: params.weekday || ""
-      }];
+    } else if (params.steps || params.venueName || params.placeName) {
+      bets = [params];
     }
   }
 
   if (!bets || bets.length === 0) {
     let a = new Alert();
-    a.title = "データが見つかりません";
-    a.message = "買い目データが渡されていません。競馬予想サイトの「Scriptableで投票」ボタンを押してください。";
+    a.title = "買い目データが見つかりません";
+    a.message = "競馬予想サイト上の「スマッピー」ボタンから実行してください。";
     a.addAction("OK");
     await a.present();
     Script.complete();
@@ -78,384 +50,491 @@ async function main() {
   let presentPromise = wv.present(true);
   await wv.loadURL(topUrl);
 
-  // 3. トップページから「通常投票」への自動遷移
-  let currentUrl = await wv.evaluateJavaScript("window.location.href", false);
-  if (!currentUrl || !currentUrl.includes("pw_982_i.cgi")) {
-    // ToQRBet または 通常投票リンクが準備できるまで待機（最大3秒）
-    for (let k = 0; k < 15; k++) {
-      let ready = await wv.evaluateJavaScript("typeof ToQRBet === 'function' || !!document.querySelector('a.ico_regular') || !!document.FORM0", false);
-      if (ready) break;
-      await new Promise(r => Timer.schedule(200, false, r));
-    }
-
-    // 通常投票へ遷移実行
-    await wv.evaluateJavaScript(`
-      (function() {
-        if (typeof ToQRBet === "function") {
-          ToQRBet();
-        } else {
-          var a = document.querySelector("a.ico_regular");
-          if (a) {
-            a.click();
-          } else if (document.FORM0) {
-            document.FORM0.action = "pw_982_i.cgi#";
-            document.FORM0.submit();
-          }
-        }
-      })();
-    `, false);
-
-    // pw_982_i.cgi へのページ遷移完了を待機
-    await wv.waitForLoad();
-  }
-
-  // ページ初期化を少し待機
-  await new Promise(r => Timer.schedule(500, false, r));
-
-  // 4. pw_982_i.cgi 上での状態機械オートメーション
-  // [改修点8] WebView.evaluateJavaScript を1回呼び出し、内部ループで完結 (ES5準拠)
-  let runnerScript = `
+  // 3. オートメーションスクリプト（画面状態駆動・外側から継続注入）
+  let automationScript = `
   (function() {
     var bets = ${JSON.stringify(bets)};
-    var sn = {"1":"単勝","2":"複勝","3":"枠連","4":"馬連","5":"ワイド","6":"馬単","7":"3連複","8":"3連単"};
 
-    // [改修点2] 状態機械: BOOT / START / GOTO_JYO / RUN_BET / WAIT_USER / NEXT / DONE
-    var state = "BOOT";
-    var betIndex = 0;
-    var stepIndex = 0;
-    var retryCount = 0;
-    var startVoteCount = 0;
-    var betStartTime = 0;
+    if (!window._smappyState) {
+      window._smappyState = {
+        betIndex: 0,
+        lastStepName: "",
+        actionCooldown: 0,
+        amountSetAttempted: false
+      };
+    }
+    var st = window._smappyState;
 
-    // [改修点7] 画面上部 診断バー表示
-    function dg(m) {
+    if (st.betIndex >= bets.length) {
+      st.betIndex = bets.length - 1;
+    }
+
+    var curBet = bets[st.betIndex] || bets[0];
+    var venue = curBet.venueName || curBet.placeName || "";
+    var weekday = curBet.weekday || "";
+    var raceNum = String(curBet.round || curBet.raceNo || (curBet.steps && curBet.steps[1]) || "1").replace(/[^0-9]/g, "");
+    var sikiCode = String(curBet.siki || (curBet.steps && curBet.steps[2]) || "1");
+    var houCode = String(curBet.hou || (curBet.steps && curBet.steps[3]) || "0");
+    var axes = (curBet.axes || []).map(function(x) { return String(parseInt(x, 10)); });
+    var partners = (curBet.partners || []).map(function(x) { return String(parseInt(x, 10)); });
+    var rawSteps = curBet.steps || [];
+    var uAmount = parseInt(curBet.unitAmount) || 100;
+    var hundreds = Math.max(1, Math.floor(uAmount / 100));
+    var isMulti = Boolean(curBet.isMulti);
+
+    var sikiMap = {
+      "1": ["単勝"],
+      "2": ["複勝"],
+      "3": ["枠連"],
+      "4": ["馬連"],
+      "5": ["ワイド"],
+      "6": ["馬単"],
+      "7": ["３連複", "3連複"],
+      "8": ["３連単", "3連単"]
+    };
+
+    function dg(m, col) {
       var x = document.getElementById("smappy-diag");
       if (!x) {
         x = document.createElement("div");
         x.id = "smappy-diag";
-        x.style = "position:fixed;top:0;left:0;width:100%;z-index:100000;background:rgba(0,0,0,0.9);color:#0f0;font-size:11px;padding:4px 8px;pointer-events:none;font-family:sans-serif;line-height:1.3;box-sizing:border-box;word-break:break-all;";
-        document.body.appendChild(x);
+        x.style = "position:fixed;top:0;left:0;width:100%;z-index:2147483647;background:" + (col || "rgba(16,185,129,0.95)") + ";color:#ffffff;font-size:12px;font-weight:bold;padding:9px 12px;pointer-events:none;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,0.35);line-height:1.4;";
+        if (document.body) document.body.appendChild(x);
       }
-      x.innerText = m;
-    }
-
-    // 診断表示用フォーマット: 「k/N件目 状態」を付与
-    function fmtDiag(detail) {
-      var k = betIndex + 1;
+      var k = (st.betIndex || 0) + 1;
       var n = bets.length;
-      return "[" + k + "/" + n + "件目 " + state + "] " + (detail || "");
+      x.innerText = "[" + k + "/" + n + "件目] " + m;
+      if (col) x.style.background = col;
     }
 
-    // [流用] タッチ/マウス/クリック発火ロジック
-    function tp(e) {
-      if (!e) return;
-      var r = e.getBoundingClientRect();
-      var x = r.left + r.width / 2;
-      var y = r.top + r.height / 2;
-      var o = {bubbles:true, cancelable:true, clientX:x, clientY:y, view:window};
+    function trigger(el) {
+      if (!el) return;
+      try { el.focus(); } catch(e) {}
+
       try {
-        var t = new Touch({identifier:Date.now(), target:e, clientX:x, clientY:y, radiusX:2, radiusY:2});
-        var to = {bubbles:true, cancelable:true, touches:[t], targetTouches:[t], changedTouches:[t], view:window};
-        e.dispatchEvent(new TouchEvent("touchstart", to));
-        e.dispatchEvent(new TouchEvent("touchend", to));
-      } catch(err) {}
-      e.dispatchEvent(new MouseEvent("mousedown", o));
-      e.dispatchEvent(new MouseEvent("mouseup", o));
-      e.dispatchEvent(new MouseEvent("click", o));
-      try { e.click(); } catch(err) {}
+        var r = el.getBoundingClientRect();
+        var x = r.left + r.width / 2;
+        var y = r.top + r.height / 2;
+        var t = new Touch({identifier: Date.now(), target: el, clientX: x, clientY: y, radiusX: 2, radiusY: 2});
+        var to = {bubbles: true, cancelable: true, touches: [t], targetTouches: [t], changedTouches: [t], view: window};
+        el.dispatchEvent(new TouchEvent("touchstart", to));
+        el.dispatchEvent(new TouchEvent("touchend", to));
+      } catch (err) {}
+
+      try {
+        var r2 = el.getBoundingClientRect();
+        var x2 = r2.left + r2.width / 2;
+        var y2 = r2.top + r2.height / 2;
+        el.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true, cancelable: true, clientX: x2, clientY: y2, view: window}));
+        el.dispatchEvent(new PointerEvent("pointerup", {bubbles: true, cancelable: true, clientX: x2, clientY: y2, view: window}));
+      } catch (err) {}
+
+      try {
+        var r3 = el.getBoundingClientRect();
+        var x3 = r3.left + r3.width / 2;
+        var y3 = r3.top + r3.height / 2;
+        var o = {bubbles: true, cancelable: true, clientX: x3, clientY: y3, view: window};
+        el.dispatchEvent(new MouseEvent("mousedown", o));
+        el.dispatchEvent(new MouseEvent("mouseup", o));
+        el.dispatchEvent(new MouseEvent("click", o));
+      } catch (err) {}
+
+      try { el.click(); } catch (err) {}
+
+      try {
+        if (window.$ && typeof window.$(el).trigger === "function") {
+          window.$(el).trigger("vclick");
+          window.$(el).trigger("tap");
+          window.$(el).trigger("click");
+        }
+      } catch (err) {}
+
+      var onclick = el.getAttribute("onclick") || "";
+      if (onclick) {
+        try { window.eval(onclick); } catch (err) {}
+      }
+      var href = el.getAttribute("href") || "";
+      if (href && href.toLowerCase().startsWith("javascript:")) {
+        try {
+          var code = href.replace(/^javascript:/i, '');
+          window.eval(code);
+        } catch (err) {}
+      }
     }
 
-    // [流用] 馬番選択へ進む確定ボタン等のクリック
-    function cf() {
-      var k = ["金額", "セット", "次へ", "決定"];
-      var a = document.querySelectorAll("a,button");
-      for (var j = 0; j < a.length; j++) {
-        var b = a[j].getBoundingClientRect();
-        if (b.width > 0 && b.height > 0) {
-          for (var l = 0; l < k.length; l++) {
-            if (a[j].textContent.indexOf(k[l]) >= 0) {
-              tp(a[j]);
-              return;
-            }
+    if (Date.now() < st.actionCooldown) {
+      return { status: "COOLDOWN" };
+    }
+
+    try {
+      var bodyText = document.body ? (document.body.innerText || "") : "";
+      var activePage = document.querySelector(".ui-page-active") || document;
+      var curHref = location.href || "";
+      var curHash = location.hash || "";
+
+      // 全リンク・ボタンの取得
+      var allLinks = Array.from(activePage.querySelectorAll("a, button, input[type='button'], input[type='submit'], li.ui-btn, [role='button']"));
+      var titleEl = activePage.querySelector(".ui-title, h1.ui-title") || document.querySelector(".ui-page-active .ui-title, .ui-title");
+      var title = titleEl ? (titleEl.innerText || titleEl.textContent || "").trim() : "";
+
+      // 1. 投票一覧画面 (#toui)
+      var isVoteListScreen = (curHash === "#toui" || (activePage && activePage.id === "toui") || title.indexOf("投票一覧") >= 0 || bodyText.indexOf("場名から続けて入力") >= 0);
+
+      if (isVoteListScreen) {
+        st.amountSetAttempted = false; // 次の買い目のためにフラグリセット
+
+        if (st.betIndex + 1 < bets.length) {
+          // 次の買い目がある場合 -> 「場名から続けて入力」を押して次へ
+          dg("🏇 次の買い目（" + (st.betIndex + 2) + "/" + bets.length + "件目）へ進みます...");
+          var fromJyoBtn = document.getElementById("fromjyo_top") ||
+                           document.querySelector("a#fromjyo_top, #fromjyo_top a, a#fromjyo_under, #fromjyo_under a") ||
+                           allLinks.find(function(a) {
+                             var t = (a.innerText || a.textContent || "").trim();
+                             return t.indexOf("場名から") >= 0 || t.indexOf("競馬場") >= 0;
+                           });
+          if (fromJyoBtn) {
+            trigger(fromJyoBtn);
+          } else if (typeof ToJyo === "function") {
+            ToJyo();
+          }
+          st.betIndex++;
+          st.actionCooldown = Date.now() + 1200;
+          return { status: "NEXT_BET_TRIGGERED" };
+        } else {
+          // 全買い目セット完了時 -> 「QR作成」または「投票用QR表示」
+          dg("🎉 【全" + bets.length + "件セット完了】 QR作成ボタンを押してQRコードを表示してください！", "rgba(16,185,129,0.95)");
+          var qrBtn = allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            return t.indexOf("QR") >= 0 || t.indexOf("ＱＲ") >= 0 || t.indexOf("作成") >= 0;
+          });
+          if (qrBtn) {
+            trigger(qrBtn);
+          }
+          return { status: "DONE" };
+        }
+      }
+
+      // 2. 金額入力画面 (#kin または タイトル「金額入力」)
+      var kinInputs = Array.from(activePage.querySelectorAll("#kin input, input.amount, input[name='amount'], input[type='tel'], input[type='text'], input[type='number']"));
+      var isAmountScreen = (curHash === "#kin" || (activePage && activePage.id === "kin") || title.indexOf("金額") >= 0 || (kinInputs.length > 0 && bodyText.indexOf("00円") >= 0));
+
+      if (isAmountScreen) {
+        var kinInput = kinInputs.find(function(inp) {
+          var r = inp.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && !inp.disabled;
+        }) || kinInputs[0];
+
+        var setBtn = allLinks.find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return t === "セット" || t.indexOf("セット") >= 0;
+        }) || Array.from(document.querySelectorAll("a, button")).find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return t === "セット" || t.indexOf("セット") >= 0;
+        });
+
+        // マルチ指定の反映
+        if (isMulti) {
+          var mb = activePage.querySelector("#multi, input[name='multi'], input[type='checkbox'][id*='multi']") ||
+                   document.querySelector("#multi, input[name='multi'], input[type='checkbox'][id*='multi']");
+          if (mb && !mb.checked) {
+            trigger(mb);
           }
         }
-      }
-    }
 
-    // [改修点6] ページ判定: id (#jyo,#race,#siki,#hou,#toui) を優先し、フォールバックは else if
-    function getPage() {
-      // 1. アクティブページ (.ui-page-active) の id を最優先
-      var act = document.querySelector(".ui-page-active");
-      if (act && act.id) {
-        if (act.id === "jyo") return "jyo";
-        if (act.id === "race") return "race";
-        if (act.id === "siki") return "siki";
-        if (act.id === "hou") return "hou";
-        if (act.id === "toui") return "toui";
-      }
-      // 2. DOM全体の id で判定
-      if (document.getElementById("jyo")) return "jyo";
-      else if (document.getElementById("race")) return "race";
-      else if (document.getElementById("siki")) return "siki";
-      else if (document.getElementById("hou")) return "hou";
-      else if (document.getElementById("toui")) return "toui";
-      // 3. テキストによるフォールバック (else if)
-      else {
-        var c = (document.body ? (document.body.innerText || "") : "");
-        if (c.indexOf("投票一覧") >= 0 || c.indexOf("投票内容") >= 0) return "toui";
-        else if (c.indexOf("競馬場") >= 0 || c.indexOf("会場") >= 0 || c.indexOf("開催") >= 0) return "jyo";
-        else if (c.indexOf("レース") >= 0 || c.indexOf("回次") >= 0) return "race";
-        else if (c.indexOf("式別") >= 0) return "siki";
-        else if (c.indexOf("方式") >= 0) return "hou";
-      }
-      return "";
-    }
+        dg("💰 【金額入力】 1点 " + (hundreds * 100) + "円をセット中...");
+        if (kinInput) {
+          kinInput.value = String(hundreds);
+          if (kinInput.onchange) kinInput.onchange();
+          if (kinInput.oninput) kinInput.oninput();
+          kinInput.dispatchEvent(new Event('input', {bubbles:true}));
+          kinInput.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        if (typeof VMA === "function") {
+          try { VMA(String(hundreds)); } catch(e) {}
+        }
 
-    // [改修点4] 投票一覧 (ul.voteList li) の件数を取得
-    function getVoteCount() {
-      var list = document.querySelectorAll("ul.voteList li");
-      return list ? list.length : 0;
-    }
+        setTimeout(function() {
+          if (typeof SetBet === "function") {
+            try { SetBet(0); } catch(e) {}
+          } else if (setBtn) {
+            trigger(setBtn);
+          }
+        }, 150);
 
-    // [改修点5] #fromjyo_top a（非表示なら #fromjyo_under a）をクリック
-    function clickFromJyo() {
-      var topBtn = document.querySelector("#fromjyo_top a");
-      if (topBtn) {
-        var r = topBtn.getBoundingClientRect();
-        var st = window.getComputedStyle ? window.getComputedStyle(topBtn) : null;
-        var isVis = r.width > 0 && r.height > 0 && (!st || (st.display !== "none" && st.visibility !== "hidden"));
-        if (isVis) {
-          tp(topBtn);
-          return true;
+        st.actionCooldown = Date.now() + 1000;
+        return { status: "AMOUNT_SET" };
+      }
+
+      // 3. 馬番選択画面 (#uma1, #uma2, #umab 等)
+      var isUma1 = (curHash === "#uma1" || title === "軸" || title.indexOf("軸") >= 0 || title.indexOf("1着") >= 0);
+      var isUma2 = (curHash === "#uma2" || title === "相手" || title.indexOf("相手") >= 0);
+      var isHorseScreen = isUma1 || isUma2 || curHash === "#umab" || (title.indexOf("馬番") >= 0 || title.indexOf("選択") >= 0) && !isAmountScreen && !isVoteListScreen;
+
+      function matchHorseEl(el, hNum) {
+        if (!el) return false;
+        var t = (el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+        var hStr = String(parseInt(hNum, 10));
+        var p1 = new RegExp("^0*" + hStr + "(?:\\s|$|[^0-9])");
+        if (p1.test(t)) return true;
+        var dv = el.getAttribute("data-value") || el.getAttribute("data-horse") || el.getAttribute("id") || "";
+        if (dv === hStr || dv === ("0" + hStr) || dv === "horse_" + hStr) return true;
+        return false;
+      }
+
+      if (isHorseScreen) {
+        // A. 相手馬選択画面 (#uma2)
+        if (isUma2) {
+          dg("🐎 【相手馬選択】 相手馬を選択中...");
+          var targetPartners = (partners && partners.length > 0) ? partners : (axes.length > 1 ? axes.slice(1) : []);
+          targetPartners.forEach(function(h) {
+            var el = allLinks.find(function(a) { return matchHorseEl(a, h); }) ||
+                     Array.from(document.querySelectorAll("a, button, li.ui-btn")).find(function(a) { return matchHorseEl(a, h); });
+            if (el && !el.classList.contains("selected")) {
+              trigger(el);
+            }
+          });
+
+          // 「金額入力画面へ」ボタン
+          var toKinBtn = document.getElementById("to_kin") ||
+                         activePage.querySelector("a#to_kin, [id*='to_kin']") ||
+                         allLinks.find(function(a) {
+                           var t = (a.innerText || a.textContent || "").trim();
+                           var h = a.getAttribute("href") || "";
+                           return t.indexOf("金額入力") >= 0 || h.indexOf("#kin") >= 0 || t.indexOf("次へ") >= 0;
+                         }) || Array.from(document.querySelectorAll("a, button")).find(function(a) {
+                           var t = (a.innerText || a.textContent || "").trim();
+                           var h = a.getAttribute("href") || "";
+                           return t.indexOf("金額入力") >= 0 || h.indexOf("#kin") >= 0;
+                         });
+
+          if (toKinBtn && !toKinBtn.classList.contains("disabled")) {
+            trigger(toKinBtn);
+            st.actionCooldown = Date.now() + 800;
+            return { status: "TO_KIN" };
+          }
+          st.actionCooldown = Date.now() + 800;
+          return { status: "PARTNERS_SELECTING" };
+        }
+
+        // B. 軸馬選択画面 (#uma1) または 通常・ボックス馬番画面
+        if (isUma1 || isHorseScreen) {
+          dg("🐎 【馬番選択】 軸馬・買い目を選択中...");
+          var targetList = (axes && axes.length > 0) ? axes : partners;
+          if (targetList.length === 0 && rawSteps.length > 3) targetList = rawSteps.slice(3);
+
+          targetList.forEach(function(h) {
+            var el = allLinks.find(function(a) { return matchHorseEl(a, h); }) ||
+                     Array.from(document.querySelectorAll("a, button, li.ui-btn")).find(function(a) { return matchHorseEl(a, h); });
+            if (el) {
+              trigger(el);
+            }
+          });
+
+          // 金額入力へ進むボタンがある場合（通常・ボックスなど）
+          var toKinBtn2 = document.getElementById("to_kin") ||
+                          allLinks.find(function(a) {
+                            var t = (a.innerText || a.textContent || "").trim();
+                            var h = a.getAttribute("href") || "";
+                            return t.indexOf("金額入力") >= 0 || h.indexOf("#kin") >= 0 || t.indexOf("次へ") >= 0;
+                          });
+          if (toKinBtn2 && !toKinBtn2.classList.contains("disabled")) {
+            trigger(toKinBtn2);
+            st.actionCooldown = Date.now() + 800;
+            return { status: "TO_KIN" };
+          }
+
+          st.actionCooldown = Date.now() + 800;
+          return { status: "HORSE_CLICKED" };
         }
       }
-      var underBtn = document.querySelector("#fromjyo_under a");
-      if (underBtn) {
-        var ur = underBtn.getBoundingClientRect();
-        if (ur.width > 0 && ur.height > 0) {
-          tp(underBtn);
-          return true;
+
+      // 4. 方式選択画面 (#hou)
+      var isHouScreen = (curHash === "#hou" || (activePage && activePage.id === "hou") || title.indexOf("方式") >= 0);
+
+      if (isHouScreen) {
+        var isBox = (houCode === "1" || houCode === "box" || houCode === "2");
+        var isNagashi = (!isBox && partners && partners.length > 0) || 
+                        houCode === "nagashi" || houCode === "multi" || 
+                        houCode === "3" || houCode === "6" || houCode === "7";
+
+        var targetLabels = [];
+        if (isBox) {
+          targetLabels = ["ボックス", "BOX"];
+        } else if (isNagashi) {
+          var numAxes = (axes && axes.length) ? axes.length : 1;
+          if (sikiCode === "8") { // 3連単
+            if (numAxes >= 2) targetLabels = ["1･2着ながし", "1・2着ながし", "軸2頭ながし", "ながし"];
+            else targetLabels = ["1着ながし", "軸1頭ながし", "ながし"];
+          } else if (sikiCode === "7") { // 3連複
+            if (numAxes >= 2) targetLabels = ["軸2頭ながし", "1･2着ながし", "ながし"];
+            else targetLabels = ["軸1頭ながし", "1着ながし", "ながし"];
+          } else if (sikiCode === "6") { // 馬単
+            targetLabels = ["1着ながし", "ながし"];
+          } else { // 馬連、ワイド、枠連
+            targetLabels = ["軸1頭ながし", "ながし"];
+          }
+        } else {
+          targetLabels = ["通常"];
+        }
+
+        dg("📐 【方式選択】 「" + targetLabels[0] + "」を選択中...");
+
+        function matchHouBtn(el) {
+          if (!el) return false;
+          var t = (el.innerText || el.textContent || "").trim();
+          return targetLabels.some(function(lbl) {
+            return t === lbl || t.indexOf(lbl) >= 0;
+          });
+        }
+
+        var matchedHou = allLinks.find(matchHouBtn) || Array.from(document.querySelectorAll("a, button, li.ui-btn")).find(matchHouBtn);
+        if (matchedHou) {
+          trigger(matchedHou);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "HOU_CLICKED" };
         }
       }
-      return false;
-    }
 
-    // 状態機械メインループ
-    function loop() {
-      try {
-        var curPage = getPage();
+      // 5. 式別選択画面 (#siki)
+      var isSikiScreen = (curHash === "#siki" || (activePage && activePage.id === "siki") || title.indexOf("式別") >= 0);
 
-        switch (state) {
-          case "BOOT":
-            dg(fmtDiag("初期化中..."));
-            // ページまたは選択要素が存在すれば START へ
-            if (curPage || document.querySelector("a,button")) {
-              state = "START";
-              setTimeout(loop, 200);
-            } else {
-              setTimeout(loop, 300);
-            }
-            break;
+      if (isSikiScreen) {
+        var targets = sikiMap[String(sikiCode)] || ["単勝"];
+        dg("🎯 【式別選択】 「" + targets[0] + "」を選択中...");
+        var matchedSiki = allLinks.find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return targets.some(function(tgt) { return t === tgt || t.indexOf(tgt) >= 0; });
+        }) || Array.from(document.querySelectorAll("a, button, li.ui-btn")).find(function(a) {
+          var t = (a.innerText || a.textContent || "").trim();
+          return targets.some(function(tgt) { return t === tgt || t.indexOf(tgt) >= 0; });
+        });
 
-          case "START":
-            betIndex = 0;
-            stepIndex = 0;
-            retryCount = 0;
-            startVoteCount = getVoteCount();
-            betStartTime = Date.now();
-            state = "RUN_BET";
-            dg(fmtDiag("買い目入力開始"));
-            setTimeout(loop, 100);
-            break;
-
-          case "GOTO_JYO":
-            dg(fmtDiag("競馬場画面へ遷移中 (page:" + (curPage || "none") + ")"));
-            if (curPage === "jyo") {
-              // #jyo に到達したら次の買い目の RUN_BET を開始
-              stepIndex = 0;
-              retryCount = 0;
-              betStartTime = Date.now();
-              state = "RUN_BET";
-              setTimeout(loop, 400);
-            } else {
-              // #fromjyo_top a（非表示なら #fromjyo_under a）をクリック
-              var clicked = clickFromJyo();
-              setTimeout(loop, clicked ? 600 : 300);
-            }
-            break;
-
-          case "RUN_BET":
-            // [改修点4] RUN_BET は買い目ごとに25秒タイムアウト
-            if (Date.now() - betStartTime > 25000) {
-              dg(fmtDiag("タイムアウト(25秒) 手動で操作してください"));
-              state = "WAIT_USER";
-              setTimeout(loop, 1000);
-              return;
-            }
-
-            var curBet = bets[betIndex];
-            var s = curBet.steps || [];
-            var vn = curBet.venueName || "";
-
-            // steps を全て完了したら、馬番・金額の手動入力待ち(WAIT_USER)へ
-            if (stepIndex >= s.length) {
-              dg(fmtDiag("steps完了 -> 馬番・金額を入力し投票一覧へ"));
-              cf(); // 確定/セット/次へ ボタンをクリック
-              state = "WAIT_USER";
-              setTimeout(loop, 600);
-              return;
-            }
-
-            var v = s[stepIndex];
-            var f = false;
-            var vs = [v];
-            var n = parseInt(v, 10);
-            if (!isNaN(n)) {
-              if (stepIndex === 1) {
-                vs = [String(n - 1), (n - 1 < 10 ? "0" + (n - 1) : String(n - 1))];
-              } else {
-                vs = [v, String(n), (n < 10 ? "0" + n : String(n)), String(n - 1), (n - 1 < 10 ? "0" + (n - 1) : String(n - 1))];
-              }
-            }
-
-            dg(fmtDiag("S" + stepIndex + ":" + v + " r:" + retryCount + " p:" + curPage));
-
-            var okP = (stepIndex === 0 && (curPage === "jyo" || curPage === "" || retryCount > 1)) ||
-                      (stepIndex === 1 && (curPage === "race" || curPage === "jyo" || curPage === "" || retryCount > 1)) ||
-                      (stepIndex === 2 && (curPage === "siki" || retryCount > 1)) ||
-                      (stepIndex === 3 && (curPage === "hou" || curPage === "siki" || retryCount > 1)) ||
-                      (stepIndex > 3);
-
-            if (okP) {
-              if (stepIndex === 0) {
-                // 競馬場名の選択
-                var bs = document.querySelectorAll("a,button");
-                for (var k2 = 0; k2 < bs.length; k2++) {
-                  var b2 = bs[k2].getBoundingClientRect();
-                  if (b2.width <= 4 || b2.height <= 4 || bs[k2].classList.contains("disabled")) continue;
-                  var t = (bs[k2].innerText || bs[k2].textContent || "").trim();
-                  if (vn && t.indexOf(vn) >= 0) {
-                    tp(bs[k2]);
-                    stepIndex++;
-                    retryCount = 0;
-                    f = true;
-                    setTimeout(loop, 450);
-                    break;
-                  }
-                }
-                if (!f) {
-                  for (var k = 0; k < vs.length; k++) {
-                    var es = document.querySelectorAll("a[data-value='" + vs[k] + "'],button[data-value='" + vs[k] + "']");
-                    for (var j = 0; j < es.length; j++) {
-                      var b = es[j].getBoundingClientRect();
-                      if (b.width > 3 && b.height > 3) {
-                        tp(es[j]);
-                        stepIndex++;
-                        retryCount = 0;
-                        f = true;
-                        setTimeout(loop, 450);
-                        break;
-                      }
-                    }
-                    if (f) break;
-                  }
-                }
-              } else {
-                // レース・式別・方式等の選択
-                for (var k = 0; k < vs.length; k++) {
-                  var es = document.querySelectorAll("a[data-value='" + vs[k] + "'],button[data-value='" + vs[k] + "']");
-                  for (var j = 0; j < es.length; j++) {
-                    var b = es[j].getBoundingClientRect();
-                    if (b.width > 3 && b.height > 3) {
-                      tp(es[j]);
-                      stepIndex++;
-                      retryCount = 0;
-                      f = true;
-                      setTimeout(loop, 450);
-                      break;
-                    }
-                  }
-                  if (f) break;
-                }
-                if (!f) {
-                  var bs = document.querySelectorAll("a,button");
-                  for (var k2 = 0; k2 < bs.length; k2++) {
-                    var b2 = bs[k2].getBoundingClientRect();
-                    if (b2.width <= 4 || b2.height <= 4) continue;
-                    var t = (bs[k2].innerText || bs[k2].textContent || "").trim();
-                    if (stepIndex === 1 && (t === v + "R" || t === v + "レース" || t.indexOf(v + "R") >= 0)) {
-                      tp(bs[k2]);
-                      stepIndex++;
-                      retryCount = 0;
-                      f = true;
-                      setTimeout(loop, 450);
-                      break;
-                    }
-                    if (stepIndex === 2 && sn[v] && t.indexOf(sn[v]) >= 0) {
-                      tp(bs[k2]);
-                      stepIndex++;
-                      retryCount = 0;
-                      f = true;
-                      setTimeout(loop, 450);
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-
-            if (!f) {
-              retryCount++;
-              setTimeout(loop, 200);
-            }
-            break;
-
-          case "WAIT_USER":
-            // [改修点4] タイムアウトなし。ユーザーが手動で馬番・金額を入力し投票一覧(#toui)へ進むのを待機
-            var currentVotes = getVoteCount();
-            dg(fmtDiag("馬番・金額入力待ち (件数: " + currentVotes + " / 開始時: " + startVoteCount + ")"));
-
-            // 投票一覧(#toui)へ到達し、投票件数が開始時より増加したか判定
-            if (curPage === "toui" && currentVotes > startVoteCount) {
-              if (betIndex + 1 < bets.length) {
-                // まだ次の買い目がある場合 -> NEXT へ
-                state = "NEXT";
-                setTimeout(loop, 300);
-              } else {
-                // 全買い目完了 -> DONE へ
-                state = "DONE";
-                setTimeout(loop, 100);
-              }
-            } else {
-              setTimeout(loop, 500);
-            }
-            break;
-
-          case "NEXT":
-            betIndex++;
-            startVoteCount = getVoteCount(); // 次の買い目の判定基準件数を更新
-            state = "GOTO_JYO";
-            dg(fmtDiag("次の買い目へ遷移準備"));
-            setTimeout(loop, 300);
-            break;
-
-          case "DONE":
-            dg(fmtDiag("全" + bets.length + "件の入力完了！「投票用QR表示」を押してください"));
-            break;
+        if (matchedSiki) {
+          trigger(matchedSiki);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "SIKI_CLICKED" };
         }
-      } catch (e) {
-        dg("ERR: " + e.message);
-        setTimeout(loop, 1000);
       }
-    }
 
-    loop();
+      // 6. レース選択画面 (#race)
+      var isRaceScreen = (curHash === "#race" || (activePage && activePage.id === "race") || title.indexOf("レース") >= 0);
+
+      if (isRaceScreen) {
+        var targetRStr = String(parseInt(raceNum, 10));
+        dg("🏁 【レース選択】 " + targetRStr + "R を選択中...");
+
+        function matchRaceBtn(el) {
+          if (!el) return false;
+          var t = (el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+          var r1 = new RegExp("^0*" + targetRStr + "\\s*R(?:\\s|$|[^0-9])", "i");
+          if (r1.test(t)) return true;
+          var r2 = new RegExp("^0*" + targetRStr + "\\s*レース(?:\\s|$)", "i");
+          if (r2.test(t)) return true;
+          if (t === targetRStr || t === ("0" + targetRStr)) return true;
+          var dv = el.getAttribute("data-value") || el.getAttribute("data-race") || el.getAttribute("id") || "";
+          if (dv === targetRStr || dv === ("0" + targetRStr) || dv === "race_" + targetRStr) return true;
+          return false;
+        }
+
+        var matchedRace = allLinks.find(matchRaceBtn) || Array.from(document.querySelectorAll("a, button, li.ui-btn")).find(matchRaceBtn);
+        if (matchedRace) {
+          trigger(matchedRace);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "RACE_CLICKED" };
+        }
+      }
+
+      // 7. 競馬場名選択画面 (#jyo または pw_982_i.cgi)
+      var isVenueScreen = (title.indexOf("競馬場") >= 0 || title.indexOf("場名") >= 0 || title === "競馬場名" || (curHref.indexOf("pw_982_i.cgi") >= 0 && !curHash));
+
+      if (isVenueScreen) {
+        dg("🏇 【競馬場選択】 「" + (venue || "開催場") + (weekday ? "(" + weekday + ")" : "") + "」を選択中...");
+
+        var matchedVenue = null;
+        if (venue && weekday) {
+          matchedVenue = allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            return t.indexOf(venue) >= 0 && t.indexOf(weekday) >= 0;
+          });
+        }
+        if (!matchedVenue && venue) {
+          matchedVenue = allLinks.find(function(a) {
+            var t = (a.innerText || a.textContent || "").trim();
+            return t.indexOf(venue) >= 0;
+          });
+        }
+        if (!matchedVenue) {
+          var docLinks = Array.from(document.querySelectorAll("a, button, li.ui-btn"));
+          if (venue && weekday) {
+            matchedVenue = docLinks.find(function(a) {
+              var t = (a.innerText || a.textContent || "").trim();
+              return t.indexOf(venue) >= 0 && t.indexOf(weekday) >= 0;
+            });
+          }
+          if (!matchedVenue && venue) {
+            matchedVenue = docLinks.find(function(a) {
+              var t = (a.innerText || a.textContent || "").trim();
+              return t.indexOf(venue) >= 0;
+            });
+          }
+        }
+
+        if (matchedVenue) {
+          trigger(matchedVenue);
+          st.actionCooldown = Date.now() + 800;
+          return { status: "VENUE_CLICKED" };
+        }
+      }
+
+      // 8. TOPメニュー画面（通常投票へ進む）
+      var regBtn = document.querySelector(".ui-page-active a.ico_regular, a.ico_regular.ui-link, a.ico_regular, a[class*='ico_regular']") ||
+                   allLinks.find(function(a) {
+                     var t = (a.innerText || a.textContent || "").trim();
+                     return t === "通常投票" || t.indexOf("通常投票") >= 0;
+                   }) ||
+                   Array.from(document.querySelectorAll("a")).find(function(a) {
+                     var t = (a.innerText || a.textContent || "").trim();
+                     return t === "通常投票" || t.indexOf("通常投票") >= 0;
+                   });
+
+      var isTopScreen = (curHref.indexOf("pw_982_i.cgi") < 0 && (!!regBtn || typeof ToQRBet === "function")) && !isVenueScreen && !isRaceScreen && !isSikiScreen && !isHouScreen && !isHorseScreen && !isAmountScreen && !isVoteListScreen;
+
+      if (isTopScreen) {
+        dg("📋 【TOP画面】 通常投票へ進みます...");
+        if (typeof ToQRBet === "function") {
+          try { ToQRBet(); } catch(e) {}
+        } else if (regBtn) {
+          trigger(regBtn);
+        }
+        st.actionCooldown = Date.now() + 1200;
+        return { status: "TOP_CLICKED" };
+      }
+
+      dg("⏳ 【画面読み込み中】 " + (title ? "タイトル: " + title : "処理待機中..."));
+      return { status: "WAITING" };
+    } catch(err) {
+      dg("⚠️ エラー: " + err.message, "rgba(239,68,68,0.95)");
+      return { status: "ERROR", error: err.message };
+    }
   })();
   `;
 
-  await wv.evaluateJavaScript(runnerScript, false);
+  // 4. 外側（Scriptable側）から定期注入・実行監視ループ
+  let isDone = false;
+  let loopStart = Date.now();
+  let maxTimeoutMs = Math.max(90000, bets.length * 45000);
 
-  // 5. WebViewが閉じられるのを待つ
+  while (!isDone && (Date.now() - loopStart < maxTimeoutMs)) {
+    try {
+      let res = await wv.evaluateJavaScript(automationScript, false);
+      if (res && res.status === "DONE") {
+        isDone = true;
+        break;
+      }
+    } catch(e) {}
+    await new Promise(resolve => Timer.schedule(350, false, resolve));
+  }
+
   await presentPromise;
   Script.complete();
 }
