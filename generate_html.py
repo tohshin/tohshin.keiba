@@ -256,9 +256,33 @@ def build_kelly2_bets_for_day(day, races_of_day):
         if df_feat.empty:
             logger.warning(f"Kelly2: feature CSV is empty for {day_str}")
             return None
-        df_pred = predict_residual_ensemble(
-            df_feat, odds_map, day_str, model_dir=KELLY2_RESIDUAL_MODEL_DIR
-        )
+
+        # 表記揺れ（全角/半角: 例 '脚色_Ｇ強' vs '脚色_G強', 'ﾀｲﾑ指数_...' vs 'タイム指数_...'）による
+        # NFKC正規化後の重複カラムを combine_first で統合する
+        import unicodedata
+        norm_groups = {}
+        for idx, col in enumerate(df_feat.columns):
+            nk = unicodedata.normalize('NFKC', str(col))
+            norm_groups.setdefault(nk, []).append(idx)
+        if len(norm_groups) < len(df_feat.columns):
+            merged_cols = {}
+            for nk, idxs in norm_groups.items():
+                s = df_feat.iloc[:, idxs[0]]
+                for i in idxs[1:]:
+                    s = s.combine_first(df_feat.iloc[:, i])
+                merged_cols[nk] = s
+            df_feat = pd.DataFrame(merged_cols, index=df_feat.index)
+
+        # DataSplitter.rename_to_english() が相対パス 'config/column_mapping.csv' を参照するため
+        # 推論時のみ C:\Users\kyoui\keiba をカレントディレクトリにする
+        prev_cwd = os.getcwd()
+        try:
+            os.chdir(r"C:\Users\kyoui\keiba")
+            df_pred = predict_residual_ensemble(
+                df_feat, odds_map, day_str, model_dir=KELLY2_RESIDUAL_MODEL_DIR
+            )
+        finally:
+            os.chdir(prev_cwd)
     except Exception as e:
         logger.error(f"Kelly2: residual_v1 inference failed for {day_str}: {e}")
         return None
