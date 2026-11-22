@@ -42507,9 +42507,9 @@
       "axis1Num": 9,
       "axis2Num": null,
       "partnerNums": [
-        14,
         5,
-        13
+        4,
+        14
       ],
       "bettingEyesText": "09",
       "rawType": "Kelly3-RLハイブリッド",
@@ -42537,7 +42537,7 @@
       ],
       "lane": "Lane_B",
       "lane_jp": "レーンB",
-      "top_horses": "9-14-5-13"
+      "top_horses": "9-5-4-14"
     }
   },
   "202608050608": {
