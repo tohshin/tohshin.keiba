@@ -84,6 +84,10 @@ KELLY3_SANREN_LANE_STOP = 5000 * KELLY3_SANREN_MULT   # +5,000円
 KELLY3_MAX_BUDGET = 50000
 KELLY3_AGREE_MODELS = ['Ensemble', 'LightGBM', 'CatBoost', 'XGBoost', 'TabNet']
 _KELLY3_MODELS_CACHE = None
+_KELLY2_RESIDUAL_CACHE = None
+_KELLY_DB_ENGINE = None
+_KELLY_ODDS_YEAR_CACHE = {}
+_KELLY_HARAIMODOSHI_YEAR_CACHE = {}
 KELLY_TRACK_MAPPING = {
     '01': 'SAPPORO', '02': 'HAKODATE', '03': 'FUKUSHIMA', '04': 'NIIGATA', '05': 'TOKYO',
     '06': 'NAKAYAMA', '07': 'CHUKYO', '08': 'KYOTO', '09': 'HANSHIN', '10': 'KOKURA'
@@ -107,29 +111,44 @@ def _softmax_np(x):
     return e_x / (e_x.sum(axis=0) + 1e-12)
 
 
+def _get_kelly_db_engine():
+    global _KELLY_DB_ENGINE
+    if _KELLY_DB_ENGINE is None:
+        from sqlalchemy import create_engine
+        _KELLY_DB_ENGINE = create_engine(KELLY_TANSHO_DB_URL)
+    return _KELLY_DB_ENGINE
+
+
 def _load_tansho_odds_df(day):
     """odds1_tansho から当日の単勝オッズ(実値)・人気を取得する。
-    Kelly2.ipynb / Kelly3.ipynb と同じく DB を一次ソースとする。
-    取得できない場合は空 DataFrame を返し、ノートブックと同じく EV 計算をスキップする。"""
+    年単位で一括キャッシュし、日次ループでの重複DB接続・クエリを回避する。"""
     empty = pd.DataFrame(columns=['race_code', 'umaban', 'odds_val', 'ninki'])
+    nen = str(day)[:4]
+    gappi = str(day)[4:8]
     try:
-        from sqlalchemy import create_engine
-        engine = create_engine(KELLY_TANSHO_DB_URL)
-        nen = str(day)[:4]
-        gappi = str(day)[4:8]
-        sql = ("SELECT race_code, umaban, odds, ninki FROM odds1_tansho "
-               f"WHERE kaisai_nen = '{nen}' AND kaisai_gappi = '{gappi}';")
-        df_o = pd.read_sql(sql, engine)
-        if df_o.empty:
+        if nen not in _KELLY_ODDS_YEAR_CACHE:
+            engine = _get_kelly_db_engine()
+            sql = ("SELECT kaisai_gappi, race_code, umaban, odds, ninki FROM odds1_tansho "
+                   f"WHERE kaisai_nen = '{nen}';")
+            df_y = pd.read_sql(sql, engine)
+            by_gappi = {}
+            if not df_y.empty:
+                df_y['kaisai_gappi'] = df_y['kaisai_gappi'].astype(str).str.zfill(4)
+                df_y['race_code'] = df_y['race_code'].astype(str)
+                df_y['umaban'] = pd.to_numeric(df_y['umaban'], errors='coerce')
+                df_y['odds_val'] = pd.to_numeric(df_y['odds'], errors='coerce') / 10.0
+                df_y['ninki'] = pd.to_numeric(df_y['ninki'], errors='coerce')
+                df_y = df_y.dropna(subset=['umaban'])
+                for gp, grp in df_y.groupby('kaisai_gappi'):
+                    by_gappi[str(gp)] = grp[['race_code', 'umaban', 'odds_val', 'ninki']].reset_index(drop=True)
+            _KELLY_ODDS_YEAR_CACHE[nen] = by_gappi
+            logger.info(f"Cached odds1_tansho for year {nen}: {len(by_gappi)} days")
+
+        df_o = _KELLY_ODDS_YEAR_CACHE[nen].get(gappi)
+        if df_o is None or df_o.empty:
             logger.warning(f"No tansho odds found in DB for {day}")
             return empty
-        df_o['race_code'] = df_o['race_code'].astype(str)
-        df_o['umaban'] = pd.to_numeric(df_o['umaban'], errors='coerce')
-        df_o['odds_val'] = pd.to_numeric(df_o['odds'], errors='coerce') / 10.0
-        df_o['ninki'] = pd.to_numeric(df_o['ninki'], errors='coerce')
-        df_o = df_o.dropna(subset=['umaban'])
-        logger.info(f"Loaded {len(df_o)} tansho odds records for {day} from odds1_tansho")
-        return df_o[['race_code', 'umaban', 'odds_val', 'ninki']]
+        return df_o
     except Exception as e:
         logger.warning(f"tansho odds (odds1_tansho) load failed for {day}: {e}")
         return empty
@@ -220,25 +239,235 @@ def _kelly2_bet_specs(bt, nos):
     return specs
 
 
+def _fast_load_daily_feature_csv(csv_path):
+    """load_daily_feature_csv と同一仕様だが、同一ヘッダの連続/複数レースブロックをまとめて
+    pd.read_csv することでパース回数を 36回→1〜2回 に削減する高速版。"""
+    import io
+    with open(csv_path, encoding='utf-8') as f:
+        lines = f.readlines()
+
+    # ヘッダごとにデータ行をまとめつつ、順序保持のため連続同一ヘッダを結合する
+    groups = []  # [(header_line, [data_lines...])]
+    cur_header = None
+    cur_rows = []
+    for line in lines:
+        if line.startswith(',horse_id,') or line.startswith('race_id,') or ',馬番,' in line[:250]:
+            if line == cur_header:
+                continue
+            if cur_header is not None and cur_rows:
+                groups.append((cur_header, cur_rows))
+            cur_header = line
+            cur_rows = []
+        else:
+            if cur_header is not None:
+                cur_rows.append(line)
+    if cur_header is not None and cur_rows:
+        groups.append((cur_header, cur_rows))
+
+    dfs = []
+    for hdr, rows in groups:
+        df_b = pd.read_csv(io.StringIO(hdr + ''.join(rows)), low_memory=False)
+        first_col = df_b.columns[0]
+        if first_col in ('Unnamed: 0', '', 'index'):
+            df_b = df_b.rename(columns={first_col: 'race_id'})
+        dfs.append(df_b)
+
+    if not dfs:
+        return pd.DataFrame()
+
+    df_all = dfs[0] if len(dfs) == 1 else pd.concat(dfs, ignore_index=True, sort=False)
+    df_all = df_all.copy()
+    df_all['race_id'] = df_all['race_id'].astype(str).str.strip()
+    df_all['umaban'] = pd.to_numeric(df_all['馬番'], errors='coerce').fillna(0).astype(int)
+    df_all = df_all.drop_duplicates(subset=['race_id', 'umaban'], keep='last').reset_index(drop=True)
+    return df_all
+
+
+def _load_kelly2_residual_bundle():
+    """Kelly2 residual_v1 の7モデル・メタ情報・カラムマッピングを1回だけロードしてキャッシュする。"""
+    global _KELLY2_RESIDUAL_CACHE
+    if _KELLY2_RESIDUAL_CACHE is not None:
+        return _KELLY2_RESIDUAL_CACHE
+
+    meta_pkl_path = os.path.join(KELLY2_RESIDUAL_MODEL_DIR, "meta_residual_v1.pkl")
+    if not os.path.exists(meta_pkl_path):
+        logger.warning(f"Kelly2: residual model not found: {meta_pkl_path}")
+        return None
+
+    import pickle
+    import lightgbm as lgb
+    import xgboost as xgb
+    from catboost import CatBoostClassifier
+
+    with open(meta_pkl_path, 'rb') as f:
+        meta = pickle.load(f)
+
+    m_lgb_w = lgb.Booster(model_file=os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'lgb_win.txt'))
+    m_lgb_wp = lgb.Booster(model_file=os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'lgb_win_pure.txt'))
+    m_xgb_w = xgb.Booster()
+    m_xgb_w.load_model(os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'xgb_win.json'))
+    m_cb_w = CatBoostClassifier()
+    m_cb_w.load_model(os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'cb_win.cbm'))
+
+    m_lgb_p = lgb.Booster(model_file=os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'lgb_place.txt'))
+    m_xgb_p = xgb.Booster()
+    m_xgb_p.load_model(os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'xgb_place.json'))
+    m_cb_p = CatBoostClassifier()
+    m_cb_p.load_model(os.path.join(KELLY2_RESIDUAL_MODEL_DIR, 'cb_place.cbm'))
+
+    # config/column_mapping.csv も1回だけロード
+    mapping_path = os.path.join(KELLY_CONFIG_DIR, 'column_mapping.csv')
+    mapping_pairs = []
+    if os.path.exists(mapping_path):
+        try:
+            mdf = pd.read_csv(mapping_path, encoding='utf-8')
+        except UnicodeDecodeError:
+            mdf = pd.read_csv(mapping_path, encoding='cp932')
+        mdf = mdf.dropna(subset=['japanese', 'english'])
+        mapping = dict(zip(mdf['japanese'].astype(str), mdf['english'].astype(str)))
+        mapping_pairs = [(k, mapping[k]) for k in sorted(mapping.keys(), key=len, reverse=True)]
+
+    _KELLY2_RESIDUAL_CACHE = {
+        'feature_cols': meta['feature_cols'],
+        'pure_cols': meta['pure_cols'],
+        'm_lgb_w': m_lgb_w,
+        'm_lgb_wp': m_lgb_wp,
+        'm_xgb_w': m_xgb_w,
+        'm_cb_w': m_cb_w,
+        'm_lgb_p': m_lgb_p,
+        'm_xgb_p': m_xgb_p,
+        'm_cb_p': m_cb_p,
+        'mapping_pairs': mapping_pairs,
+    }
+    logger.info("Kelly2 residual_v1: cached 7 models and column_mapping")
+    return _KELLY2_RESIDUAL_CACHE
+
+
+def _predict_kelly2_residual_fast(df_feat, odds_map, day_str, bundle):
+    """キャッシュ済み7モデルで predict_residual_ensemble と同一の推論を実行する。"""
+    import unicodedata
+    import xgboost as xgb
+    from scipy.special import expit, logit
+    from modules.training.predict_residual import compute_implied_probs
+
+    df = df_feat.copy()
+    df['racecode'] = day_str + df['race_id'].astype(str).str[4:]
+
+    if odds_map is not None and not odds_map.empty:
+        om = odds_map[['race_code', 'umaban', 'odds_val']].drop_duplicates(subset=['race_code', 'umaban'], keep='last')
+        df = df.merge(om, left_on=['racecode', 'umaban'], right_on=['race_code', 'umaban'], how='left')
+    else:
+        df['odds_val'] = np.nan
+
+    if df['odds_val'].isna().any() and '単勝' in df.columns:
+        df['odds_val'] = df['odds_val'].fillna(pd.to_numeric(df['単勝'], errors='coerce'))
+    df['odds_val'] = df['odds_val'].fillna(50.0)
+
+    # カラム名の NFKC正規化 + 重複統合 + 英語置換 + サニタイズ
+    norm_groups = {}
+    for idx, col in enumerate(df.columns):
+        nk = unicodedata.normalize('NFKC', str(col))
+        norm_groups.setdefault(nk, []).append(idx)
+
+    sanitize_pat = re.compile(r'[\[\]\{\},:\"\s\'\(\)]')
+    en_cols = {}
+    for nk, idxs in norm_groups.items():
+        c_en = nk
+        for jp_w, en_w in bundle['mapping_pairs']:
+            if jp_w in c_en:
+                c_en = c_en.replace(jp_w, en_w)
+        c_en = sanitize_pat.sub('_', c_en)
+        if c_en not in en_cols:
+            en_cols[c_en] = idxs
+        else:
+            en_cols[c_en].extend(idxs)
+
+    feature_cols = bundle['feature_cols']
+    n_rows = len(df)
+    data = {}
+    for c in feature_cols:
+        idxs = en_cols.get(c)
+        if idxs:
+            col = df.iloc[:, idxs[0]]
+            for i in idxs[1:]:
+                s_other = df.iloc[:, i]
+                if col.isna().any() and not s_other.isna().all():
+                    col = col.combine_first(s_other)
+            if isinstance(col.dtype, pd.CategoricalDtype):
+                data[c] = col.cat.codes.astype(np.float32).values
+            elif col.dtype == bool:
+                data[c] = col.astype(np.float32).values
+            elif col.dtype == 'object':
+                s = col.astype(str)
+                if s.isin(['True', 'False', 'nan', 'None']).all():
+                    data[c] = (s == 'True').astype(np.float32).values
+                else:
+                    data[c] = pd.to_numeric(col, errors='coerce').astype(np.float32).values
+            else:
+                data[c] = pd.to_numeric(col, errors='coerce').astype(np.float32).values
+        else:
+            data[c] = np.full(n_rows, np.nan, dtype=np.float32)
+
+    X = pd.DataFrame(data, index=df.index)
+    X_cb = X.fillna(-999)
+    dmat = xgb.DMatrix(X)
+
+    imp_win, imp_place = compute_implied_probs(df['racecode'].values, df['odds_val'].values)
+
+    mw_ens = (
+        bundle['m_lgb_w'].predict(X, raw_score=True)
+        + bundle['m_lgb_wp'].predict(X[bundle['pure_cols']], raw_score=True)
+        + bundle['m_xgb_w'].predict(dmat, output_margin=True)
+        + bundle['m_cb_w'].predict(X_cb, prediction_type='RawFormulaVal')
+    ) / 4.0
+
+    mp_ens = (
+        bundle['m_lgb_p'].predict(X, raw_score=True)
+        + bundle['m_xgb_p'].predict(dmat, output_margin=True)
+        + bundle['m_cb_p'].predict(X_cb, prediction_type='RawFormulaVal')
+    ) / 3.0
+
+    pw_raw = expit(logit(imp_win) + mw_ens)
+    p_win = pw_raw / pd.Series(pw_raw).groupby(df['racecode']).transform('sum').values
+    ev_win = p_win * df['odds_val'].values
+
+    pp_raw = expit(logit(imp_place) + mp_ens)
+    n_h = df.groupby('racecode')['umaban'].transform('count').values
+    t_sum = np.where(n_h <= 7, 2.0, 3.0)
+    p_place = np.clip(pp_raw * (t_sum / pd.Series(pp_raw).groupby(df['racecode']).transform('sum').values), 1e-4, 0.99)
+    place_edge = p_place / imp_place
+
+    return pd.DataFrame({
+        'racecode': df['racecode'].values,
+        'race_id': df['race_id'].values,
+        'umaban': df['umaban'].values,
+        'odds_val': df['odds_val'].values,
+        'imp_win': imp_win,
+        'imp_place': imp_place,
+        'mw_ens': mw_ens,
+        'mp_ens': mp_ens,
+        'p_win': p_win,
+        'ev_win': ev_win,
+        'p_place': p_place,
+        'place_edge': place_edge,
+    })
+
+
 def build_kelly2_bets_for_day(day, races_of_day):
     """Kelly2.ipynb (7モデル市場残差アンサンブル residual_v1) と同一ロジックで当日の買い目を生成する。
-    - data/tmp/{day}.csv を load_daily_feature_csv() で読み込み
-    - DB (odds1_tansho) の単勝オッズと合わせて predict_residual_ensemble() で推論
-    - STRATEGY_CONFIG の4戦略 (3連複4頭BOX安定/厳選, 3連単4頭BOX厳選, 単勝Win残差) を生成
-    - 同一券種・同一組合わせは単価が高い方を優先して重複排除
-    特徴量CSVやモデルが無い日は None を返す。"""
+    - モデル・カラムマッピング・DBオッズをキャッシュし、多日一括処理でも高速に動作する。"""
     if not residual_v1_available:
         logger.warning("Kelly2: predict_residual モジュールが利用できないため生成をスキップ")
         return None
 
     day_str = str(day)
     feature_csv_path = os.path.join(KELLY2_FEATURE_TMP_DIR, f"{day_str}.csv")
-    meta_pkl_path = os.path.join(KELLY2_RESIDUAL_MODEL_DIR, "meta_residual_v1.pkl")
     if not os.path.exists(feature_csv_path):
         logger.debug(f"Kelly2: feature CSV not found for {day_str} ({feature_csv_path})")
         return None
-    if not os.path.exists(meta_pkl_path):
-        logger.warning(f"Kelly2: residual model not found: {meta_pkl_path}")
+
+    bundle = _load_kelly2_residual_bundle()
+    if bundle is None:
         return None
 
     odds_df = _load_tansho_odds_df(day_str)
@@ -247,42 +476,16 @@ def build_kelly2_bets_for_day(day, races_of_day):
     if not odds_df.empty:
         odds_map = odds_df[['race_code', 'umaban', 'odds_val']].dropna().copy()
         odds_map['umaban'] = odds_map['umaban'].astype(int)
-        for _, orow in odds_df.iterrows():
-            if pd.notnull(orow.get('ninki')):
-                ninki_map[(str(orow['race_code']), int(orow['umaban']))] = int(orow['ninki'])
+        for rc, ub, nk in zip(odds_df['race_code'], odds_df['umaban'], odds_df['ninki']):
+            if pd.notnull(nk):
+                ninki_map[(str(rc), int(ub))] = int(nk)
 
     try:
-        df_feat = load_daily_feature_csv(feature_csv_path)
+        df_feat = _fast_load_daily_feature_csv(feature_csv_path)
         if df_feat.empty:
             logger.warning(f"Kelly2: feature CSV is empty for {day_str}")
             return None
-
-        # 表記揺れ（全角/半角: 例 '脚色_Ｇ強' vs '脚色_G強', 'ﾀｲﾑ指数_...' vs 'タイム指数_...'）による
-        # NFKC正規化後の重複カラムを combine_first で統合する
-        import unicodedata
-        norm_groups = {}
-        for idx, col in enumerate(df_feat.columns):
-            nk = unicodedata.normalize('NFKC', str(col))
-            norm_groups.setdefault(nk, []).append(idx)
-        if len(norm_groups) < len(df_feat.columns):
-            merged_cols = {}
-            for nk, idxs in norm_groups.items():
-                s = df_feat.iloc[:, idxs[0]]
-                for i in idxs[1:]:
-                    s = s.combine_first(df_feat.iloc[:, i])
-                merged_cols[nk] = s
-            df_feat = pd.DataFrame(merged_cols, index=df_feat.index)
-
-        # DataSplitter.rename_to_english() が相対パス 'config/column_mapping.csv' を参照するため
-        # 推論時のみ C:\Users\kyoui\keiba をカレントディレクトリにする
-        prev_cwd = os.getcwd()
-        try:
-            os.chdir(r"C:\Users\kyoui\keiba")
-            df_pred = predict_residual_ensemble(
-                df_feat, odds_map, day_str, model_dir=KELLY2_RESIDUAL_MODEL_DIR
-            )
-        finally:
-            os.chdir(prev_cwd)
+        df_pred = _predict_kelly2_residual_fast(df_feat, odds_map, day_str, bundle)
     except Exception as e:
         logger.error(f"Kelly2: residual_v1 inference failed for {day_str}: {e}")
         return None
@@ -532,13 +735,15 @@ def _load_kelly3_models():
 
 def _load_haraimodoshi_map(day):
     """DB (haraimodoshi) から確定済み払戻金マップを取得する (kelly3_auto_runner.py 準拠)。
-    開催前でデータが無い場合は空 dict を返す。"""
+    年単位でキャッシュして日次ループでの重複DB取得を回避する。"""
+    nen = str(day)[:4]
+    if nen in _KELLY_HARAIMODOSHI_YEAR_CACHE:
+        return _KELLY_HARAIMODOSHI_YEAR_CACHE[nen]
     try:
-        from sqlalchemy import create_engine
-        engine = create_engine(KELLY_TANSHO_DB_URL)
-        nen = str(day)[:4]
+        engine = _get_kelly_db_engine()
         df = pd.read_sql(f"SELECT * FROM haraimodoshi WHERE kaisai_nen = '{nen}';", engine)
         if df.empty:
+            _KELLY_HARAIMODOSHI_YEAR_CACHE[nen] = {}
             return {}
 
         def _ci(v):
@@ -586,6 +791,8 @@ def _load_haraimodoshi_map(day):
                 if u1 and u2 and u3 and amt:
                     p_dict['sanrentan'][(u1, u2, u3)] = float(amt)
             p_map[rid] = p_dict
+        _KELLY_HARAIMODOSHI_YEAR_CACHE[nen] = p_map
+        logger.info(f"Cached haraimodoshi for year {nen}: {len(p_map)} races")
         return p_map
     except Exception as e:
         logger.warning(f"Kelly3: haraimodoshi load failed for {day}: {e}")
