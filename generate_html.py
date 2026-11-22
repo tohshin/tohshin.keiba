@@ -25,6 +25,14 @@ except Exception as e:
     logger.warning(f"Could not load modules.rl_betting: {e}")
     rl_agent_available = False
 
+try:
+    from modules.training.predict_residual import load_daily_feature_csv, predict_residual_ensemble
+    residual_v1_available = True
+    logger.info("Successfully loaded modules.training.predict_residual (Kelly2 residual_v1)")
+except Exception as e:
+    logger.warning(f"Could not load modules.training.predict_residual: {e}")
+    residual_v1_available = False
+
 PLACE_DICT_CHUOH = {
     '札幌': '01',
     '函館': '02',
@@ -41,7 +49,7 @@ REVERSE_PLACE_DICT = {v: k for k, v in PLACE_DICT_CHUOH.items()}
 
 # ==========================================================================
 # Kelly2 / Kelly3 本家準拠の買い目生成
-#  - PICKUP     : Kelly2.ipynb (winning_strategies_v13.csv + TCSV\v13 モデルスコア + 単勝オッズ)
+#  - PICKUP     : Kelly2.ipynb (7モデル市場残差アンサンブル residual_v1 + data/tmp/{day}.csv + 単勝オッズ)
 #  - PICKUP 2   : kelly3_auto_runner.py (Double DQN + CQL 並行ハイブリッド: 現行x5 + 3連系x1)
 # ==========================================================================
 KELLY_CONFIG_DIR = r"C:\Users\kyoui\keiba\config"
@@ -49,6 +57,20 @@ KELLY_STRATEGIES_V13_CSV = os.path.join(KELLY_CONFIG_DIR, "winning_strategies_v1
 KELLY_TCSV_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV"
 KELLY_TCSV_V13_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v13"
 KELLY_TANSHO_DB_URL = "postgresql://postgres:zatenn@localhost/postgres"
+
+# Kelly2 7モデル市場残差アンサンブル定数 (Kelly2.ipynb と同一デフォルト)
+KELLY2_RESIDUAL_MODEL_DIR = r"C:\Users\kyoui\keiba\models\residual_v1"
+KELLY2_FEATURE_TMP_DIR = r"C:\Users\kyoui\keiba\data\tmp"
+KELLY2_STRATEGY_CONFIG = {
+    # ① 3連複4頭BOX (安定主力: place_edge>=1.10馬2頭 + p_place上位2頭 / 4点)
+    'sanrenpuku_place_box4': {'enabled': True,  'place_edge_th': 1.10, 'odds_min': 2.0, 'odds_max': 30.0, 'unit': 300},
+    # ② 3連複4頭BOX (厳選高回収: ev_win>=0.90馬2頭 + p_place上位2頭 / 4点)
+    'sanrenpuku_win_box4':   {'enabled': True,  'ev_win_th': 0.90,     'odds_min': 2.0, 'odds_max': 30.0, 'unit': 500},
+    # ③ 3連単4頭BOX (高配当狙い: ev_win>=0.88馬2頭 + p_place上位2頭 / 24点)
+    'sanrentan_win_box4':    {'enabled': True,  'ev_win_th': 0.88,     'odds_min': 2.0, 'odds_max': 30.0, 'unit': 100},
+    # ④ 単勝 (高回収補完: ev_win>=0.92 / 1点)
+    'tansho_win_edge':       {'enabled': True,  'ev_win_th': 0.92,     'odds_min': 2.0, 'odds_max': 30.0, 'unit': 1000},
+}
 
 # Kelly3 強化学習ハイブリッド定数 (kelly3_auto_runner.py と同一デフォルト)
 KELLY3_BASE_MODEL = r"C:\Users\kyoui\keiba\models\rl\rl_agent_kelly3_rebuilt_v12.pth"
@@ -199,198 +221,231 @@ def _kelly2_bet_specs(bt, nos):
 
 
 def build_kelly2_bets_for_day(day, races_of_day):
-    """Kelly2.ipynb (Cell3) と同一ロジックで当日の買い目を生成する。
-    - winning_strategies_v13.csv の BUY / EXCLUDE ルールを race meta で判定
-    - TCSV\\v13 のモデルスコアCSVで z_score、DB(odds1_tansho)で EV を算出
-    - score_th / EV_th を軸1頭目に適用し、bet_type ごとの買い目を生成
-    モデルスコアCSVが無い日は None を返す (従来の近似表示にフォールバック)。"""
-    if not os.path.exists(KELLY_STRATEGIES_V13_CSV):
-        logger.warning(f"Kelly2: strategy master not found: {KELLY_STRATEGIES_V13_CSV}")
-        return None
-    try:
-        raw_strat = pd.read_csv(KELLY_STRATEGIES_V13_CSV)
-    except Exception:
-        try:
-            raw_strat = pd.read_csv(KELLY_STRATEGIES_V13_CSV, encoding='utf-8-sig')
-        except Exception as e:
-            logger.error(f"Kelly2: strategy CSV read failed: {e}")
-            return None
-    if 'action' not in raw_strat.columns:
-        return None
-
-    buy_df = raw_strat[raw_strat['action'] == 'BUY'].copy()
-    ex_df = raw_strat[raw_strat['action'] == 'EXCLUDE'].copy()
-    if buy_df.empty:
+    """Kelly2.ipynb (7モデル市場残差アンサンブル residual_v1) と同一ロジックで当日の買い目を生成する。
+    - data/tmp/{day}.csv を load_daily_feature_csv() で読み込み
+    - DB (odds1_tansho) の単勝オッズと合わせて predict_residual_ensemble() で推論
+    - STRATEGY_CONFIG の4戦略 (3連複4頭BOX安定/厳選, 3連単4頭BOX厳選, 単勝Win残差) を生成
+    - 同一券種・同一組合わせは単価が高い方を優先して重複排除
+    特徴量CSVやモデルが無い日は None を返す。"""
+    if not residual_v1_available:
+        logger.warning("Kelly2: predict_residual モジュールが利用できないため生成をスキップ")
         return None
 
     day_str = str(day)
-
-    # v13 モデルスコアCSVが無い日は Kelly2 の買い目を再現できないため早期リターン
-    # (画面側は従来の近似ロジックで表示を継続する)
-    has_v13 = any(_kelly_model_csv_path(m, day_str, KELLY_TCSV_V13_DIR)
-                  for m in buy_df['model'].dropna().unique())
-    if not has_v13:
-        logger.debug(f"Kelly2: v13 score CSV not found for {day}")
+    feature_csv_path = os.path.join(KELLY2_FEATURE_TMP_DIR, f"{day_str}.csv")
+    meta_pkl_path = os.path.join(KELLY2_RESIDUAL_MODEL_DIR, "meta_residual_v1.pkl")
+    if not os.path.exists(feature_csv_path):
+        logger.debug(f"Kelly2: feature CSV not found for {day_str} ({feature_csv_path})")
+        return None
+    if not os.path.exists(meta_pkl_path):
+        logger.warning(f"Kelly2: residual model not found: {meta_pkl_path}")
         return None
 
     odds_df = _load_tansho_odds_df(day_str)
+    odds_map = pd.DataFrame()
+    ninki_map = {}
+    if not odds_df.empty:
+        odds_map = odds_df[['race_code', 'umaban', 'odds_val']].dropna().copy()
+        odds_map['umaban'] = odds_map['umaban'].astype(int)
+        for _, orow in odds_df.iterrows():
+            if pd.notnull(orow.get('ninki')):
+                ninki_map[(str(orow['race_code']), int(orow['umaban']))] = int(orow['ninki'])
 
-    # --- モデルスコアの読み込み (TCSV\v13) + z_score / EV 計算 ---
-    model_dfs = {}
-    for m in buy_df['model'].dropna().unique():
-        m_path = _kelly_model_csv_path(m, day_str, KELLY_TCSV_V13_DIR)
-        if m_path is None:
-            continue
-        try:
-            sdf = pd.read_csv(m_path)
-        except Exception as e:
-            logger.warning(f"Kelly2: score CSV read failed ({m_path}): {e}")
-            continue
-        if 'race_horse_id' not in sdf.columns or 'score' not in sdf.columns:
-            continue
-        sdf['race_horse_id'] = sdf['race_horse_id'].astype(str)
-        sdf['racecode'] = sdf['race_horse_id'].str[:16]
-        sdf['umaban'] = sdf['race_horse_id'].str[16:18].astype(int)
-        sdf['z_score'] = sdf.groupby('racecode')['score'].transform(
-            lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0)
-        sdf['ev'] = np.nan
-        if not odds_df.empty:
-            sdf = sdf.merge(odds_df[['race_code', 'umaban', 'odds_val']],
-                            left_on=['racecode', 'umaban'],
-                            right_on=['race_code', 'umaban'], how='left')
-            for rc, group in sdf.groupby('racecode'):
-                probs = _softmax_np(group['z_score'].values * 2.0)
-                evs = probs * np.log1p(group['odds_val'].fillna(10.0).values)
-                sdf.loc[group.index, 'ev'] = evs
-        model_dfs[m] = sdf
-
-    if not model_dfs:
-        logger.warning(f"Kelly2: no v13 score CSV for {day} -> PICKUP は近似表示にフォールバック")
+    try:
+        df_feat = load_daily_feature_csv(feature_csv_path)
+        if df_feat.empty:
+            logger.warning(f"Kelly2: feature CSV is empty for {day_str}")
+            return None
+        df_pred = predict_residual_ensemble(
+            df_feat, odds_map, day_str, model_dir=KELLY2_RESIDUAL_MODEL_DIR
+        )
+    except Exception as e:
+        logger.error(f"Kelly2: residual_v1 inference failed for {day_str}: {e}")
         return None
 
-    # 合意度表示用 (主要4モデルの順位)
-    conf_rank = {}
-    for m, sdf in model_dfs.items():
-        if m not in KELLY_CONF_MODELS:
-            continue
-        for rc, group in sdf.groupby('racecode'):
-            order = group.sort_values('score', ascending=False)['umaban'].tolist()
-            entry = conf_rank.setdefault(str(rc), {})
-            for i, un in enumerate(order):
-                entry.setdefault(int(un), []).append(i + 1)
+    if df_pred.empty:
+        return {}
 
-    # レースメタ (サイトの JSON より。Kelly2.ipynb の race_meta と同じキー構成)
-    meta_by_race = {}
-    for rid, r_info in races_of_day.items():
-        # Kelly2.ipynb の race_meta と同じキーのみ使用 (class_track / dist_track /
-        # track_ground 等のサイト独自キーでマッチさせると本家に無い買い目が出る)
-        _full_meta = dict(r_info.get('meta') or {})
-        rid_str = str(rid)
-        _full_meta.setdefault('venue_code', rid_str[4:6] if len(rid_str) >= 6 else '')
-        meta = {k: _full_meta[k] for k in KELLY2_META_KEYS if k in _full_meta}
-        meta_by_race[rid_str] = meta
-
+    pad = lambda n: f"{int(n):02d}"
+    model_label = "市場残差アンサンブル (residual_v1)"
     candidates = []
-    for _, strat in buy_df.iterrows():
-        m_name = strat['model']
-        if m_name not in model_dfs:
+
+    for r_code, g in df_pred.groupby('racecode'):
+        if len(g) < 6:
             continue
-        df = model_dfs[m_name]
-        bt = str(strat.get('bet_type') or '')
-        unit = int(strat['unit_price']) if pd.notnull(strat.get('unit_price')) else 100
-        cat_col = str(strat.get('cat_col') or '')
-        cat_val = strat.get('val')
-        score_th = strat.get('score_th')
-        ev_th = strat.get('EV_th')
+        r_code = str(r_code)
+        s_r12 = (r_code[:4] + r_code[8:16]) if len(r_code) == 16 else r_code
+        date_str = r_code[:8]
+        track_name = KELLY_TRACK_MAPPING.get(r_code[8:10], 'UNKNOWN')
+        race_no = int(r_code[-2:])
+        top_p_list = g.sort_values('p_place', ascending=False)['umaban'].astype(int).tolist()
 
-        for r_code, group in df.groupby('racecode'):
-            r_code = str(r_code)
-            s_r12 = (r_code[:4] + r_code[8:16]) if len(r_code) == 16 else r_code
-            # 本家同様、メタが無くても cat_col == 'all' の戦略はマッチさせる
-            meta = meta_by_race.get(s_r12, {})
-            # 条件マッチ (Kelly2.ipynb Cell3 と同一)
-            if cat_col == 'all':
-                matched = True
-            else:
-                matched = (cat_col in meta and str(meta.get(cat_col)) == str(cat_val))
-            if not matched:
-                continue
-            # EXCLUDE ルール
-            is_excluded = False
-            for _, ex in ex_df.iterrows():
-                e_col = str(ex.get('cat_col') or '')
-                if e_col in meta and str(meta.get(e_col)) == str(ex.get('val')):
-                    if str(ex.get('model')) in ['all', '全モデル', m_name]:
-                        is_excluded = True
-                        break
-            if is_excluded:
-                continue
-
-            sorted_g = group.sort_values('score', ascending=False)
-            nos = [int(x) for x in sorted_g['umaban'].tolist()]
-            if len(nos) < 3:
-                continue
-            axis1_row = sorted_g.iloc[0]
-            if pd.notnull(score_th) and float(score_th) > -90:
-                if float(axis1_row['z_score']) < float(score_th):
-                    continue
-            if pd.notnull(ev_th) and float(ev_th) > -90:
-                if pd.notnull(axis1_row['ev']) and float(axis1_row['ev']) < float(ev_th):
-                    continue
-
-            h1_num = int(nos[0])
-            h1_conf = conf_rank.get(r_code, {}).get(h1_num, [])
-            pop_rank = None
-            if not odds_df.empty:
-                hit = odds_df[(odds_df['race_code'] == r_code) & (odds_df['umaban'] == h1_num)]
-                if len(hit) > 0 and pd.notnull(hit.iloc[0]['ninki']):
-                    pop_rank = int(hit.iloc[0]['ninki'])
-
-            date_str = r_code[:8]
-            track_name = KELLY_TRACK_MAPPING.get(r_code[8:10], 'UNKNOWN')
-            race_no = int(r_code[-2:])
-            for spec in _kelly2_bet_specs(bt, nos):
-                line = (f"{date_str},{track_name},{race_no},{spec['code']},{spec['sel_mode']},"
-                        f"{spec['multi']},{spec['nums_str']},{unit}")
+        # ① 3連複4頭BOX (安定主力: place_edge >= 1.10馬2頭 + p_place上位2頭)
+        cfg = KELLY2_STRATEGY_CONFIG['sanrenpuku_place_box4']
+        if cfg['enabled']:
+            cands = g[
+                (g['place_edge'] >= cfg['place_edge_th'])
+                & (g['odds_val'] >= cfg['odds_min'])
+                & (g['odds_val'] <= cfg['odds_max'])
+            ].sort_values('place_edge', ascending=False)
+            if len(cands) >= 2:
+                top_e_rows = cands.iloc[:2]
+                top_e = top_e_rows['umaban'].astype(int).tolist()
+                add_p = [u for u in top_p_list if u not in top_e][:2]
+                box4 = sorted(top_e + add_p)
+                p_str = ''.join(pad(x) for x in box4)
+                unit = int(cfg['unit'])
+                line = f"{date_str},{track_name},{race_no},SANRENPUKU,BOX,,{p_str},{unit}"
+                e_desc = ', '.join(f"{int(r['umaban']):02d}(edge {r['place_edge']:.2f})" for _, r in top_e_rows.iterrows())
+                p_desc = ', '.join(pad(u) for u in add_p)
                 candidates.append({
                     'line': line,
                     'race_id': s_r12,
-                    'strategy_id': str(strat.get('strategy_id') or ''),
-                    'model': m_name,
-                    'bet_type': bt,
-                    'rawType': bt,
+                    'strategy_id': 'sanrenpuku_place_box4',
+                    'model': model_label,
+                    'bet_type': '3連複4頭BOX(安定)',
+                    'rawType': '3連複4頭BOX(安定)',
                     'unit': unit,
-                    'combs': spec['combs'],
-                    'cost': unit * spec['combs'],
-                    'axis1Num': spec['axis1'],
-                    'axis2Num': spec['axis2'],
-                    'partnerNums': spec['partners'],
-                    'bettingEyesText': spec['eyes'],
-                    'roi': float(strat.get('roi_total') or strat.get('roi') or 0),
-                    'hitRate': float(strat.get('hit_rate') or 0),
-                    'h1Info': {
-                        'avgRank': float(sum(h1_conf) / len(h1_conf)) if h1_conf else 99.0,
-                        'top3Count': sum(1 for x in h1_conf if x <= 3),
-                    },
-                    'h1PopRank': pop_rank,
+                    'combs': 4,
+                    'cost': unit * 4,
+                    'axis1Num': top_e[0],
+                    'axis2Num': top_e[1],
+                    'partnerNums': add_p,
+                    'bettingEyesText': f"{', '.join(pad(x) for x in box4)} BOX",
+                    'detailText': f"place_edge上位: {e_desc} + p_place補完: {p_desc}",
+                    'h1PopRank': ninki_map.get((r_code, top_e[0])),
+                })
+
+        # ② 3連複4頭BOX (厳選高回収: ev_win >= 0.90馬2頭 + p_place上位2頭)
+        cfg = KELLY2_STRATEGY_CONFIG['sanrenpuku_win_box4']
+        if cfg['enabled']:
+            cands = g[
+                (g['ev_win'] >= cfg['ev_win_th'])
+                & (g['odds_val'] >= cfg['odds_min'])
+                & (g['odds_val'] <= cfg['odds_max'])
+            ].sort_values('ev_win', ascending=False)
+            if len(cands) >= 2:
+                top_e_rows = cands.iloc[:2]
+                top_e = top_e_rows['umaban'].astype(int).tolist()
+                add_p = [u for u in top_p_list if u not in top_e][:2]
+                box4 = sorted(top_e + add_p)
+                p_str = ''.join(pad(x) for x in box4)
+                unit = int(cfg['unit'])
+                line = f"{date_str},{track_name},{race_no},SANRENPUKU,BOX,,{p_str},{unit}"
+                e_desc = ', '.join(f"{int(r['umaban']):02d}(ev {r['ev_win']:.2f})" for _, r in top_e_rows.iterrows())
+                p_desc = ', '.join(pad(u) for u in add_p)
+                candidates.append({
+                    'line': line,
+                    'race_id': s_r12,
+                    'strategy_id': 'sanrenpuku_win_box4',
+                    'model': model_label,
+                    'bet_type': '3連複4頭BOX(厳選)',
+                    'rawType': '3連複4頭BOX(厳選)',
+                    'unit': unit,
+                    'combs': 4,
+                    'cost': unit * 4,
+                    'axis1Num': top_e[0],
+                    'axis2Num': top_e[1],
+                    'partnerNums': add_p,
+                    'bettingEyesText': f"{', '.join(pad(x) for x in box4)} BOX",
+                    'detailText': f"ev_win上位: {e_desc} + p_place補完: {p_desc}",
+                    'h1PopRank': ninki_map.get((r_code, top_e[0])),
+                })
+
+        # ③ 3連単4頭BOX (高配当狙い: ev_win >= 0.88馬2頭 + p_place上位2頭)
+        cfg = KELLY2_STRATEGY_CONFIG['sanrentan_win_box4']
+        if cfg['enabled']:
+            cands = g[
+                (g['ev_win'] >= cfg['ev_win_th'])
+                & (g['odds_val'] >= cfg['odds_min'])
+                & (g['odds_val'] <= cfg['odds_max'])
+            ].sort_values('ev_win', ascending=False)
+            if len(cands) >= 2:
+                top_e_rows = cands.iloc[:2]
+                top_e = top_e_rows['umaban'].astype(int).tolist()
+                add_p = [u for u in top_p_list if u not in top_e][:2]
+                box4 = sorted(top_e + add_p)
+                p_str = ''.join(pad(x) for x in box4)
+                unit = int(cfg['unit'])
+                line = f"{date_str},{track_name},{race_no},SANRENTAN,BOX,,{p_str},{unit}"
+                e_desc = ', '.join(f"{int(r['umaban']):02d}(ev {r['ev_win']:.2f})" for _, r in top_e_rows.iterrows())
+                p_desc = ', '.join(pad(u) for u in add_p)
+                candidates.append({
+                    'line': line,
+                    'race_id': s_r12,
+                    'strategy_id': 'sanrentan_win_box4',
+                    'model': model_label,
+                    'bet_type': '3連単4頭BOX(厳選)',
+                    'rawType': '3連単4頭BOX(厳選)',
+                    'unit': unit,
+                    'combs': 24,
+                    'cost': unit * 24,
+                    'axis1Num': top_e[0],
+                    'axis2Num': top_e[1],
+                    'partnerNums': add_p,
+                    'bettingEyesText': f"{', '.join(pad(x) for x in box4)} BOX",
+                    'detailText': f"ev_win上位: {e_desc} + p_place補完: {p_desc}",
+                    'h1PopRank': ninki_map.get((r_code, top_e[0])),
+                })
+
+        # ④ 単勝 (高回収補完: ev_win >= 0.92)
+        cfg = KELLY2_STRATEGY_CONFIG['tansho_win_edge']
+        if cfg['enabled']:
+            cands = g[
+                (g['ev_win'] >= cfg['ev_win_th'])
+                & (g['odds_val'] >= cfg['odds_min'])
+                & (g['odds_val'] <= cfg['odds_max'])
+            ].sort_values('ev_win', ascending=False)
+            for _, row in cands.iterrows():
+                u = int(row['umaban'])
+                unit = int(cfg['unit'])
+                line = f"{date_str},{track_name},{race_no},TANSYO,NORMAL,,{u:02d},{unit}"
+                candidates.append({
+                    'line': line,
+                    'race_id': s_r12,
+                    'strategy_id': 'tansho_win_edge',
+                    'model': model_label,
+                    'bet_type': '単勝(Win残差)',
+                    'rawType': '単勝(Win残差)',
+                    'unit': unit,
+                    'combs': 1,
+                    'cost': unit,
+                    'axis1Num': u,
+                    'axis2Num': None,
+                    'partnerNums': [],
+                    'bettingEyesText': pad(u),
+                    'detailText': f"ev_win={row['ev_win']:.2f} / p_win={row['p_win']*100:.1f}% / 単勝{row['odds_val']:.1f}倍",
+                    'h1PopRank': ninki_map.get((r_code, u)),
                 })
 
     if not candidates:
-        return None
+        logger.info(f"Kelly2 (residual_v1): 0 bets for {day_str}")
+        return {}
 
-    # 買い目の重複排除 (Kelly2.ipynb: drop_duplicates('line', keep='first'))
-    by_race = {}
-    seen = set()
+    # 同一券種・同一組合わせの重複排除 (Kelly2.ipynb と同じく単価が高い方を優先保持)
+    candidates.sort(key=lambda c: c['unit'], reverse=True)
+    deduped = []
+    seen_keys = set()
     for c in candidates:
-        if c['line'] in seen:
+        dedup_key = ','.join(c['line'].split(',')[:7])
+        if dedup_key in seen_keys:
             continue
-        seen.add(c['line'])
+        seen_keys.add(dedup_key)
+        deduped.append(c)
+
+    deduped.sort(key=lambda c: (c['race_id'], c['bet_type'], c['bettingEyesText']))
+
+    by_race = {}
+    for c in deduped:
         by_race.setdefault(c['race_id'], []).append(c)
 
     result = {}
+    total_cost = 0
     for rid, bets in by_race.items():
-        result[rid] = {'bets': bets, 'total_cost': sum(b['cost'] for b in bets)}
-    logger.info(f"Kelly2: {len(seen)} bets / {len(result)} races for {day}")
+        r_cost = sum(b['cost'] for b in bets)
+        total_cost += r_cost
+        result[rid] = {'bets': bets, 'total_cost': r_cost}
+    logger.info(f"Kelly2 (residual_v1): {len(deduped)} bets / {len(result)} races / total_cost={total_cost:,}円 for {day_str}")
     return result
 
 
@@ -3998,7 +4053,8 @@ def generate_static_html():
                         roi: b.roi,
                         hitRate: b.hitRate,
                         h1Info: b.h1Info,
-                        h1PopRank: b.h1PopRank
+                        h1PopRank: b.h1PopRank,
+                        detailText: b.detailText || ''
                     }};
                 }});
                 return {{ validStrategies, jikuSet, partnerSet, horseConf: {{}}, popRanks: {{}}, source: 'Kelly2.ipynb' }};
@@ -4104,14 +4160,32 @@ def generate_static_html():
                         const popDisp = item.h1PopRank ? `単勝 ${{item.h1PopRank}}番人気` : '';
                         const h1 = item.h1Info || {{}};
                         const confDisp = (typeof h1.avgRank === 'number') ? `4モデル平均 ${{h1.avgRank.toFixed(1)}}位 (Top3支持: ${{h1.top3Count ?? 0}}モデル)` : '';
+                        const unitPrice = item.unit || 100;
+                        const totalCost = item.cost || (unitPrice * (item.combs || 1));
+
+                        let leftFooter = '';
+                        let rightFooter = '';
+                        if (item.detailText) {{
+                            leftFooter = `${{item.detailText}}${{popDisp ? ' / ' + popDisp : ''}}`;
+                            rightFooter = `投資額: <strong style="color: #4ade80;">¥${{totalCost.toLocaleString()}}</strong> (${{unitPrice.toLocaleString()}}円 × ${{item.combs}}点)`;
+                        }} else {{
+                            const axisLabel = item.axis1Num && item.axis2Num
+                                ? `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番, ${{String(item.axis2Num).padStart(2, '0')}}番</strong>`
+                                : (item.axis1Num ? `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong>` : '');
+                            const partnerLabel = item.partnerNums && item.partnerNums.length > 0
+                                ? `${{axisLabel ? ' | ' : ''}}相手: <strong>${{item.partnerNums.map(n => String(n).padStart(2, '0')).join(', ')}}</strong>`
+                                : '';
+                            leftFooter = `${{axisLabel}}${{partnerLabel}}${{(confDisp || popDisp) ? ` (${{confDisp}}${{confDisp && popDisp ? ' / ' : ''}}${{popDisp}})` : ''}}`;
+                            rightFooter = `ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>`;
+                        }}
 
                         html += `
-                            <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}">
+                            <div class="strategy-item-modal" data-strategy-type="${{item.rawType}}" data-unit="${{unitPrice}}">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                                     <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
                                         ${{displayType}} 
                                         <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${{item.model}}</span>
-                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${{item.combs}}点 / ¥${{totalCost.toLocaleString()}}</span>
                                     </div>
                                 </div>
                                 <div class="bet-eyes-box">
@@ -4120,12 +4194,10 @@ def generate_static_html():
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
                                     <div style="color: #94a3b8;">
-                                        ${{item.axis1Num && item.axis2Num ? `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番, ${{String(item.axis2Num).padStart(2, '0')}}番</strong>` : `軸馬: <strong>${{String(item.axis1Num).padStart(2, '0')}}番</strong>`}}
-                                        ${{item.partnerNums && item.partnerNums.length > 0 ? ` | 相手: <strong>${{item.partnerNums.map(n => String(n).padStart(2, '0')).join(', ')}}</strong>` : ''}}
-                                        (${{confDisp}}${{popDisp ? ' / ' + popDisp : ''}})
+                                        ${{leftFooter}}
                                     </div>
                                     <div>
-                                        ROI: <strong style="color: #4ade80;">${{item.roi}}%</strong> | 的中率: <strong style="color: #60a5fa;">${{item.hitRate}}%</strong>
+                                        ${{rightFooter}}
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
@@ -4523,7 +4595,7 @@ def generate_static_html():
                 }}
 
                 if (winNums.length > 0) {{
-                    const predictedSet = eyesText.split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                    const predictedSet = eyesText.replace(/BOX/gi, '').split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
                     if (formationStages && winNums.length >= 3) {{

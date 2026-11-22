@@ -2355,7 +2355,8 @@
                         roi: b.roi,
                         hitRate: b.hitRate,
                         h1Info: b.h1Info,
-                        h1PopRank: b.h1PopRank
+                        h1PopRank: b.h1PopRank,
+                        detailText: b.detailText || ''
                     };
                 });
                 return { validStrategies, jikuSet, partnerSet, horseConf: {}, popRanks: {}, source: 'Kelly2.ipynb' };
@@ -2461,14 +2462,32 @@
                         const popDisp = item.h1PopRank ? `単勝 ${item.h1PopRank}番人気` : '';
                         const h1 = item.h1Info || {};
                         const confDisp = (typeof h1.avgRank === 'number') ? `4モデル平均 ${h1.avgRank.toFixed(1)}位 (Top3支持: ${h1.top3Count ?? 0}モデル)` : '';
+                        const unitPrice = item.unit || 100;
+                        const totalCost = item.cost || (unitPrice * (item.combs || 1));
+
+                        let leftFooter = '';
+                        let rightFooter = '';
+                        if (item.detailText) {
+                            leftFooter = `${item.detailText}${popDisp ? ' / ' + popDisp : ''}`;
+                            rightFooter = `投資額: <strong style="color: #4ade80;">¥${totalCost.toLocaleString()}</strong> (${unitPrice.toLocaleString()}円 × ${item.combs}点)`;
+                        } else {
+                            const axisLabel = item.axis1Num && item.axis2Num
+                                ? `軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番, ${String(item.axis2Num).padStart(2, '0')}番</strong>`
+                                : (item.axis1Num ? `軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番</strong>` : '');
+                            const partnerLabel = item.partnerNums && item.partnerNums.length > 0
+                                ? `${axisLabel ? ' | ' : ''}相手: <strong>${item.partnerNums.map(n => String(n).padStart(2, '0')).join(', ')}</strong>`
+                                : '';
+                            leftFooter = `${axisLabel}${partnerLabel}${(confDisp || popDisp) ? ` (${confDisp}${confDisp && popDisp ? ' / ' : ''}${popDisp})` : ''}`;
+                            rightFooter = `ROI: <strong style="color: #4ade80;">${item.roi}%</strong> | 的中率: <strong style="color: #60a5fa;">${item.hitRate}%</strong>`;
+                        }
 
                         html += `
-                            <div class="strategy-item-modal" data-strategy-type="${item.rawType}">
+                            <div class="strategy-item-modal" data-strategy-type="${item.rawType}" data-unit="${unitPrice}">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                                     <div style="font-weight: 900; color: #fbbf24; font-size: 1.1rem;">
                                         ${displayType} 
                                         <span style="font-size: 0.75rem; color: #60a5fa; margin-left:8px; font-weight:700; background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(96, 165, 250, 0.2);">${item.model}</span>
-                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${item.combs}点</span>
+                                        <span style="font-size: 0.75rem; color: #4ade80; margin-left:6px; font-weight:700; background: rgba(74, 222, 128, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(74, 222, 128, 0.2);">${item.combs}点 / ¥${totalCost.toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div class="bet-eyes-box">
@@ -2477,12 +2496,10 @@
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
                                     <div style="color: #94a3b8;">
-                                        ${item.axis1Num && item.axis2Num ? `軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番, ${String(item.axis2Num).padStart(2, '0')}番</strong>` : `軸馬: <strong>${String(item.axis1Num).padStart(2, '0')}番</strong>`}
-                                        ${item.partnerNums && item.partnerNums.length > 0 ? ` | 相手: <strong>${item.partnerNums.map(n => String(n).padStart(2, '0')).join(', ')}</strong>` : ''}
-                                        (${confDisp}${popDisp ? ' / ' + popDisp : ''})
+                                        ${leftFooter}
                                     </div>
                                     <div>
-                                        ROI: <strong style="color: #4ade80;">${item.roi}%</strong> | 的中率: <strong style="color: #60a5fa;">${item.hitRate}%</strong>
+                                        ${rightFooter}
                                     </div>
                                 </div>
                                 <div class="bet-result-details"></div>
@@ -2880,7 +2897,7 @@
                 }
 
                 if (winNums.length > 0) {
-                    const predictedSet = eyesText.split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+                    const predictedSet = eyesText.replace(/BOX/gi, '').split(/[→↔,-]/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
                     const isMulti = normType.includes("マルチ") || normType.includes("BOX") || normType.includes("3連複") || normType.includes("馬連") || normType.includes("ワイド");
 
                     if (formationStages && winNums.length >= 3) {
