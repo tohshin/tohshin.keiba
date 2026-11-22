@@ -53409,6 +53409,7 @@
     "kelly2": {
       "bets": [],
       "total_cost": 0
-    }
+    },
+    "strat2": null
   }
 }
