@@ -53587,8 +53587,8 @@
       "axis1Num": 18,
       "axis2Num": null,
       "partnerNums": [
-        17,
         15,
+        17,
         1
       ],
       "bettingEyesText": "18",
@@ -53617,7 +53617,7 @@
       ],
       "lane": "Lane_C",
       "lane_jp": "レーンC",
-      "top_horses": "18-17-15-1"
+      "top_horses": "18-15-17-1"
     }
   }
 }
