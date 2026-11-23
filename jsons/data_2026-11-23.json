@@ -6718,7 +6718,7 @@
       "partnerNums": [
         13,
         9,
-        10
+        11
       ],
       "bettingEyesText": "15",
       "rawType": "Kelly3-RLハイブリッド",
@@ -6746,7 +6746,7 @@
       ],
       "lane": "Lane_B",
       "lane_jp": "レーンB",
-      "top_horses": "15-13-9-10"
+      "top_horses": "15-13-9-11"
     }
   },
   "202603030604": {
