@@ -24701,17 +24701,17 @@
       "is_pickup": true,
       "cost": 500,
       "combs": 1,
-      "axis1Num": 8,
+      "axis1Num": 4,
       "axis2Num": null,
       "partnerNums": [
-        4,
         5,
+        8,
         13
       ],
-      "bettingEyesText": "08",
+      "bettingEyesText": "04",
       "rawType": "Kelly3-RLハイブリッド",
       "lines": [
-        "20261123,FUKUSHIMA,11,TANSYO,NORMAL,,08,500"
+        "20261123,FUKUSHIMA,11,TANSYO,NORMAL,,04,500"
       ],
       "model": "Kelly3 RL Hybrid (Double DQN+CQL)",
       "sub_items": [
@@ -24726,15 +24726,15 @@
           "unit": 500,
           "combs": 1,
           "cost": 500,
-          "bettingEyesText": "08",
-          "axis1Num": 8,
+          "bettingEyesText": "04",
+          "axis1Num": 4,
           "axis2Num": null,
           "partnerNums": []
         }
       ],
       "lane": "Lane_C",
       "lane_jp": "レーンC",
-      "top_horses": "8-4-5-13"
+      "top_horses": "4-5-8-13"
     }
   },
   "202603030612": {
