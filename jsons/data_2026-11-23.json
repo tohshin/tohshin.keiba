@@ -13428,15 +13428,15 @@
       "axis2Num": null,
       "partnerNums": [
         15,
-        13,
-        11
+        11,
+        1
       ],
-      "bettingEyesText": "03, 13, 15 BOX",
+      "bettingEyesText": "03, 11, 15 BOX",
       "rawType": "Kelly3-RLハイブリッド",
       "lines": [
         "20261123,FUKUSHIMA,6,WIDE,NORMAL,,03-15,500",
-        "20261123,FUKUSHIMA,6,WIDE,NORMAL,,03-13,500",
-        "20261123,FUKUSHIMA,6,WIDE,NORMAL,,13-15,500"
+        "20261123,FUKUSHIMA,6,WIDE,NORMAL,,03-11,500",
+        "20261123,FUKUSHIMA,6,WIDE,NORMAL,,11-15,500"
       ],
       "model": "Kelly3 RL Hybrid (Double DQN+CQL)",
       "sub_items": [
@@ -13451,19 +13451,19 @@
           "unit": 500,
           "combs": 3,
           "cost": 1500,
-          "bettingEyesText": "03, 13, 15 BOX",
+          "bettingEyesText": "03, 11, 15 BOX",
           "axis1Num": null,
           "axis2Num": null,
           "partnerNums": [
             3,
-            13,
+            11,
             15
           ]
         }
       ],
       "lane": "Lane_B",
       "lane_jp": "レーンB",
-      "top_horses": "3-15-13-11"
+      "top_horses": "3-15-11-1"
     }
   },
   "202603030607": {
