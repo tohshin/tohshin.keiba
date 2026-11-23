@@ -31471,21 +31471,24 @@
     },
     "strat2": {
       "action_id": 15,
-      "action_name": "現行(x5): 単勝-1位(1点)",
+      "action_name": "現行(x5): 単勝-1位(1点) + 3連系(x1): 3連複-2頭軸3頭流し(1,2-3..5)",
       "is_pickup": true,
-      "cost": 500,
-      "combs": 1,
+      "cost": 800,
+      "combs": 4,
       "axis1Num": 12,
       "axis2Num": null,
       "partnerNums": [
         3,
-        13,
-        17
+        2,
+        7
       ],
-      "bettingEyesText": "12",
+      "bettingEyesText": "12 / 12,03 - 02,07,17",
       "rawType": "Kelly3-RLハイブリッド",
       "lines": [
-        "20261123,TOKYO,2,TANSYO,NORMAL,,12,500"
+        "20261123,TOKYO,2,TANSYO,NORMAL,,12,500",
+        "20261123,TOKYO,2,SANRENPUKU,NORMAL,,02-03-12,100",
+        "20261123,TOKYO,2,SANRENPUKU,NORMAL,,03-07-12,100",
+        "20261123,TOKYO,2,SANRENPUKU,NORMAL,,03-12-17,100"
       ],
       "model": "Kelly3 RL Hybrid (Double DQN+CQL)",
       "sub_items": [
@@ -31504,11 +31507,31 @@
           "axis1Num": 12,
           "axis2Num": null,
           "partnerNums": []
+        },
+        {
+          "type": "SANRENPUKU",
+          "rawType": "3連複-2頭軸3頭流し",
+          "bet_type_jp": "3連複",
+          "action_id": 1,
+          "action_name": "3連複-2頭軸3頭流し(1,2-3..5)",
+          "agent": "sanren",
+          "agent_label": "3連系 (x1: 100円/点)",
+          "unit": 100,
+          "combs": 3,
+          "cost": 300,
+          "bettingEyesText": "12,03 - 02,07,17",
+          "axis1Num": 12,
+          "axis2Num": 3,
+          "partnerNums": [
+            2,
+            7,
+            17
+          ]
         }
       ],
       "lane": "Lane_A",
       "lane_jp": "レーンA",
-      "top_horses": "12-3-13-17"
+      "top_horses": "12-3-2-7"
     }
   },
   "202605050603": {
