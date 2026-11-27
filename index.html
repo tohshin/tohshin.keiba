@@ -1126,8 +1126,8 @@
             </select>
             <select id="filter-pickup" onchange="renderRaces()">
                 <option value="ALL">All Status</option>
-                <option value="PICKUP1">🎯 PICKUP 1</option>
-                <option value="PICKUP2">🚀 PICKUP 2</option>
+                <option value="PICKUP1">🎯 PICKUP_v13</option>
+                <option value="PICKUP2">🚀 PICKUP_v12</option>
                 <option value="ANY_PICKUP">✨ PICKUP (いずれか)</option>
             </select>
             <select id="sort-select" onchange="renderRaces()">
@@ -1207,7 +1207,6 @@
     <script>
         console.log("[DEBUG] Keiba AI Script Initializing...");
         let currentData = {};
-        window.strategies2 = [];
 
         // Service Worker の登録とオフライン状態の監視
         if ('serviceWorker' in navigator) {
@@ -1781,7 +1780,7 @@
                     return `
                         <div class="pickup-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}', 'strat1')">
                             <span style="font-size: 0.6rem; opacity: 0.8; font-weight: 400; color: #fff;">INFO</span>
-                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP</div>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP_v13</div>
                         </div>
                     `;
                 })();
@@ -1791,7 +1790,7 @@
                     return `
                         <div class="pickup2-badge" onclick="event.stopPropagation(); showRecommendation('${raceId}', 'strat2')">
                             <span style="font-size: 0.6rem; opacity: 0.85; font-weight: 700; color: #e9d5ff;">STRAT</span>
-                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP 2</div>
+                            <div style="font-weight: 900; letter-spacing: 0.05em; color: #fff;">PICKUP_v12</div>
                         </div>
                     `;
                 })();
@@ -1887,7 +1886,7 @@
                     pickupSummaryItems.push({
                         raceId: raceId,
                         raceTitle: raceTitle,
-                        tag: 'PICKUP',
+                        tag: 'PICKUP_v13',
                         tagColor: '#4ade80',
                         rawType: item.rawType,
                         bettingEyesText: item.bettingEyesText,
@@ -1907,7 +1906,7 @@
                             pickupSummaryItems.push({
                                 raceId: raceId,
                                 raceTitle: raceTitle,
-                                tag: 'PICKUP 2',
+                                tag: 'PICKUP_v12',
                                 tagColor: '#fb923c',
                                 rawType: sub.rawType,
                                 bettingEyesText: sub.bettingEyesText,
@@ -1921,7 +1920,7 @@
                         pickupSummaryItems.push({
                             raceId: raceId,
                             raceTitle: raceTitle,
-                            tag: 'PICKUP 2',
+                            tag: 'PICKUP_v12',
                             tagColor: '#fb923c',
                             rawType: s2.rawType,
                             bettingEyesText: s2.bettingEyesText,
@@ -2434,7 +2433,7 @@
             let html = `
                 <div style="text-align: center; margin-bottom: 20px; position: relative;">
                     <div style="font-size: 0.8rem; color: ${currentActiveRecTab === 'strat2' ? '#fb923c' : '#4ade80'}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px;">
-                        ${currentActiveRecTab === 'strat2' ? 'Kelly3 RL Hybrid (Double DQN+CQL)' : 'Kelly2 (Kelly2.ipynb)'}
+                        ${currentActiveRecTab === 'strat2' ? 'Kelly3 新案2 (v12合議×市場残差統合)' : 'Kelly2 改善案B (市場残差アンサンブル)'}
                     </div>
                     <h2 style="margin: 0; font-size: 1.8rem; color: #fff;">${raceData.title}</h2>
                     <button onclick="event.stopPropagation(); fetchRaceResults('${raceId}', true)" 
@@ -2446,10 +2445,10 @@
 
                 <div class="rec-tab-group">
                     <button class="rec-tab-btn ${currentActiveRecTab === 'strat1' ? 'active' : ''}" onclick="switchRecTab('${raceId}', 'strat1')">
-                        🎯 戦略1 (Kelly2)${strat1List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${strat1List.length})</span>` : ''}
+                        🎯 PICKUP_v13 (Kelly2)${strat1List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(${strat1List.length})</span>` : ''}
                     </button>
                     <button class="rec-tab-btn strat2 ${currentActiveRecTab === 'strat2' ? 'active' : ''}" onclick="switchRecTab('${raceId}', 'strat2')">
-                        🚀 戦略2 (Kelly3)${strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(推奨)</span>` : ''}
+                        🚀 PICKUP_v12 (Kelly3)${strat2List.length > 0 ? ` <span style="opacity:0.9; font-size:0.75rem;">(推奨)</span>` : ''}
                     </button>
                 </div>
             `;
@@ -2528,7 +2527,7 @@
                     const actionBadgeColor = isPickup ? '#fb923c' : '#94a3b8';
                     const actionBadgeBg = isPickup ? 'rgba(249, 115, 22, 0.15)' : 'rgba(255, 255, 255, 0.05)';
                     const borderLeftColor = isPickup ? '#fb923c' : '#64748b';
-                    const statusText = isPickup ? '🚀 PICKUP 2 (積極購入推奨)' : '見送り (SKIP)';
+                    const statusText = isPickup ? '🚀 PICKUP_v12 (積極購入推奨)' : '見送り (SKIP)';
                     const pad = (n) => String(n).padStart(2, '0');
 
                     // 1. ハイブリッド等で複数券種に分割されている場合
