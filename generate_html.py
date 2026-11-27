@@ -31,6 +31,7 @@ try:
         generate_kelly2_plan_b_race_bets,
         generate_kelly3_plan2_race_bets,
         load_daily_feature_csv,
+        parse_ipatgo_line,
         predict_residual_ensemble,
         scores_from_margins_and_odds,
     )
@@ -67,8 +68,8 @@ KELLY_TCSV_V13_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v13"
 KELLY_TANSHO_DB_URL = "postgresql://postgres:zatenn@localhost/postgres"
 
 # Kelly2 改善案B (7モデル市場残差アンサンブル Plan B) 定数
-KELLY2_RESIDUAL_VERSION = "residual_v1_plan_b2"
-KELLY3_PLAN2_VERSION = "k3_plan2_v12_residual_v2"
+KELLY2_RESIDUAL_VERSION = "residual_v1_plan_b3"
+KELLY3_PLAN2_VERSION = "k3_plan2_v12_residual_v3"
 KELLY2_RECENT_RECALC_DAYS = 7  # 直近N日以内（および未来日）は毎回再計算、それ以前の生成済み過去日は既存JSONを再利用
 KELLY2_RESIDUAL_MODEL_DIR = r"C:\Users\kyoui\keiba\models\residual_v1"
 KELLY2_FEATURE_TMP_DIR = r"C:\Users\kyoui\keiba\data\tmp"
@@ -525,51 +526,99 @@ def _get_or_compute_residual_for_day(day_str):
         return None
 
 
-def _parse_kelly2_plan_b_line(line, bt):
-    """Kelly2 改善案B の ipatgo 行から UI 表示用の bettingEyesText / axis / partners を生成する。"""
-    parts = line.split(',')
-    code = parts[3].strip() if len(parts) > 3 else ''
-    sel_mode = parts[4].strip() if len(parts) > 4 else ''
-    nums_str = parts[6].strip() if len(parts) > 6 else ''
+def _split_ipatgo_2digit_horses(token):
+    """'030412' のような2桁連結馬番文字列を [3, 4, 12] に分解する。"""
+    s = str(token).strip()
+    if not s:
+        return []
+    if len(s) >= 2 and len(s) % 2 == 0 and s.isdigit():
+        return [int(s[i:i + 2]) for i in range(0, len(s), 2)]
+    return [int(s)] if s.isdigit() else []
+
+
+def _parse_kelly2_plan_b_line(line, bt, combs=1):
+    """Kelly2 改善案B の集約済み ipatgo 行 (BOX / WHEEL1 / WHEEL1B / WHEEL2B / WHEEL12 / FORMATION / NORMAL) から
+    UI 表示・的中判定・投票連携用の (axis1, axis2, partners, eyes, raw_type_disp) を生成する。"""
+    parts = [p.strip() for p in line.split(',')]
+    code = parts[3].upper() if len(parts) > 3 else ''
+    sel_mode = parts[4].upper() if len(parts) > 4 else ''
+    nums_str = parts[6] if len(parts) > 6 else ''
     pad = lambda n: f"{int(n):02d}"
+    fmt_list = lambda xs: ', '.join(pad(x) for x in xs)
 
     axis1 = None
     axis2 = None
     partners = []
     eyes = nums_str
+    raw_type_disp = bt
+    tier_prefix = bt.split(':', 1)[0] + ':' if ':' in bt else ''
 
-    if code == 'TANSYO':
+    if code in ('TANSYO', 'TANSHO'):
         u = int(nums_str)
         axis1 = u
         eyes = pad(u)
     elif sel_mode == 'BOX':
-        nums = [int(nums_str[i:i + 2]) for i in range(0, len(nums_str), 2) if nums_str[i:i + 2].isdigit()]
-        axis1 = nums[0] if len(nums) >= 1 else None
-        axis2 = nums[1] if len(nums) >= 2 else None
-        partners = nums[2:] if len(nums) > 2 else []
-        eyes = f"{', '.join(pad(x) for x in nums)} BOX"
-    elif sel_mode == 'WHEEL1' and '-' in nums_str:
+        nums = _split_ipatgo_2digit_horses(nums_str)
+        axis1 = None
+        axis2 = None
+        partners = nums
+        eyes = f"{fmt_list(nums)} BOX"
+    elif sel_mode in ('WHEEL1', 'WHEEL1B') and '-' in nums_str:
         ax_s, rest_s = nums_str.split('-', 1)
-        ax = int(ax_s)
-        oth = [int(rest_s[i:i + 2]) for i in range(0, len(rest_s), 2) if rest_s[i:i + 2].isdigit()]
+        ax = _split_ipatgo_2digit_horses(ax_s)[0]
+        oth = _split_ipatgo_2digit_horses(rest_s)
         axis1 = ax
         partners = oth
         sep = ' → ' if code == 'SANRENTAN' else ' - '
-        eyes = f"{pad(ax)}{sep}{', '.join(pad(x) for x in oth)}"
+        eyes = f"{pad(ax)}{sep}{fmt_list(oth)}"
+        if code == 'SANRENTAN':
+            raw_type_disp = f"{tier_prefix}3連単-1頭軸{len(oth)}頭流し({combs}点)"
+        elif code == 'SANRENPUKU':
+            raw_type_disp = f"{tier_prefix}3連複-1頭軸{len(oth)}頭ながし({combs}点)"
+    elif sel_mode in ('WHEEL2B', 'WHEEL12') and '-' in nums_str:
+        segs = nums_str.split('-')
+        if len(segs) >= 3:
+            a1 = _split_ipatgo_2digit_horses(segs[0])[0]
+            a2 = _split_ipatgo_2digit_horses(segs[1])[0]
+            ps = _split_ipatgo_2digit_horses(segs[2])
+            axis1, axis2, partners = a1, a2, ps
+            if code == 'SANRENTAN':
+                eyes = f"{pad(a1)} → {pad(a2)} → {fmt_list(ps)}"
+                raw_type_disp = f"{tier_prefix}3連単フォーメーション({combs}点)"
+            else:
+                eyes = f"{pad(a1)}, {pad(a2)} - {fmt_list(ps)}"
+                raw_type_disp = f"{tier_prefix}3連複-2頭軸ながし({combs}点)"
+    elif sel_mode == 'FORMATION' and '-' in nums_str:
+        segs = nums_str.split('-')
+        if len(segs) >= 3:
+            g1 = _split_ipatgo_2digit_horses(segs[0])
+            g2 = _split_ipatgo_2digit_horses(segs[1])
+            g3 = _split_ipatgo_2digit_horses(segs[2])
+            axis1 = g1[0] if g1 else None
+            axis2 = g1[1] if len(g1) >= 2 else None
+            partners = sorted((set(g2) | set(g3)) - set(g1))
+            if code == 'SANRENTAN':
+                eyes = f"{fmt_list(g1)} → {fmt_list(g2)} → {fmt_list(g3)}"
+                raw_type_disp = f"{tier_prefix}3連単フォーメーション({combs}点)"
+            else:
+                eyes = f"{fmt_list(g1)} - {fmt_list(g2)} - {fmt_list(g3)}"
+                raw_type_disp = f"{tier_prefix}3連複フォーメーション({combs}点)"
     elif sel_mode == 'NORMAL' and '-' in nums_str:
         nums = [int(x) for x in nums_str.split('-') if x.isdigit()]
         if code == 'SANRENTAN' and len(nums) == 3:
             axis1, axis2, partners = nums[0], nums[1], [nums[2]]
             eyes = f"{pad(nums[0])} → {pad(nums[1])} → {pad(nums[2])}"
         elif code == 'SANRENPUKU' and len(nums) == 3:
-            axis1, partners = nums[0], [nums[1], nums[2]]
-            eyes = f"{pad(nums[0])} - {pad(nums[1])}, {pad(nums[2])}"
+            nums_s = sorted(nums)
+            axis1, axis2, partners = None, None, nums_s
+            eyes = f"{fmt_list(nums_s)} BOX"
+            raw_type_disp = f"{tier_prefix}3連複-3頭BOX(1点)"
         elif nums:
             axis1 = nums[0]
             partners = nums[1:]
             eyes = ' - '.join(pad(x) for x in nums)
 
-    return axis1, axis2, partners, eyes
+    return axis1, axis2, partners, eyes, raw_type_disp
 
 
 def build_kelly2_bets_for_day(day, races_of_day):
@@ -622,70 +671,21 @@ def build_kelly2_bets_for_day(day, races_of_day):
         )
 
         row_by_u = {int(r['umaban']): r for _, r in g.iterrows()}
-
-        # TierA:3連単1着固定(4点) は 1着固定ながし(6点)ではなく
-        # 2着2頭絞りフォーメーション (h1 → o0, o1 → o0, o1, o2 = 4点) のため1件にまとめて表記する
-        tier_a_tan_bets = [b for b in r_bets if b['bt'] == 'TierA:3連単1着固定(4点)']
-        other_bets = [b for b in r_bets if b['bt'] != 'TierA:3連単1着固定(4点)']
-
-        if tier_a_tan_bets:
-            triples = []
-            for b in tier_a_tan_bets:
-                p_nums = b['line'].split(',')[6].split('-')
-                if len(p_nums) == 3 and all(x.isdigit() for x in p_nums):
-                    triples.append((int(p_nums[0]), int(p_nums[1]), int(p_nums[2])))
-            if triples:
-                s1 = list(dict.fromkeys(t[0] for t in triples))
-                s2 = list(dict.fromkeys(t[1] for t in triples))
-                s3 = list(dict.fromkeys(t[2] for t in triples))
-                unit = int(tier_a_tan_bets[0]['unit'])
-                combs = len(triples)
-                bt_disp = f"TierA:3連単フォーメーション({combs}点)"
-                eyes = (
-                    f"{', '.join(f'{x:02d}' for x in s1)} → "
-                    f"{', '.join(f'{x:02d}' for x in s2)} → "
-                    f"{', '.join(f'{x:02d}' for x in s3)}"
-                )
-                axis1 = s1[0]
-                partners = sorted((set(s2) | set(s3)) - set(s1))
-                detail_parts = [bt_disp]
-                if axis1 in row_by_u:
-                    r1 = row_by_u[axis1]
-                    detail_parts.append(
-                        f"軸{axis1:02d}(ev {r1['ev_win']:.2f} / edge {r1['place_edge']:.2f} / {r1['odds_val']:.1f}倍)"
-                    )
-                candidates.append({
-                    'line': f"{date_str},{track_name},{race_no},SANRENTAN,FORMATION,,{eyes},{unit}",
-                    'lines': [b['line'] for b in tier_a_tan_bets],
-                    'race_id': s_r12,
-                    'strategy_id': bt_disp,
-                    'model': model_label,
-                    'bet_type': bt_disp,
-                    'rawType': bt_disp,
-                    'unit': unit,
-                    'combs': combs,
-                    'cost': unit * combs,
-                    'axis1Num': axis1,
-                    'axis2Num': None,
-                    'partnerNums': partners,
-                    'bettingEyesText': eyes,
-                    'detailText': " | ".join(detail_parts),
-                    'h1PopRank': ninki_map.get((r_code, axis1)),
-                })
-
-        for b in other_bets:
+        for b in r_bets:
             line = b['line']
             bt = b['bt']
             unit = int(b['unit'])
             combs = int(b['combs'])
-            axis1, axis2, partners, eyes = _parse_kelly2_plan_b_line(line, bt)
+            axis1, axis2, partners, eyes, raw_type_disp = _parse_kelly2_plan_b_line(line, bt, combs=combs)
 
             # 根拠サマリ
             detail_parts = [bt]
-            if axis1 in row_by_u:
-                r1 = row_by_u[axis1]
+            ref_u = axis1 if axis1 is not None else (partners[0] if partners else None)
+            if ref_u in row_by_u:
+                r1 = row_by_u[ref_u]
+                lbl = f"軸{ref_u:02d}" if axis1 is not None else f"筆頭{ref_u:02d}"
                 detail_parts.append(
-                    f"軸{axis1:02d}(ev {r1['ev_win']:.2f} / edge {r1['place_edge']:.2f} / {r1['odds_val']:.1f}倍)"
+                    f"{lbl}(ev {r1['ev_win']:.2f} / edge {r1['place_edge']:.2f} / {r1['odds_val']:.1f}倍)"
                 )
             detail_text = " | ".join(detail_parts)
 
@@ -694,8 +694,8 @@ def build_kelly2_bets_for_day(day, races_of_day):
                 'race_id': s_r12,
                 'strategy_id': bt,
                 'model': model_label,
-                'bet_type': bt,
-                'rawType': bt,
+                'bet_type': raw_type_disp,
+                'rawType': raw_type_disp,
                 'unit': unit,
                 'combs': combs,
                 'cost': unit * combs,
@@ -704,7 +704,7 @@ def build_kelly2_bets_for_day(day, races_of_day):
                 'partnerNums': partners,
                 'bettingEyesText': eyes,
                 'detailText': detail_text,
-                'h1PopRank': ninki_map.get((r_code, axis1)) if axis1 is not None else None,
+                'h1PopRank': ninki_map.get((r_code, ref_u)) if ref_u is not None else None,
             })
 
     if not candidates:
@@ -866,60 +866,35 @@ def _load_haraimodoshi_map(day):
 
 
 def _calc_kelly3_line_payout(line, race_payout):
-    """ipatgo形式の1買い目行に対する払戻額と結果確定フラグを返す。"""
+    """ipatgo形式の1買い目行 (BOX / WHEEL / FORMATION / NORMAL 等すべて対応) に対する
+    払戻額と結果確定フラグを返す (kelly3_auto_runner.py と同一ロジック)。"""
     if not race_payout:
         return 0.0, False
-    parts = line.split(',')
-    if len(parts) < 8:
-        return 0.0, False
-    btype = parts[3].strip()
-    comb_str = parts[6].strip()
-    amt = float(parts[7].strip()) if parts[7].strip().isdigit() else 100.0
-    scale = amt / 100.0
-    payout = 0.0
-    has_result = False
-
-    if btype in ('TANSYO', 'TANSHO'):
-        u1 = int(comb_str)
-        if u1 in race_payout['tansho']:
-            payout = race_payout['tansho'][u1] * scale
-        has_result = len(race_payout['tansho']) > 0
-    elif btype in ('FUKUSYO', 'FUKUSHO'):
-        u1 = int(comb_str)
-        if u1 in race_payout['fukusho']:
-            payout = race_payout['fukusho'][u1] * scale
-        has_result = len(race_payout['fukusho']) > 0
-    elif btype == 'UMAREN':
-        c = comb_str.replace('-', '')
-        tup = tuple(sorted([int(c[:2]), int(c[2:4])]))
-        if tup in race_payout['umaren']:
-            payout = race_payout['umaren'][tup] * scale
-        has_result = len(race_payout['umaren']) > 0
-    elif btype == 'UMATAN':
-        c = comb_str.replace('-', '')
-        tup = (int(c[:2]), int(c[2:4]))
-        if tup in race_payout['umatan']:
-            payout = race_payout['umatan'][tup] * scale
-        has_result = len(race_payout['umatan']) > 0
-    elif btype == 'WIDE':
-        c = comb_str.replace('-', '')
-        tup = tuple(sorted([int(c[:2]), int(c[2:4])]))
-        if tup in race_payout['wide']:
-            payout = race_payout['wide'][tup] * scale
-        has_result = len(race_payout['wide']) > 0
-    elif btype == 'SANRENPUKU':
-        c = comb_str.replace('-', '')
-        tup = tuple(sorted([int(c[:2]), int(c[2:4]), int(c[4:6])]))
-        if tup in race_payout['sanrenpuku']:
-            payout = race_payout['sanrenpuku'][tup] * scale
-        has_result = len(race_payout['sanrenpuku']) > 0
-    elif btype == 'SANRENTAN':
-        c = comb_str.replace('-', '')
-        tup = (int(c[:2]), int(c[2:4]), int(c[4:6]))
-        if tup in race_payout['sanrentan']:
-            payout = race_payout['sanrentan'][tup] * scale
-        has_result = len(race_payout['sanrentan']) > 0
-    return payout, has_result
+    if residual_v1_available:
+        btype, _, _, combs, unit_amt, _ = parse_ipatgo_line(line)
+        scale = unit_amt / 100.0
+        table_map = {
+            'TANSYO': ('tansho', False),
+            'TANSHO': ('tansho', False),
+            'FUKUSYO': ('fukusho', False),
+            'FUKUSHO': ('fukusho', False),
+            'UMAREN': ('umaren', True),
+            'WIDE': ('wide', True),
+            'UMATAN': ('umatan', False),
+            'SANRENPUKU': ('sanrenpuku', True),
+            'SANRENTAN': ('sanrentan', False),
+        }
+        if btype not in table_map:
+            return 0.0, False
+        table_key, sort_key = table_map[btype]
+        table = race_payout.get(table_key, {})
+        payout = 0.0
+        for c in combs:
+            key = c[0] if len(c) == 1 else (tuple(sorted(c)) if sort_key else c)
+            if key in table:
+                payout += table[key] * scale
+        return payout, len(table) > 0
+    return 0.0, False
 
 
 def _kelly3_action_to_sub_item(action_id, h_list, combs, cost, mult, agent_key):
@@ -1245,8 +1220,7 @@ def build_kelly3_portfolio_for_day(day, races_of_day):
                 continue
 
             for ln in race_lines:
-                parts = ln.split(',')
-                l_cost = int(parts[-1]) if parts[-1].isdigit() else 100
+                _, _, _, _, _, l_cost = parse_ipatgo_line(ln)
                 bucket_bets.append({
                     'race_id': rid_str,
                     'lane_id': lid,
