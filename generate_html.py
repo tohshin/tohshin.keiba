@@ -67,8 +67,8 @@ KELLY_TCSV_V13_DIR = r"C:\keibasoftcom\KSCAutoBetPlus\TCSV\v13"
 KELLY_TANSHO_DB_URL = "postgresql://postgres:zatenn@localhost/postgres"
 
 # Kelly2 改善案B (7モデル市場残差アンサンブル Plan B) 定数
-KELLY2_RESIDUAL_VERSION = "residual_v1_plan_b"
-KELLY3_PLAN2_VERSION = "k3_plan2_v12_residual"
+KELLY2_RESIDUAL_VERSION = "residual_v1_plan_b2"
+KELLY3_PLAN2_VERSION = "k3_plan2_v12_residual_v2"
 KELLY2_RECENT_RECALC_DAYS = 7  # 直近N日以内（および未来日）は毎回再計算、それ以前の生成済み過去日は既存JSONを再利用
 KELLY2_RESIDUAL_MODEL_DIR = r"C:\Users\kyoui\keiba\models\residual_v1"
 KELLY2_FEATURE_TMP_DIR = r"C:\Users\kyoui\keiba\data\tmp"
@@ -622,7 +622,58 @@ def build_kelly2_bets_for_day(day, races_of_day):
         )
 
         row_by_u = {int(r['umaban']): r for _, r in g.iterrows()}
-        for b in r_bets:
+
+        # TierA:3連単1着固定(4点) は 1着固定ながし(6点)ではなく
+        # 2着2頭絞りフォーメーション (h1 → o0, o1 → o0, o1, o2 = 4点) のため1件にまとめて表記する
+        tier_a_tan_bets = [b for b in r_bets if b['bt'] == 'TierA:3連単1着固定(4点)']
+        other_bets = [b for b in r_bets if b['bt'] != 'TierA:3連単1着固定(4点)']
+
+        if tier_a_tan_bets:
+            triples = []
+            for b in tier_a_tan_bets:
+                p_nums = b['line'].split(',')[6].split('-')
+                if len(p_nums) == 3 and all(x.isdigit() for x in p_nums):
+                    triples.append((int(p_nums[0]), int(p_nums[1]), int(p_nums[2])))
+            if triples:
+                s1 = list(dict.fromkeys(t[0] for t in triples))
+                s2 = list(dict.fromkeys(t[1] for t in triples))
+                s3 = list(dict.fromkeys(t[2] for t in triples))
+                unit = int(tier_a_tan_bets[0]['unit'])
+                combs = len(triples)
+                bt_disp = f"TierA:3連単フォーメーション({combs}点)"
+                eyes = (
+                    f"{', '.join(f'{x:02d}' for x in s1)} → "
+                    f"{', '.join(f'{x:02d}' for x in s2)} → "
+                    f"{', '.join(f'{x:02d}' for x in s3)}"
+                )
+                axis1 = s1[0]
+                partners = sorted((set(s2) | set(s3)) - set(s1))
+                detail_parts = [bt_disp]
+                if axis1 in row_by_u:
+                    r1 = row_by_u[axis1]
+                    detail_parts.append(
+                        f"軸{axis1:02d}(ev {r1['ev_win']:.2f} / edge {r1['place_edge']:.2f} / {r1['odds_val']:.1f}倍)"
+                    )
+                candidates.append({
+                    'line': f"{date_str},{track_name},{race_no},SANRENTAN,FORMATION,,{eyes},{unit}",
+                    'lines': [b['line'] for b in tier_a_tan_bets],
+                    'race_id': s_r12,
+                    'strategy_id': bt_disp,
+                    'model': model_label,
+                    'bet_type': bt_disp,
+                    'rawType': bt_disp,
+                    'unit': unit,
+                    'combs': combs,
+                    'cost': unit * combs,
+                    'axis1Num': axis1,
+                    'axis2Num': None,
+                    'partnerNums': partners,
+                    'bettingEyesText': eyes,
+                    'detailText': " | ".join(detail_parts),
+                    'h1PopRank': ninki_map.get((r_code, axis1)),
+                })
+
+        for b in other_bets:
             line = b['line']
             bt = b['bt']
             unit = int(b['unit'])
