@@ -3574,62 +3574,61 @@
     },
     "strat2": {
       "action_id": 5,
-      "action_name": "TierS(主力合議:3単6点+3複4点)(3連複4点) + TierS(主力合議:3単6点+3複4点)(3連単6点)",
+      "action_name": "TierB(軽量スマート:最小300円)(3連複1点) + TierB(軽量スマート:最小300円)(3連単2点)",
       "is_pickup": true,
-      "cost": 1400,
-      "combs": 10,
+      "cost": 300,
+      "combs": 3,
       "axis1Num": 6,
       "axis2Num": null,
       "partnerNums": [
         13,
         15,
-        11
+        5
       ],
-      "bettingEyesText": "06, 11, 13, 15 BOX / 06 → 11, 13, 15",
+      "bettingEyesText": "06, 13, 15 BOX / 06 → 13 → 15, 05",
       "rawType": "Kelly3-v12×残差統合",
       "lines": [
-        "20261128,TOKYO,10,SANRENPUKU,BOX,,06111315,200",
-        "20261128,TOKYO,10,SANRENTAN,WHEEL1,,06-111315,100"
+        "20261128,TOKYO,10,SANRENPUKU,NORMAL,,06-13-15,100",
+        "20261128,TOKYO,10,SANRENTAN,WHEEL12,,06-13-0515,100"
       ],
       "model": "Kelly3 v12×Residual Hybrid (Plan 2)",
       "sub_items": [
         {
           "type": "SANRENPUKU",
-          "rawType": "3連複-4頭BOX",
+          "rawType": "3連複-3頭BOX",
           "bet_type_jp": "3連複",
           "action_id": 5,
-          "action_name": "TierS(主力合議:3単6点+3複4点)(3連複4点)",
+          "action_name": "TierB(軽量スマート:最小300円)(3連複1点)",
           "agent": "sanren",
-          "agent_label": "K3統合 (200円/点)",
-          "unit": 200,
-          "combs": 4,
-          "cost": 800,
-          "bettingEyesText": "06, 11, 13, 15 BOX",
+          "agent_label": "K3統合 (100円/点)",
+          "unit": 100,
+          "combs": 1,
+          "cost": 100,
+          "bettingEyesText": "06, 13, 15 BOX",
           "axis1Num": null,
           "axis2Num": null,
           "partnerNums": [
             6,
-            11,
             13,
             15
           ]
         },
         {
           "type": "SANRENTAN",
-          "rawType": "3連単-1頭軸3頭流し",
+          "rawType": "3連単フォーメーション",
           "bet_type_jp": "3連単",
           "action_id": 23,
-          "action_name": "TierS(主力合議:3単6点+3複4点)(3連単6点)",
+          "action_name": "TierB(軽量スマート:最小300円)(3連単2点)",
           "agent": "sanren",
           "agent_label": "K3統合 (100円/点)",
           "unit": 100,
-          "combs": 6,
-          "cost": 600,
-          "bettingEyesText": "06 → 11, 13, 15",
+          "combs": 2,
+          "cost": 200,
+          "bettingEyesText": "06 → 13 → 15, 05",
           "axis1Num": 6,
           "axis2Num": null,
           "partnerNums": [
-            11,
+            5,
             13,
             15
           ]
@@ -3637,8 +3636,7 @@
       ],
       "lane": "Lane_A",
       "lane_jp": "レーンA",
-      "top_horses": "6-13-15-11",
-      "version": "k3_plan2_v12_residual_v3"
+      "top_horses": "6-13-15-5"
     }
   },
   "202605050711": {
