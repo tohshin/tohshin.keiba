@@ -8602,14 +8602,14 @@
       "axis2Num": null,
       "partnerNums": [
         10,
-        5,
-        3
+        9,
+        5
       ],
-      "bettingEyesText": "08, 10 - 03, 05 / 08 → 10 → 05",
+      "bettingEyesText": "08, 10 - 05, 09 / 08 → 10 → 09",
       "rawType": "Kelly3-v12×残差統合",
       "lines": [
-        "20261128,KYOTO,11,SANRENPUKU,WHEEL2B,,08-10-0305,100",
-        "20261128,KYOTO,11,SANRENTAN,NORMAL,,08-10-05,100"
+        "20261128,KYOTO,11,SANRENPUKU,WHEEL2B,,08-10-0509,100",
+        "20261128,KYOTO,11,SANRENTAN,NORMAL,,08-10-09,100"
       ],
       "model": "Kelly3 v12×Residual Hybrid (Plan 2)",
       "sub_items": [
@@ -8624,12 +8624,12 @@
           "unit": 100,
           "combs": 2,
           "cost": 200,
-          "bettingEyesText": "08, 10 - 03, 05",
+          "bettingEyesText": "08, 10 - 05, 09",
           "axis1Num": 8,
           "axis2Num": 10,
           "partnerNums": [
-            3,
-            5
+            5,
+            9
           ]
         },
         {
@@ -8643,19 +8643,18 @@
           "unit": 100,
           "combs": 1,
           "cost": 100,
-          "bettingEyesText": "08 → 10 → 05",
+          "bettingEyesText": "08 → 10 → 09",
           "axis1Num": 8,
           "axis2Num": null,
           "partnerNums": [
-            5,
+            9,
             10
           ]
         }
       ],
       "lane": "Lane_A",
       "lane_jp": "レーンA",
-      "top_horses": "8-10-5-3",
-      "version": "k3_plan2_v12_residual_v3"
+      "top_horses": "8-10-9-5"
     }
   },
   "202608050712": {
