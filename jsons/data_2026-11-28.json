@@ -1428,13 +1428,13 @@
       "partnerNums": [
         2,
         1,
-        3
+        6
       ],
-      "bettingEyesText": "01, 02, 08 BOX / 08 → 02 → 01, 03",
+      "bettingEyesText": "01, 02, 08 BOX / 08 → 02 → 01, 06",
       "rawType": "Kelly3-v12×残差統合",
       "lines": [
         "20261128,TOKYO,4,SANRENPUKU,NORMAL,,01-02-08,100",
-        "20261128,TOKYO,4,SANRENTAN,WHEEL12,,08-02-0103,100"
+        "20261128,TOKYO,4,SANRENTAN,WHEEL12,,08-02-0106,100"
       ],
       "model": "Kelly3 v12×Residual Hybrid (Plan 2)",
       "sub_items": [
@@ -1469,20 +1469,19 @@
           "unit": 100,
           "combs": 2,
           "cost": 200,
-          "bettingEyesText": "08 → 02 → 01, 03",
+          "bettingEyesText": "08 → 02 → 01, 06",
           "axis1Num": 8,
           "axis2Num": null,
           "partnerNums": [
             1,
             2,
-            3
+            6
           ]
         }
       ],
       "lane": "Lane_A",
       "lane_jp": "レーンA",
-      "top_horses": "8-2-1-3",
-      "version": "k3_plan2_v12_residual_v3"
+      "top_horses": "8-2-1-6"
     }
   },
   "202605050705": {
