@@ -7118,22 +7118,22 @@
     },
     "strat2": {
       "action_id": 5,
-      "action_name": "TierS(主力合議:3単6点+3複4点)(3連複4点) + TierS(主力合議:3単6点+3複4点)(3連単6点)",
+      "action_name": "TierA(複勝エッジ:3複4点+3単4点)(3連複4点) + TierA(複勝エッジ:3複4点+3単4点)(3連単4点)",
       "is_pickup": true,
-      "cost": 1400,
-      "combs": 10,
-      "axis1Num": 9,
+      "cost": 1200,
+      "combs": 8,
+      "axis1Num": 8,
       "axis2Num": null,
       "partnerNums": [
-        5,
         4,
-        8
+        5,
+        13
       ],
-      "bettingEyesText": "04, 05, 08, 09 BOX / 09 → 04, 05, 08",
+      "bettingEyesText": "04, 05, 08, 13 BOX / 08 → 04, 05 → 05, 13, 04",
       "rawType": "Kelly3-v12×残差統合",
       "lines": [
-        "20261128,KYOTO,7,SANRENPUKU,BOX,,04050809,200",
-        "20261128,KYOTO,7,SANRENTAN,WHEEL1,,09-040508,100"
+        "20261128,KYOTO,7,SANRENPUKU,BOX,,04050813,200",
+        "20261128,KYOTO,7,SANRENTAN,FORMATION,,08-0405-040513,100"
       ],
       "model": "Kelly3 v12×Residual Hybrid (Plan 2)",
       "sub_items": [
@@ -7142,47 +7142,46 @@
           "rawType": "3連複-4頭BOX",
           "bet_type_jp": "3連複",
           "action_id": 5,
-          "action_name": "TierS(主力合議:3単6点+3複4点)(3連複4点)",
+          "action_name": "TierA(複勝エッジ:3複4点+3単4点)(3連複4点)",
           "agent": "sanren",
           "agent_label": "K3統合 (200円/点)",
           "unit": 200,
           "combs": 4,
           "cost": 800,
-          "bettingEyesText": "04, 05, 08, 09 BOX",
+          "bettingEyesText": "04, 05, 08, 13 BOX",
           "axis1Num": null,
           "axis2Num": null,
           "partnerNums": [
             4,
             5,
             8,
-            9
+            13
           ]
         },
         {
           "type": "SANRENTAN",
-          "rawType": "3連単-1頭軸3頭流し",
+          "rawType": "3連単フォーメーション",
           "bet_type_jp": "3連単",
           "action_id": 23,
-          "action_name": "TierS(主力合議:3単6点+3複4点)(3連単6点)",
+          "action_name": "TierA(複勝エッジ:3複4点+3単4点)(3連単4点)",
           "agent": "sanren",
           "agent_label": "K3統合 (100円/点)",
           "unit": 100,
-          "combs": 6,
-          "cost": 600,
-          "bettingEyesText": "09 → 04, 05, 08",
-          "axis1Num": 9,
+          "combs": 4,
+          "cost": 400,
+          "bettingEyesText": "08 → 04, 05 → 05, 13, 04",
+          "axis1Num": 8,
           "axis2Num": null,
           "partnerNums": [
             4,
             5,
-            8
+            13
           ]
         }
       ],
       "lane": "Lane_B",
       "lane_jp": "レーンB",
-      "top_horses": "9-5-4-8",
-      "version": "k3_plan2_v12_residual_v3"
+      "top_horses": "8-4-5-13"
     }
   },
   "202608050708": {
